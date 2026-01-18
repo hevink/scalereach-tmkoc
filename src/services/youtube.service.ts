@@ -1,0 +1,180 @@
+import { spawn } from "child_process";
+import { Readable } from "stream";
+
+export interface YouTubeVideoInfo {
+  id: string;
+  title: string;
+  duration: number;
+  thumbnail: string;
+  channelName: string;
+  description: string;
+}
+
+export interface StreamResult {
+  stream: Readable;
+  mimeType: string;
+  videoInfo: YouTubeVideoInfo;
+}
+
+export class YouTubeService {
+
+  static extractVideoId(url: string): string | null {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
+      /^([a-zA-Z0-9_-]{11})$/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) {
+        return match[1];
+      }
+    }
+    return null;
+  }
+
+  static async getVideoInfo(url: string): Promise<YouTubeVideoInfo> {
+    console.log(`[YOUTUBE SERVICE] Getting video info for: ${url}`);
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "--dump-json",
+        "--no-download",
+        url,
+      ];
+
+      const process = spawn("yt-dlp", args);
+      let stdout = "";
+      let stderr = "";
+
+      process.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+
+      process.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      process.on("close", (code) => {
+        if (code !== 0) {
+          console.error(`[YOUTUBE SERVICE] yt-dlp error: ${stderr}`);
+          reject(new Error(`Failed to get video info: ${stderr}`));
+          return;
+        }
+
+        try {
+          const info = JSON.parse(stdout);
+
+          // ===============================
+          // ✅ ESTIMATE FILE SIZE
+          // ===============================
+          const bestMp4Format = info.formats
+            ?.filter((f: any) =>
+              f.ext === "mp4" &&
+              (f.filesize_approx || f.filesize)
+            )
+            ?.sort(
+              (a: any, b: any) =>
+                (b.filesize_approx || b.filesize) -
+                (a.filesize_approx || a.filesize)
+            )?.[0];
+
+          const estimatedBytes =
+            bestMp4Format?.filesize_approx || bestMp4Format?.filesize;
+
+          if (estimatedBytes) {
+            const estimatedMB = (estimatedBytes / (1024 * 1024)).toFixed(1);
+            console.log(
+              `[YOUTUBE SERVICE] Estimated file size: ~${estimatedMB} MB`
+            );
+          } else {
+            console.log(
+              `[YOUTUBE SERVICE] Estimated file size: Not available`
+            );
+          }
+
+          // ===============================
+          // EXISTING RETURN
+          // ===============================
+          resolve({
+            id: info.id,
+            title: info.title,
+            duration: info.duration,
+            thumbnail: info.thumbnail,
+            channelName: info.channel || info.uploader,
+            description: info.description,
+          });
+
+        } catch (e) {
+          reject(new Error(`Failed to parse video info: ${e}`));
+        }
+
+      });
+
+      process.on("error", (err) => {
+        reject(new Error(`Failed to spawn yt-dlp: ${err.message}`));
+      });
+    });
+  }
+
+  static async streamAudio(url: string): Promise<StreamResult> {
+    console.log(`[YOUTUBE SERVICE] Starting audio stream: ${url}`);
+
+    const videoId = this.extractVideoId(url);
+    if (!videoId) {
+      throw new Error("Invalid YouTube URL");
+    }
+
+    const videoInfo = await this.getVideoInfo(url);
+
+    const args = [
+      "-f", "bestaudio[ext=m4a]/bestaudio",
+      "-o", "-", // Output to stdout
+      "--quiet", // Suppress progress output
+      "--no-warnings",
+      url,
+    ];
+
+    const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
+    if (cookiesPath) {
+      args.unshift("--cookies", cookiesPath);
+    }
+
+    const ytdlpProcess = spawn("yt-dlp", args);
+
+    if (!ytdlpProcess.stdout) {
+      throw new Error("Failed to create stdout stream");
+    }
+
+    const stream = ytdlpProcess.stdout as unknown as Readable;
+    let stderr = "";
+
+    ytdlpProcess.stderr?.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ytdlpProcess.on("error", (err) => {
+      console.error(`[YOUTUBE SERVICE] Process error: ${err.message}`);
+      stream.destroy(new Error(`Failed to spawn yt-dlp: ${err.message}. Make sure yt-dlp is installed.`));
+    });
+
+    ytdlpProcess.on("close", (code) => {
+      if (code !== 0 && code !== null) {
+        console.error(`[YOUTUBE SERVICE] Stream failed: ${stderr}`);
+        stream.destroy(new Error(`Stream failed with code ${code}: ${stderr}`));
+      }
+    });
+
+    console.log(`[YOUTUBE SERVICE] Audio stream started for: ${videoInfo.title}`);
+
+    return {
+      stream,
+      mimeType: "audio/m4a",
+      videoInfo,
+    };
+  }
+
+  static isValidYouTubeUrl(url: string): boolean {
+    return this.extractVideoId(url) !== null;
+  }
+}
