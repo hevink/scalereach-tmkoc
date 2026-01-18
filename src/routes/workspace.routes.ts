@@ -33,5 +33,6 @@ workspaceRouter.get("/:id/invitations", InvitationController.getWorkspaceInvitat
 workspaceRouter.post("/:id/invitations", InvitationController.createInvitation);
 workspaceRouter.delete("/:id/invitations/:invitationId", InvitationController.cancelInvitation);
 workspaceRouter.post("/:id/invitations/:invitationId/resend", InvitationController.resendInvitation);
+workspaceRouter.get("/:id/invitations/:invitationId/link", InvitationController.getInvitationLink);
 
 export default workspaceRouter;

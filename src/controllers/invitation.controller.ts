@@ -60,8 +60,12 @@ export class InvitationController {
 
       // Check if invitation already exists
       const existingInvitation = await InvitationModel.getByWorkspaceAndEmail(workspaceId, email);
-      if (existingInvitation && existingInvitation.status === "pending") {
-        return c.json({ error: "An invitation has already been sent to this email" }, 409);
+      if (existingInvitation) {
+        if (existingInvitation.status === "pending") {
+          return c.json({ error: "An invitation has already been sent to this email" }, 409);
+        }
+        // If invitation exists but is expired/declined, delete it and create a new one
+        await InvitationModel.delete(existingInvitation.id);
       }
 
       // Check if user is already a member
@@ -354,6 +358,47 @@ export class InvitationController {
     } catch (error) {
       console.error(`[INVITATION CONTROLLER] RESEND_INVITATION error:`, error);
       return c.json({ error: "Failed to resend invitation" }, 500);
+    }
+  }
+
+  // Get invitation link token - GET /api/workspaces/:id/invitations/:invitationId/link
+  static async getInvitationLink(c: Context) {
+    const workspaceId = c.req.param("id");
+    const invitationId = c.req.param("invitationId");
+    InvitationController.logRequest(c, "GET_INVITATION_LINK", { workspaceId, invitationId });
+
+    try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Check if user has permission (owner or admin)
+      const members = await WorkspaceModel.getMembers(workspaceId);
+      const currentMember = members.find((m) => m.userId === user.id);
+      if (!currentMember || !["owner", "admin"].includes(currentMember.role)) {
+        return c.json({ error: "You don't have permission to access invitation links" }, 403);
+      }
+
+      const invitation = await InvitationModel.getById(invitationId);
+      if (!invitation || invitation.workspaceId !== workspaceId) {
+        return c.json({ error: "Invitation not found" }, 404);
+      }
+
+      if (invitation.status !== "pending") {
+        return c.json({ error: "Invitation is no longer pending" }, 400);
+      }
+
+      const token = await InvitationModel.getTokenById(invitationId);
+      if (!token) {
+        return c.json({ error: "Token not found" }, 404);
+      }
+
+      console.log(`[INVITATION CONTROLLER] GET_INVITATION_LINK success`);
+      return c.json({ token });
+    } catch (error) {
+      console.error(`[INVITATION CONTROLLER] GET_INVITATION_LINK error:`, error);
+      return c.json({ error: "Failed to get invitation link" }, 500);
     }
   }
 
