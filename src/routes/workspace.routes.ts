@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { WorkspaceController } from "../controllers/workspace.controller";
+import { InvitationController } from "../controllers/invitation.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
 const workspaceRouter = new Hono();
@@ -24,5 +25,13 @@ workspaceRouter.delete("/slug/:slug/logo", WorkspaceController.deleteLogo);
 // Workspace members routes
 workspaceRouter.get("/:id/members", WorkspaceController.getWorkspaceMembers);
 workspaceRouter.post("/:id/members", WorkspaceController.addWorkspaceMember);
+workspaceRouter.put("/:id/members/:memberId", WorkspaceController.updateMemberRole);
+workspaceRouter.delete("/:id/members/:memberId", WorkspaceController.removeMember);
+
+// Workspace invitations routes
+workspaceRouter.get("/:id/invitations", InvitationController.getWorkspaceInvitations);
+workspaceRouter.post("/:id/invitations", InvitationController.createInvitation);
+workspaceRouter.delete("/:id/invitations/:invitationId", InvitationController.cancelInvitation);
+workspaceRouter.post("/:id/invitations/:invitationId/resend", InvitationController.resendInvitation);
 
 export default workspaceRouter;

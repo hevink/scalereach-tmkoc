@@ -184,8 +184,21 @@ export class WorkspaceModel {
     
     try {
       const result = await db
-        .select()
+        .select({
+          id: workspaceMember.id,
+          workspaceId: workspaceMember.workspaceId,
+          userId: workspaceMember.userId,
+          role: workspaceMember.role,
+          createdAt: workspaceMember.createdAt,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            image: user.image,
+          },
+        })
         .from(workspaceMember)
+        .innerJoin(user, eq(workspaceMember.userId, user.id))
         .where(eq(workspaceMember.workspaceId, workspaceId));
       const duration = performance.now() - startTime;
       console.log(`[WORKSPACE MODEL] GET_WORKSPACE_MEMBERS completed in ${duration.toFixed(2)}ms, found ${result.length} members`);
@@ -229,6 +242,46 @@ export class WorkspaceModel {
     } catch (error) {
       const duration = performance.now() - startTime;
       console.error(`[WORKSPACE MODEL] REMOVE_WORKSPACE_MEMBER failed after ${duration.toFixed(2)}ms:`, error);
+      throw error;
+    }
+  }
+
+  static async updateMemberRole(id: string, role: "admin" | "member") {
+    this.logOperation('UPDATE_MEMBER_ROLE', { id, role });
+    const startTime = performance.now();
+    
+    try {
+      const result = await db
+        .update(workspaceMember)
+        .set({ role })
+        .where(eq(workspaceMember.id, id))
+        .returning();
+      const duration = performance.now() - startTime;
+      console.log(`[WORKSPACE MODEL] UPDATE_MEMBER_ROLE completed in ${duration.toFixed(2)}ms`);
+      return result[0];
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(`[WORKSPACE MODEL] UPDATE_MEMBER_ROLE failed after ${duration.toFixed(2)}ms:`, error);
+      throw error;
+    }
+  }
+
+  static async getMemberByUserAndWorkspace(userId: string, workspaceId: string) {
+    this.logOperation('GET_MEMBER_BY_USER_AND_WORKSPACE', { userId, workspaceId });
+    const startTime = performance.now();
+    
+    try {
+      const result = await db
+        .select()
+        .from(workspaceMember)
+        .where(eq(workspaceMember.workspaceId, workspaceId));
+      const member = result.find(m => m.userId === userId);
+      const duration = performance.now() - startTime;
+      console.log(`[WORKSPACE MODEL] GET_MEMBER_BY_USER_AND_WORKSPACE completed in ${duration.toFixed(2)}ms, found: ${!!member}`);
+      return member;
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(`[WORKSPACE MODEL] GET_MEMBER_BY_USER_AND_WORKSPACE failed after ${duration.toFixed(2)}ms:`, error);
       throw error;
     }
   }
