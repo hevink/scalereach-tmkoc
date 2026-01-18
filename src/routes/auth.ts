@@ -15,7 +15,13 @@ const ALLOWED_ORIGINS = [
 
 // Mount all Better Auth endpoints - Better Auth handles /sign-up/email, /sign-in/email, etc.
 authRouter.all("/*", async (c) => {
+  // Better Auth expects the full URL path, so we pass the raw request directly
+  // The basePath in auth config should match the mount point
+  console.log(`[AUTH ROUTER] Handling request: ${c.req.method} ${c.req.url}`);
+  
   const response = await auth.handler(c.req.raw);
+
+  console.log(`[AUTH ROUTER] Response status: ${response.status}`);
 
   // Add CORS headers to the response since auth.handler bypasses Hono middleware
   const origin = c.req.header("origin");

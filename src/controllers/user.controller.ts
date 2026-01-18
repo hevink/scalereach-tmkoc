@@ -157,7 +157,8 @@ export class UserController {
         return c.json({ error: "User not found" }, 404);
       }
       
-      const preferences = fullUser.preferences ? JSON.parse(fullUser.preferences as string) : {};
+      // preferences is already a jsonb object, no need to parse
+      const preferences = fullUser.preferences || {};
       
       console.log(`[USER CONTROLLER] GET_PREFERENCES success - user: ${user.id}`);
       return c.json(preferences);
@@ -179,12 +180,13 @@ export class UserController {
       
       const body = await c.req.json();
       
-      // Get current preferences and merge
+      // Get current preferences and merge (preferences is already an object)
       const fullUser = await UserModel.getById(user.id);
-      const currentPrefs = fullUser?.preferences ? JSON.parse(fullUser.preferences as string) : {};
+      const currentPrefs = fullUser?.preferences || {};
       const newPrefs = { ...currentPrefs, ...body };
       
-      await UserModel.update(user.id, { preferences: JSON.stringify(newPrefs) });
+      // Update with the merged preferences object (jsonb column accepts objects directly)
+      await UserModel.update(user.id, { preferences: newPrefs });
       
       console.log(`[USER CONTROLLER] UPDATE_PREFERENCES success - user: ${user.id}`);
       return c.json(newPrefs);
