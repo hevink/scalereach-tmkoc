@@ -228,4 +228,93 @@ export class WorkspaceController {
       return c.json({ error: "Failed to add workspace member" }, 500);
     }
   }
+
+  // Check slug availability
+  static async checkSlugAvailability(c: Context) {
+    const slug = c.req.param("slug");
+    WorkspaceController.logRequest(c, 'CHECK_SLUG_AVAILABILITY', { slug });
+    
+    try {
+      const workspace = await WorkspaceModel.getBySlug(slug);
+      const available = !workspace;
+      
+      console.log(`[WORKSPACE CONTROLLER] CHECK_SLUG_AVAILABILITY success - slug ${slug} available: ${available}`);
+      return c.json({ available, slug });
+    } catch (error) {
+      console.error(`[WORKSPACE CONTROLLER] CHECK_SLUG_AVAILABILITY error:`, error);
+      return c.json({ error: "Failed to check slug availability" }, 500);
+    }
+  }
+
+  // Delete workspace by slug
+  static async deleteWorkspaceBySlug(c: Context) {
+    const slug = c.req.param("slug");
+    WorkspaceController.logRequest(c, 'DELETE_WORKSPACE_BY_SLUG', { slug });
+    
+    try {
+      const workspace = await WorkspaceModel.getBySlug(slug);
+      if (!workspace) {
+        console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG - workspace not found: ${slug}`);
+        return c.json({ error: "Workspace not found" }, 404);
+      }
+
+      await WorkspaceModel.delete(workspace.id);
+      console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG success - deleted workspace: ${slug}`);
+      return c.json({ message: "Workspace deleted successfully" });
+    } catch (error) {
+      console.error(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG error:`, error);
+      return c.json({ error: "Failed to delete workspace" }, 500);
+    }
+  }
+
+  // Upload workspace logo
+  static async uploadLogo(c: Context) {
+    const slug = c.req.param("slug");
+    WorkspaceController.logRequest(c, 'UPLOAD_LOGO', { slug });
+    
+    try {
+      const workspace = await WorkspaceModel.getBySlug(slug);
+      if (!workspace) {
+        console.log(`[WORKSPACE CONTROLLER] UPLOAD_LOGO - workspace not found: ${slug}`);
+        return c.json({ error: "Workspace not found" }, 404);
+      }
+
+      const body = await c.req.json();
+      const { logo } = body;
+      
+      if (!logo) {
+        return c.json({ error: "Logo is required" }, 400);
+      }
+
+      const updatedWorkspace = await WorkspaceModel.update(workspace.id, { logo });
+      
+      console.log(`[WORKSPACE CONTROLLER] UPLOAD_LOGO success - workspace: ${slug}`);
+      return c.json({ success: true, logo: updatedWorkspace?.logo });
+    } catch (error) {
+      console.error(`[WORKSPACE CONTROLLER] UPLOAD_LOGO error:`, error);
+      return c.json({ error: "Failed to upload logo" }, 500);
+    }
+  }
+
+  // Delete workspace logo
+  static async deleteLogo(c: Context) {
+    const slug = c.req.param("slug");
+    WorkspaceController.logRequest(c, 'DELETE_LOGO', { slug });
+    
+    try {
+      const workspace = await WorkspaceModel.getBySlug(slug);
+      if (!workspace) {
+        console.log(`[WORKSPACE CONTROLLER] DELETE_LOGO - workspace not found: ${slug}`);
+        return c.json({ error: "Workspace not found" }, 404);
+      }
+
+      await WorkspaceModel.update(workspace.id, { logo: "" });
+      
+      console.log(`[WORKSPACE CONTROLLER] DELETE_LOGO success - workspace: ${slug}`);
+      return c.json({ success: true });
+    } catch (error) {
+      console.error(`[WORKSPACE CONTROLLER] DELETE_LOGO error:`, error);
+      return c.json({ error: "Failed to delete logo" }, 500);
+    }
+  }
 }
