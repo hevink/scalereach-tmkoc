@@ -1,0 +1,61 @@
+# Render Blueprint - https://render.com/docs/blueprint-spec
+services:
+  # Main API Server
+  - type: web
+    name: scalereach-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: oregon # or singapore, frankfurt, ohio
+    plan: starter # $7/month - recommended for video processing
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Set manually in Render dashboard
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: BETTER_AUTH_URL
+        fromService:
+          type: web
+          name: scalereach-api
+          property: host
+      - key: FRONTEND_URL
+        sync: false # Set to your Vercel/frontend URL
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: scalereach-redis
+          property: connectionString
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: POLAR_ACCESS_TOKEN
+        sync: false
+      - key: POLAR_WEBHOOK_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+  # Redis for BullMQ job queue
+  - type: redis
+    name: scalereach-redis
+    region: oregon
+    plan: free # or starter for persistence
+    ipAllowList: [] # Allow only internal connections
