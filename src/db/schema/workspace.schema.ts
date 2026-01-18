@@ -41,17 +41,16 @@ export const workspaceMember = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    role: text("role").notNull().$type<"owner" | "admin" | "member">(),
+    role: text("role").notNull(), // 'owner' | 'admin' | 'member'
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({
-    workspaceIdUserIdIdx: uniqueIndex(
-      "idx_workspaceMember_workspaceId_userId"
-    ).on(table.workspaceId, table.userId),
-    userIdIdx: index("idx_workspaceMember_userId").on(table.userId),
-    workspaceIdIdx: index("idx_workspaceMember_workspaceId").on(
-      table.workspaceId
+    workspaceUserIdx: uniqueIndex("idx_workspaceMember_workspaceId_userId").on(
+      table.workspaceId,
+      table.userId
     ),
+    userIdIdx: index("idx_workspaceMember_userId").on(table.userId),
+    workspaceIdIdx: index("idx_workspaceMember_workspaceId").on(table.workspaceId),
   })
 );
 
@@ -64,16 +63,13 @@ export const workspaceRelations = relations(workspace, ({ one, many }) => ({
   members: many(workspaceMember),
 }));
 
-export const workspaceMemberRelations = relations(
-  workspaceMember,
-  ({ one }) => ({
-    workspace: one(workspace, {
-      fields: [workspaceMember.workspaceId],
-      references: [workspace.id],
-    }),
-    user: one(user, {
-      fields: [workspaceMember.userId],
-      references: [user.id],
-    }),
-  })
-);
+export const workspaceMemberRelations = relations(workspaceMember, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [workspaceMember.workspaceId],
+    references: [workspace.id],
+  }),
+  user: one(user, {
+    fields: [workspaceMember.userId],
+    references: [user.id],
+  }),
+}));

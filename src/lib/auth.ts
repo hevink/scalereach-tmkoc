@@ -2,10 +2,12 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { username } from "better-auth/plugins/username";
+import { passkey } from "@better-auth/passkey";
 import { db } from "../db";
 import * as schema from "../db/schema";
 
 export const auth = betterAuth({
+  basePath: "/api/auth",
   database: drizzleAdapter(db, {
     provider: "pg", // Using PostgreSQL with Neon
     schema,
@@ -16,6 +18,11 @@ export const auth = betterAuth({
   },
   plugins: [
     username(),
+    passkey({
+      rpID: "localhost",
+      rpName: "Scalereach",
+      origin: "http://localhost:3000",
+    }),
     twoFactor({
       issuer: "Scalereach",
     }),
