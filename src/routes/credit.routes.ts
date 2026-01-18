@@ -17,6 +17,7 @@ creditRouter.use("/*", authMiddleware);
 creditRouter.get("/workspaces/:workspaceId/balance", CreditController.getBalance);
 creditRouter.get("/workspaces/:workspaceId/transactions", CreditController.getTransactions);
 creditRouter.post("/workspaces/:workspaceId/checkout", CreditController.createCheckout);
+creditRouter.get("/workspaces/:workspaceId/portal", CreditController.getCustomerPortal);
 creditRouter.post("/workspaces/:workspaceId/bonus", CreditController.addBonusCredits);
 
 export default creditRouter;

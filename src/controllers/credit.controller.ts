@@ -294,6 +294,41 @@ export class CreditController {
     }
   }
 
+  // Get customer portal URL
+  static async getCustomerPortal(c: Context) {
+    const workspaceId = c.req.param("workspaceId");
+    CreditController.logRequest(c, "GET_CUSTOMER_PORTAL", { workspaceId });
+
+    try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Check if user has access to workspace
+      const members = await WorkspaceModel.getMembers(workspaceId);
+      const isMember = members.some((m) => m.userId === user.id);
+      if (!isMember) {
+        return c.json({ error: "Access denied" }, 403);
+      }
+
+      if (!PolarService.isConfigured()) {
+        return c.json({ error: "Payment system not configured" }, 503);
+      }
+
+      // Polar customer portal URL
+      const portalUrl = process.env.POLAR_ENVIRONMENT === "production"
+        ? "https://polar.sh/purchases"
+        : "https://sandbox.polar.sh/purchases";
+
+      console.log(`[CREDIT CONTROLLER] GET_CUSTOMER_PORTAL success`);
+      return c.json({ portalUrl });
+    } catch (error) {
+      console.error(`[CREDIT CONTROLLER] GET_CUSTOMER_PORTAL error:`, error);
+      return c.json({ error: "Failed to get customer portal" }, 500);
+    }
+  }
+
   // Admin: Add bonus credits
   static async addBonusCredits(c: Context) {
     const workspaceId = c.req.param("workspaceId");
