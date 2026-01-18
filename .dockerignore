@@ -1,0 +1,40 @@
+# Dependencies
+node_modules
+
+# Git
+.git
+.gitignore
+
+# Environment files (set via Render dashboard)
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Build artifacts
+dist
+build
+.next
+
+# Documentation
+*.md
+docs/
+
+# Test files
+*.test.ts
+*.spec.ts
+__tests__
+coverage
+
+# OS files
+.DS_Store
+Thumbs.db

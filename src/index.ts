@@ -18,14 +18,18 @@ const app = new Hono<{ Variables: AuthContext }>();
 
 // Add middleware
 app.use(logger());
+
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:5173",
-      "http://localhost:5174",
-    ], // Common ports for Next.js and Vite dev servers
+    origin: allowedOrigins,
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
@@ -48,6 +52,11 @@ app.get("/api-docs.json", (c) => {
   return c.json(openApiDocument);
 });
 
+// Health check endpoint for Docker/Render
+app.get("/health", (c) => {
+  return c.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // Root route
 app.get("/", (c) => {
   return c.json({
@@ -62,6 +71,7 @@ app.get("/", (c) => {
       videos: "/api/videos",
       credits: "/api/credits",
       docs: "/api-docs",
+      health: "/health",
     },
   });
 });
