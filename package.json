@@ -19,6 +19,8 @@
     "@deepgram/sdk": "^4.11.3",
     "@hono/zod-openapi": "^1.2.0",
     "@neondatabase/serverless": "^1.0.2",
+    "@polar-sh/better-auth": "^1.6.4",
+    "@polar-sh/sdk": "^0.42.2",
     "ai": "^6.0.39",
     "axios": "^1.13.2",
     "better-auth": "^1.4.11",
