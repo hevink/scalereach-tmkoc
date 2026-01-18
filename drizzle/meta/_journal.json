@@ -15,6 +15,13 @@
       "when": 1768596405260,
       "tag": "0001_steep_joshua_kane",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1768749428217,
+      "tag": "0002_chief_shadow_king",
+      "breakpoints": true
     }
   ]
 }

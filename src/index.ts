@@ -4,6 +4,7 @@ import { logger } from "hono/logger";
 import authRouter from "./routes/auth";
 import userRouter from "./routes/user.routes";
 import workspaceRouter from "./routes/workspace.routes";
+import invitationRouter from "./routes/invitation.routes";
 import emailRouter from "./routes/email.routes";
 import projectRouter from "./routes/project.routes";
 import videoRouter from "./routes/video.routes";
@@ -34,6 +35,7 @@ app.use(
 app.route("/api/auth", authRouter);
 app.route("/api/users", userRouter);
 app.route("/api/workspaces", workspaceRouter);
+app.route("/api/invitations", invitationRouter);
 app.route("/api/email", emailRouter);
 app.route("/api/projects", projectRouter);
 app.route("/api/videos", videoRouter);
@@ -52,6 +54,7 @@ app.get("/", (c) => {
       users: "/api/users",
       auth: "/api/auth",
       workspaces: "/api/workspaces",
+      invitations: "/api/invitations",
       email: "/api/email",
       projects: "/api/projects",
       videos: "/api/videos",
