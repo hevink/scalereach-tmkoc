@@ -40,9 +40,10 @@ export const video = pgTable(
   "video",
   {
     id: text("id").primaryKey(),
-    projectId: text("project_id")
+    projectId: text("project_id").references(() => project.id, { onDelete: "cascade" }),
+    userId: text("user_id")
       .notNull()
-      .references(() => project.id, { onDelete: "cascade" }),
+      .references(() => user.id, { onDelete: "cascade" }),
     sourceType: text("source_type").notNull(), // 'upload' | 'youtube' | 'url'
     sourceUrl: text("source_url"),
     storageKey: text("storage_key"),
@@ -52,7 +53,9 @@ export const video = pgTable(
     fileSize: integer("file_size"),
     mimeType: text("mime_type"),
     metadata: jsonb("metadata"),
-    status: text("status").default("pending").notNull(), // 'pending' | 'processing' | 'ready' | 'error'
+    transcript: text("transcript"),
+    transcriptWords: jsonb("transcript_words"),
+    status: text("status").default("pending").notNull(), // 'pending' | 'downloading' | 'uploading' | 'transcribing' | 'analyzing' | 'completed' | 'failed'
     errorMessage: text("error_message"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
@@ -62,6 +65,7 @@ export const video = pgTable(
   },
   (table) => ({
     projectIdIdx: index("idx_video_projectId").on(table.projectId),
+    userIdIdx: index("idx_video_userId").on(table.userId),
     statusIdx: index("idx_video_status").on(table.status),
     sourceTypeIdx: index("idx_video_sourceType").on(table.sourceType),
   })
@@ -112,6 +116,10 @@ export const videoRelations = relations(video, ({ one, many }) => ({
   project: one(project, {
     fields: [video.projectId],
     references: [project.id],
+  }),
+  user: one(user, {
+    fields: [video.userId],
+    references: [user.id],
   }),
   viralClips: many(viralClip),
 }));
