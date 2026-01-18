@@ -8,12 +8,18 @@ const workspaceRouter = new Hono();
 workspaceRouter.use("/*", authMiddleware);
 
 workspaceRouter.get("/", WorkspaceController.getAllWorkspaces);
-workspaceRouter.get("/:id", WorkspaceController.getWorkspaceById);
-workspaceRouter.get("/slug/:slug", WorkspaceController.getWorkspaceBySlug);
 workspaceRouter.post("/", WorkspaceController.createWorkspace);
+workspaceRouter.get("/:id", WorkspaceController.getWorkspaceById);
 workspaceRouter.put("/:id", WorkspaceController.updateWorkspace);
-workspaceRouter.put("/slug/:slug", WorkspaceController.updateWorkspaceBySlug);
 workspaceRouter.delete("/:id", WorkspaceController.deleteWorkspace);
+
+// Slug-based routes
+workspaceRouter.get("/slug/:slug", WorkspaceController.getWorkspaceBySlug);
+workspaceRouter.get("/slug/:slug/check", WorkspaceController.checkSlugAvailability);
+workspaceRouter.put("/slug/:slug", WorkspaceController.updateWorkspaceBySlug);
+workspaceRouter.delete("/slug/:slug", WorkspaceController.deleteWorkspaceBySlug);
+workspaceRouter.post("/slug/:slug/logo", WorkspaceController.uploadLogo);
+workspaceRouter.delete("/slug/:slug/logo", WorkspaceController.deleteLogo);
 
 // Workspace members routes
 workspaceRouter.get("/:id/members", WorkspaceController.getWorkspaceMembers);

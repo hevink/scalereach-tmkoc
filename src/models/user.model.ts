@@ -82,6 +82,7 @@ export class UserModel {
       twoFactorEnabled: boolean;
       displayUsername: string;
       preferences: any;
+      image: string | null;
     }>
   ) {
     this.logOperation('UPDATE_USER', { id, fields: Object.keys(data) });
