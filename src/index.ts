@@ -9,6 +9,8 @@ import emailRouter from "./routes/email.routes";
 import projectRouter from "./routes/project.routes";
 import videoRouter from "./routes/video.routes";
 import creditRouter from "./routes/credit.routes";
+import uploadRouter from "./routes/upload.routes";
+import uppyUploadRouter from "./routes/uppy-upload.routes";
 import swaggerApp from "./docs/swagger-ui";
 import { openApiDocument } from "./docs/openapi";
 import type { AuthContext } from "./lib/auth";
@@ -45,6 +47,8 @@ app.route("/api/email", emailRouter);
 app.route("/api/projects", projectRouter);
 app.route("/api/videos", videoRouter);
 app.route("/api/credits", creditRouter);
+app.route("/api/upload", uploadRouter);
+app.route("/api/uppy", uppyUploadRouter);
 app.route("/api-docs", swaggerApp); // Swagger UI at api-docs path
 
 // Serve the OpenAPI JSON specification directly at /api-docs.json too
@@ -70,6 +74,7 @@ app.get("/", (c) => {
       projects: "/api/projects",
       videos: "/api/videos",
       credits: "/api/credits",
+      upload: "/api/upload",
       docs: "/api-docs",
       health: "/health",
     },

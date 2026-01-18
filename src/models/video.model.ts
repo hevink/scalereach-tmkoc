@@ -87,6 +87,8 @@ export class VideoModel {
     sourceType: "youtube" | "upload";
     sourceUrl?: string;
     title?: string;
+    fileSize?: number;
+    mimeType?: string;
   }) {
     this.logOperation("CREATE_VIDEO", {
       id: data.id,
@@ -123,8 +125,10 @@ export class VideoModel {
       fileSize: number;
       mimeType: string;
       metadata: any;
-      status: "pending" | "downloading" | "uploading" | "completed" | "failed";
+      status: "pending" | "downloading" | "uploading" | "transcribing" | "analyzing" | "completed" | "failed";
       errorMessage: string;
+      transcript: string;
+      transcriptWords: any[];
     }>
   ) {
     this.logOperation("UPDATE_VIDEO", { id, fields: Object.keys(data) });
