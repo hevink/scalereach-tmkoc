@@ -1,0 +1,43 @@
+import { Hono } from "hono";
+import { auth } from "../lib/auth";
+import type { AuthContext } from "../lib/auth";
+
+const authRouter = new Hono<{
+  Variables: AuthContext;
+}>();
+
+const ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+
+// Mount all Better Auth endpoints - Better Auth handles /sign-up/email, /sign-in/email, etc.
+authRouter.all("/*", async (c) => {
+  const response = await auth.handler(c.req.raw);
+
+  // Add CORS headers to the response since auth.handler bypasses Hono middleware
+  const origin = c.req.header("origin");
+
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    const newHeaders = new Headers(response.headers);
+    newHeaders.set("Access-Control-Allow-Origin", origin);
+    newHeaders.set("Access-Control-Allow-Credentials", "true");
+    newHeaders.set(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    );
+    newHeaders.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    });
+  }
+
+  return response;
+});
+
+export default authRouter;
