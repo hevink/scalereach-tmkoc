@@ -379,10 +379,22 @@ export class WorkspaceController {
     WorkspaceController.logRequest(c, 'DELETE_WORKSPACE_BY_SLUG', { slug });
     
     try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
       const workspace = await WorkspaceModel.getBySlug(slug);
       if (!workspace) {
         console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG - workspace not found: ${slug}`);
         return c.json({ error: "Workspace not found" }, 404);
+      }
+
+      // Only owner can delete workspace
+      const members = await WorkspaceModel.getMembers(workspace.id);
+      const currentMember = members.find((m) => m.userId === user.id);
+      if (!currentMember || currentMember.role !== "owner") {
+        return c.json({ error: "Only the workspace owner can delete this workspace" }, 403);
       }
 
       await WorkspaceModel.delete(workspace.id);
