@@ -143,6 +143,25 @@ export class InvitationModel {
     }
   }
 
+  static async getTokenById(id: string) {
+    this.logOperation("GET_INVITATION_TOKEN", { id });
+    const startTime = performance.now();
+
+    try {
+      const result = await db
+        .select({ token: workspaceInvitation.token })
+        .from(workspaceInvitation)
+        .where(eq(workspaceInvitation.id, id));
+      const duration = performance.now() - startTime;
+      console.log(`[INVITATION MODEL] GET_INVITATION_TOKEN completed in ${duration.toFixed(2)}ms`);
+      return result[0]?.token;
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(`[INVITATION MODEL] GET_INVITATION_TOKEN failed after ${duration.toFixed(2)}ms:`, error);
+      throw error;
+    }
+  }
+
   static async getPendingInvitationsForEmail(email: string) {
     this.logOperation("GET_PENDING_INVITATIONS_FOR_EMAIL", { email });
     const startTime = performance.now();
