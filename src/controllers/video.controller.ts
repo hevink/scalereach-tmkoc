@@ -2,7 +2,7 @@ import { Context } from "hono";
 import { nanoid } from "nanoid";
 import { VideoModel } from "../models/video.model";
 import { ProjectModel } from "../models/project.model";
-import { YouTubeService } from "../services/youtube.service";
+import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
 import { addVideoProcessingJob, getJobStatus } from "../jobs/queue";
 
 export class VideoController {
@@ -35,6 +35,22 @@ export class VideoController {
 
       if (!YouTubeService.isValidYouTubeUrl(youtubeUrl)) {
         return c.json({ error: "Invalid YouTube URL" }, 400);
+      }
+
+      // Get video info to validate duration before processing
+      let videoInfo;
+      try {
+        videoInfo = await YouTubeService.getVideoInfo(youtubeUrl);
+      } catch (error) {
+        console.error(`[VIDEO CONTROLLER] Failed to get video info:`, error);
+        return c.json({ error: "Failed to retrieve video information. The video may be unavailable or private." }, 400);
+      }
+
+      // Validate video duration (max 4 hours)
+      const durationValidation = YouTubeService.validateVideoDuration(videoInfo.duration);
+      if (!durationValidation.valid) {
+        console.log(`[VIDEO CONTROLLER] Video duration validation failed: ${durationValidation.error}`);
+        return c.json({ error: durationValidation.error }, 400);
       }
 
       // Only validate project if projectId is provided
@@ -176,6 +192,16 @@ export class VideoController {
       }
 
       const videoInfo = await YouTubeService.getVideoInfo(url);
+
+      // Validate video duration (max 4 hours)
+      const durationValidation = YouTubeService.validateVideoDuration(videoInfo.duration);
+      if (!durationValidation.valid) {
+        return c.json({
+          valid: false,
+          error: durationValidation.error,
+          videoInfo,
+        });
+      }
 
       return c.json({
         valid: true,

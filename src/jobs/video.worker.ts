@@ -3,10 +3,11 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "../db";
 import { video, viralClip } from "../db/schema";
-import { YouTubeService } from "../services/youtube.service";
+import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
 import { R2Service } from "../services/r2.service";
 import { DeepgramService } from "../services/deepgram.service";
 import { ViralDetectionService } from "../services/viral-detection.service";
+import { FFmpegService } from "../services/ffmpeg.service";
 import {
   createWorker,
   QUEUE_NAMES,
@@ -19,6 +20,8 @@ async function updateVideoStatus(
   updates: Partial<{
     storageKey: string;
     storageUrl: string;
+    audioStorageKey: string;
+    audioStorageUrl: string;
     title: string;
     duration: number;
     fileSize: number;
@@ -27,6 +30,8 @@ async function updateVideoStatus(
     errorMessage: string;
     transcript: string;
     transcriptWords: any[];
+    transcriptLanguage: string;
+    transcriptConfidence: number;
   }> = {}
 ) {
   await db
@@ -96,10 +101,16 @@ async function processYouTubeVideo(
 
     await job.updateProgress(70);
 
+    // Store transcript with language and confidence metadata
+    // Validates: Requirements 3.4, 3.8
     await updateVideoStatus(videoId, "analyzing", {
       transcript: transcriptResult.transcript,
       transcriptWords: transcriptResult.words,
+      transcriptLanguage: transcriptResult.language,
+      transcriptConfidence: transcriptResult.confidence,
     });
+
+    console.log(`[VIDEO WORKER] Transcript stored with language: ${transcriptResult.language}, confidence: ${transcriptResult.confidence.toFixed(3)}`);
 
     // Detect viral clips using AI
     console.log(`[VIDEO WORKER] Detecting viral clips...`);
@@ -117,6 +128,7 @@ async function processYouTubeVideo(
     await job.updateProgress(90);
 
     // Save viral clips to database
+    // Validates: Requirements 5.3, 5.4, 5.5, 5.8, 5.9
     if (viralClips.length > 0) {
       console.log(`[VIDEO WORKER] Saving ${viralClips.length} viral clips...`);
 
@@ -124,15 +136,15 @@ async function processYouTubeVideo(
         id: nanoid(),
         videoId: videoId,
         title: clip.title,
-        startTime: clip.startTime,
-        endTime: clip.endTime,
-        duration: clip.endTime - clip.startTime,
+        startTime: Math.round(clip.startTime), // Store as integer seconds
+        endTime: Math.round(clip.endTime),     // Store as integer seconds
+        duration: Math.round(clip.endTime - clip.startTime), // Calculate and store duration
         transcript: clip.transcript,
-        viralityScore: clip.viralityScore,
-        viralityReason: clip.viralityReason,
-        hooks: clip.hooks,
-        emotions: clip.emotions,
-        status: "pending" as const,
+        score: clip.viralityScore,             // Map viralityScore to score column
+        viralityReason: clip.viralityReason,   // Store detailed viral reason
+        hooks: clip.hooks,                     // Store hooks array as JSONB
+        emotions: clip.emotions,               // Store emotions array as JSONB
+        status: "detected" as const,           // Initial status is 'detected'
       }));
 
       await db.insert(viralClip).values(clipRecords);
@@ -162,10 +174,151 @@ async function processVideoJob(job: Job<VideoProcessingJobData>): Promise<void> 
       await processYouTubeVideo(job);
       break;
     case "upload":
-      console.log(`[VIDEO WORKER] Direct upload processing not implemented yet`);
+      await processUploadedVideo(job);
       break;
     default:
       throw new Error(`Unknown source type: ${sourceType}`);
+  }
+}
+
+async function processUploadedVideo(
+  job: Job<VideoProcessingJobData>
+): Promise<void> {
+  const { videoId, projectId, userId, sourceUrl } = job.data;
+
+  console.log(`[VIDEO WORKER] Processing uploaded video: ${videoId}`);
+  console.log(`[VIDEO WORKER] Source URL: ${sourceUrl}`);
+
+  try {
+    // Get the video record to get the storage key
+    const videoRecord = await db.select().from(video).where(eq(video.id, videoId));
+    if (!videoRecord[0]) {
+      throw new Error(`Video record not found: ${videoId}`);
+    }
+
+    const storageKey = videoRecord[0].storageKey;
+    if (!storageKey) {
+      throw new Error(`Video storage key not found for: ${videoId}`);
+    }
+
+    await updateVideoStatus(videoId, "uploading");
+    await job.updateProgress(10);
+
+    // Get video metadata using FFprobe
+    console.log(`[VIDEO WORKER] Getting video metadata...`);
+    const signedVideoUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
+    
+    let videoMetadata;
+    try {
+      videoMetadata = await FFmpegService.getVideoMetadata(signedVideoUrl);
+      console.log(`[VIDEO WORKER] Video duration: ${videoMetadata.duration} seconds`);
+
+      // Validate video duration (max 4 hours)
+      if (videoMetadata.duration > MAX_VIDEO_DURATION_SECONDS) {
+        const maxHours = MAX_VIDEO_DURATION_SECONDS / 3600;
+        const videoHours = (videoMetadata.duration / 3600).toFixed(2);
+        throw new Error(
+          `Video duration (${videoHours} hours) exceeds maximum allowed duration of ${maxHours} hours`
+        );
+      }
+    } catch (metadataError) {
+      console.warn(`[VIDEO WORKER] Could not get video metadata: ${metadataError}`);
+      // Continue without metadata - we'll try to process anyway
+    }
+
+    await job.updateProgress(20);
+
+    // Extract audio from the uploaded video
+    console.log(`[VIDEO WORKER] Extracting audio from uploaded video...`);
+    const audioStorageKey = FFmpegService.generateAudioStorageKey(storageKey);
+
+    const audioResult = await FFmpegService.extractAudioToR2(
+      storageKey,
+      audioStorageKey
+    );
+
+    await job.updateProgress(50);
+
+    await updateVideoStatus(videoId, "transcribing", {
+      audioStorageKey: audioResult.audioStorageKey,
+      audioStorageUrl: audioResult.audioStorageUrl,
+      duration: videoMetadata?.duration,
+    });
+
+    // Get signed URL for Deepgram
+    const signedAudioUrl = await R2Service.getSignedDownloadUrl(
+      audioResult.audioStorageKey,
+      3600
+    );
+
+    // Transcribe audio using Deepgram
+    console.log(`[VIDEO WORKER] Starting transcription...`);
+    const transcriptResult = await DeepgramService.transcribeFromUrl(signedAudioUrl);
+
+    await job.updateProgress(70);
+
+    // Store transcript with language and confidence metadata
+    // Validates: Requirements 3.4, 3.8
+    await updateVideoStatus(videoId, "analyzing", {
+      transcript: transcriptResult.transcript,
+      transcriptWords: transcriptResult.words,
+      transcriptLanguage: transcriptResult.language,
+      transcriptConfidence: transcriptResult.confidence,
+    });
+
+    console.log(`[VIDEO WORKER] Transcript stored with language: ${transcriptResult.language}, confidence: ${transcriptResult.confidence.toFixed(3)}`);
+
+    // Detect viral clips using AI
+    console.log(`[VIDEO WORKER] Detecting viral clips...`);
+    const viralClips = await ViralDetectionService.detectViralClips(
+      transcriptResult.transcript,
+      transcriptResult.words,
+      {
+        maxClips: 5,
+        minDuration: 15,
+        maxDuration: 60,
+        videoTitle: videoRecord[0].title || undefined,
+      }
+    );
+
+    await job.updateProgress(90);
+
+    // Save viral clips to database
+    // Validates: Requirements 5.3, 5.4, 5.5, 5.8, 5.9
+    if (viralClips.length > 0) {
+      console.log(`[VIDEO WORKER] Saving ${viralClips.length} viral clips...`);
+
+      const clipRecords = viralClips.map((clip) => ({
+        id: nanoid(),
+        videoId: videoId,
+        title: clip.title,
+        startTime: Math.round(clip.startTime), // Store as integer seconds
+        endTime: Math.round(clip.endTime),     // Store as integer seconds
+        duration: Math.round(clip.endTime - clip.startTime), // Calculate and store duration
+        transcript: clip.transcript,
+        score: clip.viralityScore,             // Map viralityScore to score column
+        viralityReason: clip.viralityReason,   // Store detailed viral reason
+        hooks: clip.hooks,                     // Store hooks array as JSONB
+        emotions: clip.emotions,               // Store emotions array as JSONB
+        status: "detected" as const,           // Initial status is 'detected'
+      }));
+
+      await db.insert(viralClip).values(clipRecords);
+    }
+
+    await updateVideoStatus(videoId, "completed", {});
+
+    await job.updateProgress(100);
+    console.log(
+      `[VIDEO WORKER] Uploaded video processing complete: ${videoId}, found ${viralClips.length} viral clips`
+    );
+  } catch (error) {
+    console.error(`[VIDEO WORKER] Error processing uploaded video ${videoId}:`, error);
+
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    await updateVideoStatus(videoId, "failed", { errorMessage });
+
+    throw error;
   }
 }
 

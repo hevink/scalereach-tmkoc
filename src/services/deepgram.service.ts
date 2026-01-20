@@ -13,6 +13,60 @@ export interface TranscriptResult {
   words: TranscriptWord[];
   duration: number;
   confidence: number;
+  language: string;
+}
+
+/**
+ * Supported languages for transcription
+ * Validates: Requirements 24.1, 24.2, 24.3
+ */
+export const SUPPORTED_LANGUAGES = {
+  en: "English",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  it: "Italian",
+  pt: "Portuguese",
+  nl: "Dutch",
+  ja: "Japanese",
+  ko: "Korean",
+  zh: "Chinese",
+  ru: "Russian",
+  ar: "Arabic",
+  hi: "Hindi",
+} as const;
+
+export type SupportedLanguageCode = keyof typeof SUPPORTED_LANGUAGES;
+
+/**
+ * Options for transcription
+ */
+export interface TranscriptionOptions {
+  /** 
+   * Language code for transcription. If not provided, automatic language detection is used.
+   * Validates: Requirements 24.1, 24.2
+   */
+  language?: SupportedLanguageCode;
+  /** Model to use for transcription */
+  model?: "nova-2" | "nova" | "enhanced";
+  /** Enable punctuation */
+  punctuate?: boolean;
+  /** Enable speaker diarization */
+  diarize?: boolean;
+}
+
+/**
+ * Validates if a language code is supported
+ */
+export function isValidLanguageCode(code: string): code is SupportedLanguageCode {
+  return code in SUPPORTED_LANGUAGES;
+}
+
+/**
+ * Get the list of supported language codes
+ */
+export function getSupportedLanguageCodes(): SupportedLanguageCode[] {
+  return Object.keys(SUPPORTED_LANGUAGES) as SupportedLanguageCode[];
 }
 
 export class DeepgramService {
@@ -31,22 +85,44 @@ export class DeepgramService {
 
   /**
    * Transcribe audio from a URL
+   * Validates: Requirements 24.1, 24.2, 24.3, 24.4
    */
-  static async transcribeFromUrl(audioUrl: string): Promise<TranscriptResult> {
+  static async transcribeFromUrl(
+    audioUrl: string,
+    options?: TranscriptionOptions
+  ): Promise<TranscriptResult> {
     console.log(`[DEEPGRAM] Transcribing from URL: ${audioUrl}`);
+    if (options?.language) {
+      console.log(`[DEEPGRAM] Using manual language selection: ${options.language}`);
+    } else {
+      console.log(`[DEEPGRAM] Using automatic language detection`);
+    }
 
     const client = this.getClient();
 
+    // Build transcription options
+    const transcriptionConfig: Record<string, any> = {
+      model: options?.model || "nova-2",
+      smart_format: true,
+      punctuate: options?.punctuate !== false,
+      paragraphs: true,
+      utterances: true,
+      diarize: options?.diarize !== false,
+    };
+
+    // If language is specified, use it; otherwise enable auto-detection
+    if (options?.language && isValidLanguageCode(options.language)) {
+      transcriptionConfig.language = options.language;
+      console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
+    } else {
+      // Enable automatic language detection
+      transcriptionConfig.detect_language = true;
+      console.log(`[DEEPGRAM] Automatic language detection enabled`);
+    }
+
     const { result, error } = await client.listen.prerecorded.transcribeUrl(
       { url: audioUrl },
-      {
-        model: "nova-2",
-        smart_format: true,
-        punctuate: true,
-        paragraphs: true,
-        utterances: true,
-        diarize: true,
-      }
+      transcriptionConfig
     );
 
     if (error) {
@@ -59,26 +135,46 @@ export class DeepgramService {
 
   /**
    * Transcribe audio from a buffer
+   * Validates: Requirements 24.1, 24.2, 24.3, 24.4
    */
   static async transcribeFromBuffer(
     buffer: Buffer,
-    mimeType: string = "audio/m4a"
+    mimeType: string = "audio/m4a",
+    options?: TranscriptionOptions
   ): Promise<TranscriptResult> {
     console.log(`[DEEPGRAM] Transcribing from buffer (${buffer.length} bytes)`);
+    if (options?.language) {
+      console.log(`[DEEPGRAM] Using manual language selection: ${options.language}`);
+    } else {
+      console.log(`[DEEPGRAM] Using automatic language detection`);
+    }
 
     const client = this.getClient();
 
+    // Build transcription options
+    const transcriptionConfig: Record<string, any> = {
+      model: options?.model || "nova-2",
+      smart_format: true,
+      punctuate: options?.punctuate !== false,
+      paragraphs: true,
+      utterances: true,
+      diarize: options?.diarize !== false,
+      mimetype: mimeType,
+    };
+
+    // If language is specified, use it; otherwise enable auto-detection
+    if (options?.language && isValidLanguageCode(options.language)) {
+      transcriptionConfig.language = options.language;
+      console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
+    } else {
+      // Enable automatic language detection
+      transcriptionConfig.detect_language = true;
+      console.log(`[DEEPGRAM] Automatic language detection enabled`);
+    }
+
     const { result, error } = await client.listen.prerecorded.transcribeFile(
       buffer,
-      {
-        model: "nova-2",
-        smart_format: true,
-        punctuate: true,
-        paragraphs: true,
-        utterances: true,
-        diarize: true,
-        mimetype: mimeType,
-      }
+      transcriptionConfig
     );
 
     if (error) {
@@ -91,10 +187,12 @@ export class DeepgramService {
 
   /**
    * Transcribe audio from a readable stream
+   * Validates: Requirements 24.1, 24.2, 24.3, 24.4
    */
   static async transcribeFromStream(
     stream: Readable,
-    mimeType: string = "audio/m4a"
+    mimeType: string = "audio/m4a",
+    options?: TranscriptionOptions
   ): Promise<TranscriptResult> {
     console.log(`[DEEPGRAM] Transcribing from stream`);
 
@@ -105,11 +203,12 @@ export class DeepgramService {
     }
     const buffer = Buffer.concat(chunks);
 
-    return this.transcribeFromBuffer(buffer, mimeType);
+    return this.transcribeFromBuffer(buffer, mimeType, options);
   }
 
   /**
    * Parse Deepgram response into our format
+   * Extracts detected language from response
    */
   private static parseResult(result: any): TranscriptResult {
     const channel = result.results?.channels?.[0];
@@ -129,9 +228,30 @@ export class DeepgramService {
     const transcript = alternative.transcript || "";
     const confidence = alternative.confidence || 0;
     const duration = result.metadata?.duration || 0;
+    
+    // Extract detected language from response
+    // Deepgram returns detected_language in the channel or metadata
+    let language = "en"; // Default to English
+    
+    // Check for detected language in channel
+    if (channel?.detected_language) {
+      language = channel.detected_language;
+    }
+    // Check for language in alternative
+    else if (alternative?.languages && alternative.languages.length > 0) {
+      language = alternative.languages[0];
+    }
+    // Check for detected language in metadata
+    else if (result.metadata?.detected_language) {
+      language = result.metadata.detected_language;
+    }
+    // Check for model info which may contain language
+    else if (result.metadata?.model_info?.language) {
+      language = result.metadata.model_info.language;
+    }
 
     console.log(
-      `[DEEPGRAM] Transcription complete: ${words.length} words, ${duration.toFixed(1)}s duration`
+      `[DEEPGRAM] Transcription complete: ${words.length} words, ${duration.toFixed(1)}s duration, language: ${language}, confidence: ${confidence.toFixed(3)}`
     );
 
     return {
@@ -139,6 +259,7 @@ export class DeepgramService {
       words,
       duration,
       confidence,
+      language,
     };
   }
 

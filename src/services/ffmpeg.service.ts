@@ -1,0 +1,250 @@
+/**
+ * FFmpeg Service
+ * Handles video/audio processing using FFmpeg
+ */
+
+import { spawn } from "child_process";
+import { Readable, PassThrough } from "stream";
+import { R2Service } from "./r2.service";
+
+export interface AudioExtractionResult {
+  audioStorageKey: string;
+  audioStorageUrl: string;
+  mimeType: string;
+  duration?: number;
+}
+
+export interface VideoMetadata {
+  duration: number;
+  width?: number;
+  height?: number;
+  codec?: string;
+  bitrate?: number;
+}
+
+export class FFmpegService {
+  /**
+   * Extracts audio from a video file and streams it to R2 storage
+   * @param videoStorageKey The R2 storage key of the source video
+   * @param outputStorageKey The R2 storage key for the extracted audio
+   * @returns AudioExtractionResult with storage details
+   */
+  static async extractAudioToR2(
+    videoStorageKey: string,
+    outputStorageKey: string
+  ): Promise<AudioExtractionResult> {
+    console.log(`[FFMPEG SERVICE] Extracting audio from: ${videoStorageKey}`);
+
+    // Get signed URL for the source video
+    const videoUrl = await R2Service.getSignedDownloadUrl(videoStorageKey, 3600);
+
+    return new Promise((resolve, reject) => {
+      // FFmpeg arguments for audio extraction
+      // -i: input file (from URL)
+      // -vn: no video
+      // -acodec: audio codec (aac for m4a)
+      // -f: output format
+      // -: output to stdout
+      const args = [
+        "-i", videoUrl,
+        "-vn",                    // No video
+        "-acodec", "aac",         // AAC codec for m4a
+        "-b:a", "128k",           // Audio bitrate
+        "-f", "adts",             // ADTS format for streaming AAC
+        "-",                      // Output to stdout
+      ];
+
+      console.log(`[FFMPEG SERVICE] Running FFmpeg with args: ${args.join(" ")}`);
+
+      const ffmpegProcess = spawn("ffmpeg", args);
+
+      if (!ffmpegProcess.stdout) {
+        reject(new Error("Failed to create FFmpeg stdout stream"));
+        return;
+      }
+
+      // Create a pass-through stream to pipe FFmpeg output
+      const audioStream = new PassThrough();
+      ffmpegProcess.stdout.pipe(audioStream);
+
+      let stderr = "";
+
+      ffmpegProcess.stderr?.on("data", (data) => {
+        stderr += data.toString();
+        // Log progress (FFmpeg outputs progress to stderr)
+        const progressMatch = data.toString().match(/time=(\d{2}:\d{2}:\d{2})/);
+        if (progressMatch) {
+          console.log(`[FFMPEG SERVICE] Progress: ${progressMatch[1]}`);
+        }
+      });
+
+      ffmpegProcess.on("error", (err) => {
+        console.error(`[FFMPEG SERVICE] Process error: ${err.message}`);
+        reject(new Error(`Failed to spawn FFmpeg: ${err.message}. Make sure FFmpeg is installed.`));
+      });
+
+      // Start uploading to R2 immediately
+      R2Service.uploadFromStream(outputStorageKey, audioStream, "audio/aac")
+        .then(({ key, url }) => {
+          console.log(`[FFMPEG SERVICE] Audio uploaded to R2: ${key}`);
+          resolve({
+            audioStorageKey: key,
+            audioStorageUrl: url,
+            mimeType: "audio/aac",
+          });
+        })
+        .catch((uploadError) => {
+          console.error(`[FFMPEG SERVICE] Upload error: ${uploadError.message}`);
+          ffmpegProcess.kill();
+          reject(uploadError);
+        });
+
+      ffmpegProcess.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          console.error(`[FFMPEG SERVICE] FFmpeg exited with code ${code}`);
+          console.error(`[FFMPEG SERVICE] stderr: ${stderr}`);
+          // Note: We don't reject here because the upload might have already completed
+          // The upload promise will handle success/failure
+        } else {
+          console.log(`[FFMPEG SERVICE] FFmpeg completed successfully`);
+        }
+      });
+    });
+  }
+
+  /**
+   * Extracts audio from a video URL and streams it to R2 storage
+   * @param videoUrl The URL of the source video
+   * @param outputStorageKey The R2 storage key for the extracted audio
+   * @returns AudioExtractionResult with storage details
+   */
+  static async extractAudioFromUrlToR2(
+    videoUrl: string,
+    outputStorageKey: string
+  ): Promise<AudioExtractionResult> {
+    console.log(`[FFMPEG SERVICE] Extracting audio from URL to: ${outputStorageKey}`);
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-i", videoUrl,
+        "-vn",
+        "-acodec", "aac",
+        "-b:a", "128k",
+        "-f", "adts",
+        "-",
+      ];
+
+      const ffmpegProcess = spawn("ffmpeg", args);
+
+      if (!ffmpegProcess.stdout) {
+        reject(new Error("Failed to create FFmpeg stdout stream"));
+        return;
+      }
+
+      const audioStream = new PassThrough();
+      ffmpegProcess.stdout.pipe(audioStream);
+
+      let stderr = "";
+
+      ffmpegProcess.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      ffmpegProcess.on("error", (err) => {
+        console.error(`[FFMPEG SERVICE] Process error: ${err.message}`);
+        reject(new Error(`Failed to spawn FFmpeg: ${err.message}`));
+      });
+
+      R2Service.uploadFromStream(outputStorageKey, audioStream, "audio/aac")
+        .then(({ key, url }) => {
+          console.log(`[FFMPEG SERVICE] Audio uploaded to R2: ${key}`);
+          resolve({
+            audioStorageKey: key,
+            audioStorageUrl: url,
+            mimeType: "audio/aac",
+          });
+        })
+        .catch((uploadError) => {
+          console.error(`[FFMPEG SERVICE] Upload error: ${uploadError.message}`);
+          ffmpegProcess.kill();
+          reject(uploadError);
+        });
+
+      ffmpegProcess.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          console.error(`[FFMPEG SERVICE] FFmpeg exited with code ${code}: ${stderr}`);
+        }
+      });
+    });
+  }
+
+  /**
+   * Gets video metadata using FFprobe
+   * @param videoUrl URL or path to the video
+   * @returns VideoMetadata with duration and other info
+   */
+  static async getVideoMetadata(videoUrl: string): Promise<VideoMetadata> {
+    console.log(`[FFMPEG SERVICE] Getting metadata for: ${videoUrl}`);
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-v", "quiet",
+        "-print_format", "json",
+        "-show_format",
+        "-show_streams",
+        videoUrl,
+      ];
+
+      const ffprobeProcess = spawn("ffprobe", args);
+
+      let stdout = "";
+      let stderr = "";
+
+      ffprobeProcess.stdout?.on("data", (data) => {
+        stdout += data.toString();
+      });
+
+      ffprobeProcess.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      ffprobeProcess.on("error", (err) => {
+        reject(new Error(`Failed to spawn FFprobe: ${err.message}. Make sure FFmpeg is installed.`));
+      });
+
+      ffprobeProcess.on("close", (code) => {
+        if (code !== 0) {
+          reject(new Error(`FFprobe failed with code ${code}: ${stderr}`));
+          return;
+        }
+
+        try {
+          const info = JSON.parse(stdout);
+          const videoStream = info.streams?.find((s: any) => s.codec_type === "video");
+          const format = info.format;
+
+          resolve({
+            duration: parseFloat(format?.duration || "0"),
+            width: videoStream?.width,
+            height: videoStream?.height,
+            codec: videoStream?.codec_name,
+            bitrate: parseInt(format?.bit_rate || "0", 10),
+          });
+        } catch (e) {
+          reject(new Error(`Failed to parse FFprobe output: ${e}`));
+        }
+      });
+    });
+  }
+
+  /**
+   * Generates an audio storage key from a video storage key
+   * @param videoStorageKey The video storage key
+   * @returns Audio storage key with .aac extension
+   */
+  static generateAudioStorageKey(videoStorageKey: string): string {
+    // Replace video extension with .aac
+    const basePath = videoStorageKey.replace(/\.[^/.]+$/, "");
+    return `${basePath}-audio.aac`;
+  }
+}

@@ -3,17 +3,11 @@ import { nanoid } from "nanoid";
 import { R2Service } from "../services/r2.service";
 import { VideoModel } from "../models/video.model";
 import { addVideoProcessingJob } from "../jobs/queue";
+import {
+  UploadValidationService,
+} from "../services/upload-validation.service";
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB - minimum for S3/R2 multipart
-const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB max
-const ALLOWED_VIDEO_TYPES = [
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "video/x-msvideo",
-  "video/x-matroska",
-  "video/mpeg",
-];
 
 export class UploadController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -42,14 +36,21 @@ export class UploadController {
         return c.json({ error: "filename, fileSize, and contentType are required" }, 400);
       }
 
-      if (fileSize > MAX_FILE_SIZE) {
-        return c.json({ error: `File size exceeds maximum of ${MAX_FILE_SIZE / (1024 * 1024 * 1024)}GB` }, 400);
+      // Validate file format (MP4, MOV, WebM only)
+      const formatValidation = UploadValidationService.validateFileFormat(contentType, filename);
+      if (!formatValidation.valid) {
+        return c.json({ 
+          error: formatValidation.error,
+          allowedFormats: UploadValidationService.getAllowedFormatsString(),
+        }, 400);
       }
 
-      if (!ALLOWED_VIDEO_TYPES.includes(contentType)) {
+      // Validate file size (2GB maximum)
+      const sizeValidation = UploadValidationService.validateFileSize(fileSize);
+      if (!sizeValidation.valid) {
         return c.json({ 
-          error: "Invalid file type. Allowed: MP4, WebM, MOV, AVI, MKV, MPEG",
-          allowedTypes: ALLOWED_VIDEO_TYPES 
+          error: sizeValidation.error,
+          maxFileSize: UploadValidationService.getMaxFileSizeString(),
         }, 400);
       }
 
@@ -230,7 +231,6 @@ export class UploadController {
     try {
       const body = await c.req.json();
       const { uploadId, videoId, storageKey } = body;
-      const user = c.get("user") as { id: string };
 
       if (!uploadId || !storageKey) {
         return c.json({ error: "uploadId and storageKey are required" }, 400);
@@ -253,6 +253,140 @@ export class UploadController {
     } catch (error) {
       console.error(`[UPLOAD CONTROLLER] ABORT_UPLOAD error:`, error);
       return c.json({ error: "Failed to abort upload" }, 500);
+    }
+  }
+
+  /**
+   * Resume an interrupted multipart upload
+   * Returns the upload status and presigned URLs for remaining parts
+   */
+  static async resumeUpload(c: Context) {
+    UploadController.logRequest(c, "RESUME_UPLOAD");
+
+    try {
+      const body = await c.req.json();
+      const { uploadId, videoId, storageKey, totalParts } = body;
+
+      if (!uploadId || !storageKey || !totalParts) {
+        return c.json({ 
+          error: "uploadId, storageKey, and totalParts are required" 
+        }, 400);
+      }
+
+      // Verify video exists if videoId is provided
+      if (videoId) {
+        const video = await VideoModel.getById(videoId);
+        if (!video) {
+          return c.json({ error: "Video not found" }, 404);
+        }
+      }
+
+      // Get list of already uploaded parts
+      let uploadedParts;
+      try {
+        uploadedParts = await R2Service.listUploadedParts(storageKey, uploadId);
+      } catch (error) {
+        console.error(`[UPLOAD CONTROLLER] Failed to list parts:`, error);
+        return c.json({ 
+          error: "Upload session not found or expired. Please start a new upload.",
+          code: "UPLOAD_SESSION_EXPIRED"
+        }, 404);
+      }
+
+      // Determine which parts still need to be uploaded
+      const uploadedPartNumbers = new Set(uploadedParts.map(p => p.PartNumber));
+      const remainingPartNumbers: number[] = [];
+      
+      for (let i = 1; i <= totalParts; i++) {
+        if (!uploadedPartNumbers.has(i)) {
+          remainingPartNumbers.push(i);
+        }
+      }
+
+      // Generate presigned URLs only for remaining parts
+      const remainingPartUrls = await Promise.all(
+        remainingPartNumbers.map(async (partNumber) => ({
+          partNumber,
+          url: await R2Service.getPresignedUrlForPart(
+            storageKey,
+            uploadId,
+            partNumber,
+            3600 // 1 hour expiry
+          ),
+        }))
+      );
+
+      console.log(
+        `[UPLOAD CONTROLLER] Resume upload: ${uploadId}, ` +
+        `${uploadedParts.length}/${totalParts} parts uploaded, ` +
+        `${remainingPartNumbers.length} remaining`
+      );
+
+      return c.json({
+        uploadId,
+        videoId,
+        storageKey,
+        totalParts,
+        uploadedParts: uploadedParts.map(p => ({
+          partNumber: p.PartNumber,
+          etag: p.ETag,
+        })),
+        uploadedCount: uploadedParts.length,
+        remainingParts: remainingPartUrls,
+        remainingCount: remainingPartNumbers.length,
+        chunkSize: CHUNK_SIZE,
+        isComplete: remainingPartNumbers.length === 0,
+      });
+    } catch (error) {
+      console.error(`[UPLOAD CONTROLLER] RESUME_UPLOAD error:`, error);
+      return c.json({ error: "Failed to resume upload" }, 500);
+    }
+  }
+
+  /**
+   * Get multiple presigned URLs for parts (batch request for efficiency)
+   * Useful for resuming uploads with many remaining parts
+   */
+  static async getBatchPartUrls(c: Context) {
+    UploadController.logRequest(c, "GET_BATCH_PART_URLS");
+
+    try {
+      const body = await c.req.json();
+      const { uploadId, storageKey, partNumbers } = body;
+
+      if (!uploadId || !storageKey || !partNumbers || !Array.isArray(partNumbers)) {
+        return c.json({ 
+          error: "uploadId, storageKey, and partNumbers array are required" 
+        }, 400);
+      }
+
+      if (partNumbers.length > 100) {
+        return c.json({ 
+          error: "Maximum 100 part URLs can be requested at once" 
+        }, 400);
+      }
+
+      // Generate presigned URLs for all requested parts
+      const partUrls = await Promise.all(
+        partNumbers.map(async (partNumber: number) => ({
+          partNumber,
+          url: await R2Service.getPresignedUrlForPart(
+            storageKey,
+            uploadId,
+            partNumber,
+            3600 // 1 hour expiry
+          ),
+        }))
+      );
+
+      console.log(
+        `[UPLOAD CONTROLLER] Generated ${partUrls.length} batch part URLs for upload: ${uploadId}`
+      );
+
+      return c.json({ partUrls });
+    } catch (error) {
+      console.error(`[UPLOAD CONTROLLER] GET_BATCH_PART_URLS error:`, error);
+      return c.json({ error: "Failed to get batch part URLs" }, 500);
     }
   }
 }

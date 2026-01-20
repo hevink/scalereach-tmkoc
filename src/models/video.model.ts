@@ -120,6 +120,8 @@ export class VideoModel {
     data: Partial<{
       storageKey: string;
       storageUrl: string;
+      audioStorageKey: string;
+      audioStorageUrl: string;
       title: string;
       duration: number;
       fileSize: number;
@@ -129,6 +131,9 @@ export class VideoModel {
       errorMessage: string;
       transcript: string;
       transcriptWords: any[];
+      transcriptLanguage: string;
+      transcriptConfidence: number;
+      creditsUsed: number;
     }>
   ) {
     this.logOperation("UPDATE_VIDEO", { id, fields: Object.keys(data) });
