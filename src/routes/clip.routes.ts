@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { ViralDetectionController } from "../controllers/viral-detection.controller";
 import { ClipGenerationController } from "../controllers/clip-generation.controller";
 import { ClipAdjustmentController } from "../controllers/clip-adjustment.controller";
+import { ExportController } from "../controllers/export.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
 const clipRouter = new Hono();
@@ -25,5 +26,10 @@ clipRouter.get("/:id/boundaries", ClipAdjustmentController.getBoundaries);
 clipRouter.post("/:id/generate", ClipGenerationController.generateClip);
 clipRouter.get("/:id/status", ClipGenerationController.getClipStatus);
 clipRouter.post("/:id/regenerate", ClipGenerationController.regenerateClip);
+
+// Export endpoints
+// Validates: Requirements 23.1
+clipRouter.post("/:id/export", ExportController.initiateExport);
+clipRouter.get("/:id/exports", ExportController.getExportsByClip);
 
 export default clipRouter;

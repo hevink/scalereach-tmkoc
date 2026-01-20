@@ -2,10 +2,10 @@ import { startVideoWorker } from "./jobs/video.worker";
 import { startClipWorker } from "./jobs/clip.worker";
 
 console.log("[WORKER] Starting video processing worker...");
-const videoWorker = startVideoWorker(2);
+const videoWorker = startVideoWorker(1);
 
 console.log("[WORKER] Starting clip generation worker...");
-const clipWorker = startClipWorker(2);
+const clipWorker = startClipWorker(1);
 
 process.on("SIGTERM", async () => {
   console.log("[WORKER] Received SIGTERM, shutting down gracefully...");

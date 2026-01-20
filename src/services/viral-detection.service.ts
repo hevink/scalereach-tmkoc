@@ -1,6 +1,18 @@
-import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { generateText, Output } from "ai";
+import { createGroq } from "@ai-sdk/groq";
 import { z } from "zod";
+
+// Groq configuration
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+
+// Create Groq client
+const groq = createGroq({
+  apiKey: GROQ_API_KEY,
+});
+
+// Log configuration on startup (without exposing the key)
+console.log(`[VIRAL DETECTION] Groq configured:`);
+console.log(`  - API Key: ${GROQ_API_KEY ? "***set***" : "NOT SET"}`);
 
 const ViralClipSchema = z.object({
   clips: z.array(
@@ -24,7 +36,7 @@ const ViralClipSchema = z.object({
         .array(z.string())
         .describe("Primary emotions this clip evokes (e.g., humor, shock, inspiration)"),
     })
-  ),
+  ).describe("Array of viral clip opportunities"),
 });
 
 export type ViralClip = z.infer<typeof ViralClipSchema>["clips"][number];
@@ -169,19 +181,29 @@ For each viral clip, provide:
 Focus on finding the absolute BEST moments that would perform well on social media.`;
 
     try {
-      const { object } = await generateObject({
-        model: openai("gpt-4o"),
-        schema: ViralClipSchema,
+      console.log(`[VIRAL DETECTION] Using Groq with mixtral-8x7b-32768`);
+      
+      const { output } = await generateText({
+        model: groq("openai/gpt-oss-20b"),
+        output: Output.object({
+          name: "ViralClips",
+          description: "Viral clip opportunities detected from video transcript",
+          schema: ViralClipSchema,
+        }),
         system: systemPrompt,
         prompt: userPrompt,
         temperature: 0.7,
       });
 
-      console.log(`[VIRAL DETECTION] Found ${object.clips.length} viral clips`);
+      if (!output) {
+        throw new Error("No output generated from model");
+      }
+
+      console.log(`[VIRAL DETECTION] Found ${output.clips.length} viral clips`);
 
       // Filter clips by duration constraints and sort by virality score descending
       // Validates: Requirements 5.6, 5.9
-      const sortedClips = object.clips
+      const sortedClips = output.clips
         .map((clip) => ({
           ...clip,
           // Calculate duration
