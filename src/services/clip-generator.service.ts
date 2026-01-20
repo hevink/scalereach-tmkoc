@@ -446,12 +446,35 @@ export class ClipGeneratorService {
    * Build FFmpeg filter for center-crop aspect ratio conversion
    * Uses center-crop strategy to maintain subject visibility
    * Validates: Requirements 8.4
+   * 
+   * Strategy:
+   * 1. Scale the video so that it COVERS the target dimensions (may be larger)
+   * 2. Center-crop to exact target dimensions
+   * 
+   * For 9:16 vertical from 16:9 horizontal source:
+   * - Scale height to target height, width will be larger
+   * - Crop width from center
    */
   private static buildCenterCropFilter(targetWidth: number, targetHeight: number): string {
-    // Scale to fit the target dimensions while maintaining aspect ratio,
-    // then crop from center to exact target dimensions
-    // This ensures the subject (usually in center) remains visible
-    return `scale='if(gt(a,${targetWidth}/${targetHeight}),${targetWidth},-2)':'if(gt(a,${targetWidth}/${targetHeight}),-2,${targetHeight})',crop=${targetWidth}:${targetHeight}`;
+    const targetAspect = targetWidth / targetHeight;
+    
+    // Scale to cover: ensure the scaled video is at least as large as target in both dimensions
+    // If source is wider than target (source_aspect > target_aspect): scale by height, crop width
+    // If source is taller than target (source_aspect < target_aspect): scale by width, crop height
+    // 
+    // Using iw/ih (input width/height) to calculate source aspect ratio at runtime
+    // scale2ref or complex expressions needed, but simpler approach:
+    // Scale to cover by making the smaller dimension match, then crop
+    //
+    // Formula: 
+    // - If source_aspect > target_aspect: scale height to target, width will overflow -> crop width
+    // - If source_aspect < target_aspect: scale width to target, height will overflow -> crop height
+    //
+    // FFmpeg filter: scale to cover, then crop from center
+    // scale='max(target_w,iw*target_h/ih)':'max(target_h,ih*target_w/iw)'
+    // This ensures both dimensions are at least the target size
+    
+    return `scale='max(${targetWidth},iw*${targetHeight}/ih)':'max(${targetHeight},ih*${targetWidth}/iw)',crop=${targetWidth}:${targetHeight}`;
   }
 
   /**

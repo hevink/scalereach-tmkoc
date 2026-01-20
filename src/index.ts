@@ -13,6 +13,7 @@ import creditRouter from "./routes/credit.routes";
 import uploadRouter from "./routes/upload.routes";
 import uppyUploadRouter from "./routes/uppy-upload.routes";
 import captionTemplateRouter from "./routes/caption-template.routes";
+import exportRouter from "./routes/export.routes";
 import swaggerApp from "./docs/swagger-ui";
 import { openApiDocument } from "./docs/openapi";
 import type { AuthContext } from "./lib/auth";
@@ -53,6 +54,7 @@ app.route("/api/credits", creditRouter);
 app.route("/api/upload", uploadRouter);
 app.route("/api/uppy", uppyUploadRouter);
 app.route("/api/caption-templates", captionTemplateRouter);
+app.route("/api/exports", exportRouter);
 app.route("/api-docs", swaggerApp); // Swagger UI at api-docs path
 
 // Serve the OpenAPI JSON specification directly at /api-docs.json too
@@ -80,6 +82,7 @@ app.get("/", (c) => {
       clips: "/api/clips",
       credits: "/api/credits",
       upload: "/api/upload",
+      exports: "/api/exports",
       captionTemplates: "/api/caption-templates",
       docs: "/api-docs",
       health: "/health",
