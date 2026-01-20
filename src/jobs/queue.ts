@@ -22,6 +22,7 @@ redisConnection.on("error", (err) => {
 
 export const QUEUE_NAMES = {
   VIDEO_PROCESSING: "video-processing",
+  CLIP_GENERATION: "clip-generation",
 } as const;
 
 export interface VideoProcessingJobData {
@@ -30,6 +31,22 @@ export interface VideoProcessingJobData {
   userId: string;
   sourceType: "youtube" | "upload";
   sourceUrl: string;
+}
+
+/**
+ * Clip generation job data
+ * Validates: Requirements 7.5, 7.6, 7.7
+ */
+export interface ClipGenerationJobData {
+  clipId: string;
+  videoId: string;
+  sourceType: "youtube" | "upload";
+  sourceUrl?: string;
+  storageKey?: string;
+  startTime: number;
+  endTime: number;
+  aspectRatio: "9:16" | "1:1" | "16:9";
+  quality: "720p" | "1080p" | "4k";
 }
 
 export const videoProcessingQueue = new Queue<VideoProcessingJobData>(
@@ -108,4 +125,69 @@ export function createWorker<T>(
   });
 
   return worker;
+}
+
+
+/**
+ * Clip generation queue
+ * Validates: Requirements 7.5, 7.6, 7.7
+ */
+export const clipGenerationQueue = new Queue<ClipGenerationJobData>(
+  QUEUE_NAMES.CLIP_GENERATION,
+  {
+    connection: redisConnection,
+    defaultJobOptions: {
+      attempts: 3, // Retry up to 3 times (Requirement 7.7)
+      backoff: {
+        type: "exponential",
+        delay: 5000,
+      },
+      removeOnComplete: {
+        count: 100,
+        age: 24 * 60 * 60,
+      },
+      removeOnFail: {
+        count: 50,
+        age: 7 * 24 * 60 * 60,
+      },
+    },
+  }
+);
+
+/**
+ * Add a clip generation job to the queue
+ * Validates: Requirements 7.5
+ */
+export async function addClipGenerationJob(data: ClipGenerationJobData) {
+  console.log(`[QUEUE] Adding clip generation job for clip: ${data.clipId}`);
+
+  const job = await clipGenerationQueue.add("generate-clip", data, {
+    jobId: `clip-${data.clipId}`,
+  });
+
+  console.log(`[QUEUE] Clip generation job added with ID: ${job.id}`);
+  return job;
+}
+
+/**
+ * Get clip generation job status
+ */
+export async function getClipJobStatus(jobId: string) {
+  const job = await clipGenerationQueue.getJob(jobId);
+  if (!job) {
+    return null;
+  }
+
+  const state = await job.getState();
+  const progress = job.progress;
+
+  return {
+    id: job.id,
+    state,
+    progress,
+    data: job.data,
+    failedReason: job.failedReason,
+    processedOn: job.processedOn,
+    finishedOn: job.finishedOn,
+  };
 }

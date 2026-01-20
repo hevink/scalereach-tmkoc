@@ -16,7 +16,39 @@ export interface StreamResult {
   videoInfo: YouTubeVideoInfo;
 }
 
+export interface ValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+// Maximum video duration: 4 hours in seconds
+export const MAX_VIDEO_DURATION_SECONDS = 14400;
+
 export class YouTubeService {
+  /**
+   * Validates video duration against the maximum allowed duration (4 hours)
+   * @param duration Duration in seconds
+   * @returns ValidationResult indicating if duration is valid
+   */
+  static validateVideoDuration(duration: number): ValidationResult {
+    if (duration <= 0) {
+      return {
+        valid: false,
+        error: "Invalid video duration: duration must be greater than 0",
+      };
+    }
+
+    if (duration > MAX_VIDEO_DURATION_SECONDS) {
+      const maxHours = MAX_VIDEO_DURATION_SECONDS / 3600;
+      const videoHours = (duration / 3600).toFixed(2);
+      return {
+        valid: false,
+        error: `Video duration (${videoHours} hours) exceeds maximum allowed duration of ${maxHours} hours (${MAX_VIDEO_DURATION_SECONDS} seconds)`,
+      };
+    }
+
+    return { valid: true };
+  }
 
   static extractVideoId(url: string): string | null {
     const patterns = [

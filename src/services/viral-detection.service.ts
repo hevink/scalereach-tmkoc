@@ -35,24 +35,93 @@ export interface TranscriptSegment {
   endTime: number;
 }
 
+/**
+ * Viral detection configuration options
+ * Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5, 6.6
+ */
+export interface ViralDetectionOptions {
+  maxClips?: number;        // Maximum number of clips to detect (default: 10)
+  minDuration?: number;     // Minimum clip duration in seconds (default: 15, min: 10)
+  maxDuration?: number;     // Maximum clip duration in seconds (default: 60, max: 90)
+  videoTitle?: string;      // Video title for context
+}
+
+/**
+ * Validation result for detection options
+ */
+export interface ValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+// Constants for validation
+export const MIN_DURATION_LIMIT = 10;   // Minimum allowed minDuration (seconds)
+export const MAX_DURATION_LIMIT = 90;   // Maximum allowed maxDuration (seconds)
+export const DEFAULT_MIN_DURATION = 15; // Default minimum clip duration
+export const DEFAULT_MAX_DURATION = 60; // Default maximum clip duration
+export const DEFAULT_MAX_CLIPS = 10;    // Default maximum clips to detect
+
 export class ViralDetectionService {
   /**
+   * Validate viral detection configuration options
+   * Validates: Requirements 6.4, 6.5, 6.6
+   * 
+   * @param options - Detection options to validate
+   * @returns ValidationResult with valid flag and optional error message
+   */
+  static validateOptions(options: ViralDetectionOptions): ValidationResult {
+    const {
+      minDuration = DEFAULT_MIN_DURATION,
+      maxDuration = DEFAULT_MAX_DURATION,
+    } = options;
+
+    // Requirement 6.4: Minimum duration must be at least 10 seconds
+    if (minDuration < MIN_DURATION_LIMIT) {
+      return {
+        valid: false,
+        error: `Minimum duration must be at least ${MIN_DURATION_LIMIT} seconds`,
+      };
+    }
+
+    // Requirement 6.5: Maximum duration must not exceed 90 seconds
+    if (maxDuration > MAX_DURATION_LIMIT) {
+      return {
+        valid: false,
+        error: `Maximum duration cannot exceed ${MAX_DURATION_LIMIT} seconds`,
+      };
+    }
+
+    // Requirement 6.6: Minimum duration must be less than maximum duration
+    if (minDuration >= maxDuration) {
+      return {
+        valid: false,
+        error: "Minimum duration must be less than maximum duration",
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
    * Analyze transcript and detect viral clip opportunities
+   * Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.8, 5.9
+   * Validates: Requirements 6.1, 6.2, 6.3
    */
   static async detectViralClips(
     transcript: string,
     transcriptWords: { word: string; start: number; end: number }[],
-    options: {
-      maxClips?: number;
-      minDuration?: number;
-      maxDuration?: number;
-      videoTitle?: string;
-    } = {}
+    options: ViralDetectionOptions = {}
   ): Promise<ViralClip[]> {
+    // Validate options first
+    const validation = this.validateOptions(options);
+    if (!validation.valid) {
+      throw new Error(`Invalid detection options: ${validation.error}`);
+    }
+
     const {
-      maxClips = 5,
-      minDuration = 15,
-      maxDuration = 60,
+      maxClips = DEFAULT_MAX_CLIPS,
+      minDuration = DEFAULT_MIN_DURATION,
+      maxDuration = DEFAULT_MAX_DURATION,
       videoTitle = "Unknown",
     } = options;
 
@@ -110,7 +179,8 @@ Focus on finding the absolute BEST moments that would perform well on social med
 
       console.log(`[VIRAL DETECTION] Found ${object.clips.length} viral clips`);
 
-      // Sort by virality score descending
+      // Filter clips by duration constraints and sort by virality score descending
+      // Validates: Requirements 5.6, 5.9
       const sortedClips = object.clips
         .map((clip) => ({
           ...clip,
@@ -118,7 +188,10 @@ Focus on finding the absolute BEST moments that would perform well on social med
           duration: clip.endTime - clip.startTime,
         }))
         .filter((clip) => clip.duration >= minDuration && clip.duration <= maxDuration)
-        .sort((a, b) => b.viralityScore - a.viralityScore);
+        .sort((a, b) => b.viralityScore - a.viralityScore)
+        .slice(0, maxClips); // Limit to maxClips (Requirement 5.2)
+
+      console.log(`[VIRAL DETECTION] After filtering: ${sortedClips.length} clips within duration constraints`);
 
       return sortedClips;
     } catch (error) {

@@ -3,17 +3,11 @@ import { nanoid } from "nanoid";
 import { R2Service } from "../services/r2.service";
 import { VideoModel } from "../models/video.model";
 import { addVideoProcessingJob } from "../jobs/queue";
-
-const ALLOWED_VIDEO_TYPES = [
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "video/x-msvideo",
-  "video/x-matroska",
-  "video/mpeg",
-];
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024 * 1024; // 5GB
+import {
+  UploadValidationService,
+  ALLOWED_VIDEO_FORMATS,
+  MAX_FILE_SIZE_BYTES,
+} from "../services/upload-validation.service";
 
 /**
  * Uppy-compatible upload controller
@@ -45,10 +39,24 @@ export class UppyUploadController {
         return c.json({ error: "filename and type are required" }, 400);
       }
 
-      if (!ALLOWED_VIDEO_TYPES.includes(type)) {
+      // Validate file format (MP4, MOV, WebM only)
+      const formatValidation = UploadValidationService.validateFileFormat(type, filename);
+      if (!formatValidation.valid) {
         return c.json({ 
-          error: "Invalid file type. Allowed: MP4, WebM, MOV, AVI, MKV, MPEG" 
+          error: formatValidation.error,
+          allowedFormats: UploadValidationService.getAllowedFormatsString(),
         }, 400);
+      }
+
+      // Validate file size if provided in metadata (2GB maximum)
+      if (metadata?.fileSize) {
+        const sizeValidation = UploadValidationService.validateFileSize(metadata.fileSize);
+        if (!sizeValidation.valid) {
+          return c.json({ 
+            error: sizeValidation.error,
+            maxFileSize: UploadValidationService.getMaxFileSizeString(),
+          }, 400);
+        }
       }
 
       // Generate storage key
@@ -66,6 +74,7 @@ export class UppyUploadController {
         sourceUrl: filename,
         title: filename,
         mimeType: type,
+        fileSize: metadata?.fileSize,
       });
 
       // Create multipart upload in R2
