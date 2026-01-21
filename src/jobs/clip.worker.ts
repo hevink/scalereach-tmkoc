@@ -51,11 +51,13 @@ async function processClipGenerationJob(
     endTime,
     aspectRatio,
     quality,
+    captions,
   } = job.data;
 
   console.log(`[CLIP WORKER] Processing clip generation job: ${clipId}`);
   console.log(`[CLIP WORKER] Source type: ${sourceType}, Aspect ratio: ${aspectRatio}`);
   console.log(`[CLIP WORKER] Time range: ${startTime}s - ${endTime}s`);
+  console.log(`[CLIP WORKER] Captions: ${captions?.words?.length || 0} words`);
 
   try {
     // Update status to generating (Requirement 7.5)
@@ -81,7 +83,7 @@ async function processClipGenerationJob(
 
     await job.updateProgress(20);
 
-    // Generate the clip
+    // Generate the clip with captions
     console.log(`[CLIP WORKER] Starting clip generation...`);
     const generatedClip = await ClipGeneratorService.generateClip({
       videoId,
@@ -93,6 +95,7 @@ async function processClipGenerationJob(
       endTime,
       aspectRatio,
       quality,
+      captions,
     });
 
     await job.updateProgress(90);

@@ -6,7 +6,6 @@
  */
 
 import { spawn } from "child_process";
-import { PassThrough, Readable } from "stream";
 import { R2Service } from "./r2.service";
 import * as fs from "fs";
 import * as path from "path";
@@ -26,6 +25,23 @@ export interface ClipGenerationOptions {
   endTime: number;
   aspectRatio: AspectRatio;
   quality: VideoQuality;
+  captions?: {
+    words: Array<{ word: string; start: number; end: number }>;
+    style?: {
+      fontFamily?: string;
+      fontSize?: number;
+      textColor?: string;
+      backgroundColor?: string;
+      backgroundOpacity?: number;
+      position?: "top" | "center" | "bottom";
+      alignment?: "left" | "center" | "right";
+      highlightColor?: string;
+      highlightEnabled?: boolean;
+      shadow?: boolean;
+      outline?: boolean;
+      outlineColor?: string;
+    };
+  };
 }
 
 export interface GeneratedClip {
@@ -104,6 +120,7 @@ export class ClipGeneratorService {
       quality: options.quality,
       startTime: options.startTime,
       endTime: options.endTime,
+      hasCaptions: !!options.captions?.words?.length,
     });
 
     const { width, height } = getOutputDimensions(options.aspectRatio, options.quality);
@@ -121,7 +138,8 @@ export class ClipGeneratorService {
         options.startTime,
         options.endTime,
         options.aspectRatio,
-        options.quality
+        options.quality,
+        options.captions
       );
     } else if (options.sourceType === "upload" && options.storageKey) {
       // Extract segment from uploaded file
@@ -130,7 +148,8 @@ export class ClipGeneratorService {
         options.startTime,
         options.endTime,
         options.aspectRatio,
-        options.quality
+        options.quality,
+        options.captions
       );
     } else {
       throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
@@ -155,6 +174,116 @@ export class ClipGeneratorService {
   }
 
   /**
+   * Generate ASS subtitle content from caption words
+   */
+  private static generateASSSubtitles(
+    words: Array<{ word: string; start: number; end: number }>,
+    style: NonNullable<ClipGenerationOptions["captions"]>["style"] | undefined,
+    width: number,
+    height: number
+  ): string {
+    // Default style values
+    const fontFamily = style?.fontFamily || "Arial";
+    const fontSize = style?.fontSize || 48;
+    const textColor = this.hexToASSColor(style?.textColor || "#FFFFFF");
+    const outlineColor = this.hexToASSColor(style?.outlineColor || "#000000");
+    const highlightColor = this.hexToASSColor(style?.highlightColor || "#FFFF00");
+    const shadow = style?.shadow ? 2 : 0;
+    const outline = style?.outline ? 3 : 2;
+    
+    // Position: bottom = 2, center = 5, top = 8
+    const alignment = style?.position === "top" ? 8 : style?.position === "center" ? 5 : 2;
+    
+    // Vertical margin based on position
+    const marginV = style?.position === "center" ? 0 : 60;
+
+    // ASS header
+    let ass = `[Script Info]
+Title: Generated Captions
+ScriptType: v4.00+
+PlayResX: ${width}
+PlayResY: ${height}
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
+Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+    // Group words into lines (max ~6 words per line for readability)
+    const lines: Array<{ words: typeof words; start: number; end: number }> = [];
+    let currentLine: typeof words = [];
+    
+    for (const word of words) {
+      currentLine.push(word);
+      if (currentLine.length >= 5 || word.word.endsWith('.') || word.word.endsWith('?') || word.word.endsWith('!')) {
+        lines.push({
+          words: currentLine,
+          start: currentLine[0].start,
+          end: currentLine[currentLine.length - 1].end,
+        });
+        currentLine = [];
+      }
+    }
+    if (currentLine.length > 0) {
+      lines.push({
+        words: currentLine,
+        start: currentLine[0].start,
+        end: currentLine[currentLine.length - 1].end,
+      });
+    }
+
+    // Generate dialogue lines with word-by-word highlighting if enabled
+    for (const line of lines) {
+      const startTime = this.formatASSTime(line.start);
+      const endTime = this.formatASSTime(line.end);
+      
+      if (style?.highlightEnabled) {
+        // Word-by-word karaoke effect
+        let text = "";
+        for (let i = 0; i < line.words.length; i++) {
+          const word = line.words[i];
+          const duration = Math.round((word.end - word.start) * 100); // centiseconds
+          text += `{\\k${duration}}${word.word} `;
+        }
+        ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,karaoke,${text.trim()}\n`;
+      } else {
+        // Simple text display
+        const text = line.words.map(w => w.word).join(" ");
+        ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${text}\n`;
+      }
+    }
+
+    return ass;
+  }
+
+  /**
+   * Convert hex color to ASS color format (&HAABBGGRR)
+   */
+  private static hexToASSColor(hex: string): string {
+    const clean = hex.replace("#", "");
+    const r = clean.substring(0, 2);
+    const g = clean.substring(2, 4);
+    const b = clean.substring(4, 6);
+    return `&H00${b}${g}${r}`.toUpperCase();
+  }
+
+  /**
+   * Format seconds to ASS time format (H:MM:SS.cc)
+   */
+  private static formatASSTime(seconds: number): string {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    const cs = Math.round((seconds % 1) * 100);
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}.${cs.toString().padStart(2, "0")}`;
+  }
+
+  /**
    * Download a video segment from YouTube using yt-dlp with --download-sections
    * Validates: Requirements 7.1, 7.2
    */
@@ -163,7 +292,8 @@ export class ClipGeneratorService {
     startTime: number,
     endTime: number,
     aspectRatio: AspectRatio,
-    quality: VideoQuality
+    quality: VideoQuality,
+    captions?: ClipGenerationOptions["captions"]
   ): Promise<Buffer> {
     this.logOperation("DOWNLOAD_YOUTUBE_SEGMENT", {
       url,
@@ -171,6 +301,7 @@ export class ClipGeneratorService {
       endTime,
       aspectRatio,
       quality,
+      hasCaptions: !!captions?.words?.length,
     });
 
     const { width, height } = getOutputDimensions(aspectRatio, quality);
@@ -178,15 +309,29 @@ export class ClipGeneratorService {
     const tempId = nanoid();
     const tempVideoPath = path.join(tempDir, `yt-segment-${tempId}.mp4`);
     const tempOutputPath = path.join(tempDir, `clip-output-${tempId}.mp4`);
+    const tempSubsPath = path.join(tempDir, `captions-${tempId}.ass`);
 
     try {
       // Step 1: Download the segment using yt-dlp with --download-sections
       await this.downloadYouTubeSegmentToFile(url, startTime, endTime, tempVideoPath, quality);
 
-      // Step 2: Apply aspect ratio conversion using FFmpeg
-      await this.convertAspectRatioFile(tempVideoPath, tempOutputPath, width, height);
+      // Step 2: Generate ASS subtitles if captions provided
+      if (captions?.words?.length) {
+        const assContent = this.generateASSSubtitles(captions.words, captions.style, width, height);
+        await fs.promises.writeFile(tempSubsPath, assContent);
+        this.logOperation("GENERATED_ASS_SUBTITLES", { path: tempSubsPath, wordCount: captions.words.length });
+      }
 
-      // Step 3: Read the output file
+      // Step 3: Apply aspect ratio conversion and burn captions using FFmpeg
+      await this.convertAspectRatioFile(
+        tempVideoPath,
+        tempOutputPath,
+        width,
+        height,
+        captions?.words?.length ? tempSubsPath : undefined
+      );
+
+      // Step 4: Read the output file
       const clipBuffer = await fs.promises.readFile(tempOutputPath);
 
       this.logOperation("YOUTUBE_SEGMENT_COMPLETE", {
@@ -199,6 +344,7 @@ export class ClipGeneratorService {
       // Cleanup temp files
       await this.cleanupTempFile(tempVideoPath);
       await this.cleanupTempFile(tempOutputPath);
+      await this.cleanupTempFile(tempSubsPath);
     }
   }
 
@@ -274,7 +420,8 @@ export class ClipGeneratorService {
     startTime: number,
     endTime: number,
     aspectRatio: AspectRatio,
-    quality: VideoQuality
+    quality: VideoQuality,
+    captions?: ClipGenerationOptions["captions"]
   ): Promise<Buffer> {
     this.logOperation("EXTRACT_SEGMENT_FROM_FILE", {
       storageKey,
@@ -282,25 +429,47 @@ export class ClipGeneratorService {
       endTime,
       aspectRatio,
       quality,
+      hasCaptions: !!captions?.words?.length,
     });
 
     const { width, height } = getOutputDimensions(aspectRatio, quality);
     const duration = endTime - startTime;
+    const tempDir = os.tmpdir();
+    const tempId = nanoid();
+    const tempSubsPath = path.join(tempDir, `captions-upload-${tempId}.ass`);
 
     // Get signed URL for the source video
     const videoUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
 
-    return new Promise((resolve, reject) => {
-      // Build FFmpeg filter for center-crop aspect ratio conversion
-      // Validates: Requirements 8.4
-      const cropFilter = this.buildCenterCropFilter(width, height);
+    // Generate ASS subtitles if captions provided
+    let subsPathToUse: string | undefined;
+    if (captions?.words?.length) {
+      const assContent = this.generateASSSubtitles(captions.words, captions.style, width, height);
+      await fs.promises.writeFile(tempSubsPath, assContent);
+      subsPathToUse = tempSubsPath;
+      this.logOperation("GENERATED_ASS_SUBTITLES", { path: tempSubsPath, wordCount: captions.words.length });
+    }
 
-      const args = [
-        "-ss", startTime.toString(),
-        "-i", videoUrl,
-        "-t", duration.toString(),
-        "-vf", cropFilter,
-        "-c:v", "libx264",
+    try {
+      return await new Promise((resolve, reject) => {
+        // Build FFmpeg filter for center-crop aspect ratio conversion
+        // Validates: Requirements 8.4
+        let videoFilter = this.buildCenterCropFilter(width, height);
+        
+        // Add subtitles filter if captions provided
+        if (subsPathToUse) {
+          const escapedPath = subsPathToUse
+            .replace(/\\/g, "/")
+            .replace(/:/g, "\\:");
+          videoFilter = `${videoFilter},ass=${escapedPath}`;
+        }
+
+        const args = [
+          "-ss", startTime.toString(),
+          "-i", videoUrl,
+          "-t", duration.toString(),
+          "-vf", videoFilter,
+          "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "23",
         "-c:a", "aac",
@@ -310,7 +479,7 @@ export class ClipGeneratorService {
         "-",
       ];
 
-      this.logOperation("FFMPEG_EXTRACT", { args: args.join(" ") });
+      this.logOperation("FFMPEG_EXTRACT", { args: args.join(" "), hasSubtitles: !!subsPathToUse });
 
       const ffmpegProcess = spawn("ffmpeg", args);
 
@@ -345,24 +514,46 @@ export class ClipGeneratorService {
         resolve(buffer);
       });
     });
+    } finally {
+      // Cleanup temp subtitle file
+      if (subsPathToUse) {
+        await this.cleanupTempFile(subsPathToUse);
+      }
+    }
   }
 
   /**
    * Convert aspect ratio of a video file using center-crop strategy
+   * Optionally burns in subtitles from ASS file
    * Validates: Requirements 8.1, 8.2, 8.3, 8.4
    */
   private static async convertAspectRatioFile(
     inputPath: string,
     outputPath: string,
     targetWidth: number,
-    targetHeight: number
+    targetHeight: number,
+    subtitlesPath?: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const cropFilter = this.buildCenterCropFilter(targetWidth, targetHeight);
+      
+      // Build video filter chain
+      // For subtitles, we need to escape the path properly for FFmpeg
+      // The ass filter uses filename=path syntax
+      let videoFilter: string;
+      if (subtitlesPath) {
+        // Escape backslashes and colons for FFmpeg filter
+        const escapedPath = subtitlesPath
+          .replace(/\\/g, "/")
+          .replace(/:/g, "\\:");
+        videoFilter = `${cropFilter},ass=${escapedPath}`;
+      } else {
+        videoFilter = cropFilter;
+      }
 
       const args = [
         "-i", inputPath,
-        "-vf", cropFilter,
+        "-vf", videoFilter,
         "-c:v", "libx264",
         "-preset", "fast",
         "-crf", "23",
@@ -373,7 +564,10 @@ export class ClipGeneratorService {
         outputPath,
       ];
 
-      this.logOperation("FFMPEG_CONVERT_ASPECT", { args: args.join(" ") });
+      this.logOperation("FFMPEG_CONVERT_ASPECT", { 
+        args: args.join(" "),
+        hasSubtitles: !!subtitlesPath 
+      });
 
       const ffmpegProcess = spawn("ffmpeg", args);
 
@@ -456,8 +650,6 @@ export class ClipGeneratorService {
    * - Crop width from center
    */
   private static buildCenterCropFilter(targetWidth: number, targetHeight: number): string {
-    const targetAspect = targetWidth / targetHeight;
-    
     // Scale to cover: ensure the scaled video is at least as large as target in both dimensions
     // If source is wider than target (source_aspect > target_aspect): scale by height, crop width
     // If source is taller than target (source_aspect < target_aspect): scale by width, crop height
