@@ -33,6 +33,10 @@ export const user = pgTable(
       }>()
       .default({})
       .notNull(),
+    role: text("role"),
+    primaryPlatforms: jsonb("primary_platforms")
+      .$type<string[]>()
+      .default([]),
   },
   (table) => ({
     idIdx: index("idx_user_id").on(table.id),
