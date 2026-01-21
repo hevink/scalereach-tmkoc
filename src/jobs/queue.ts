@@ -47,6 +47,24 @@ export interface ClipGenerationJobData {
   endTime: number;
   aspectRatio: "9:16" | "1:1" | "16:9";
   quality: "720p" | "1080p" | "4k";
+  // Caption data for burning into video
+  captions?: {
+    words: Array<{ word: string; start: number; end: number }>;
+    style?: {
+      fontFamily?: string;
+      fontSize?: number;
+      textColor?: string;
+      backgroundColor?: string;
+      backgroundOpacity?: number;
+      position?: "top" | "center" | "bottom";
+      alignment?: "left" | "center" | "right";
+      highlightColor?: string;
+      highlightEnabled?: boolean;
+      shadow?: boolean;
+      outline?: boolean;
+      outlineColor?: string;
+    };
+  };
 }
 
 export const videoProcessingQueue = new Queue<VideoProcessingJobData>(

@@ -3,6 +3,9 @@ import { nanoid } from "nanoid";
 import { ClipModel } from "../models/clip.model";
 import { VideoModel } from "../models/video.model";
 import { addClipGenerationJob } from "../jobs/queue";
+import { db } from "../db";
+import { captionStyle } from "../db/schema";
+import { eq } from "drizzle-orm";
 
 export class ExportController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -12,6 +15,35 @@ export class ExportController {
       `[EXPORT CONTROLLER] ${operation} - ${method} ${url}`,
       details ? JSON.stringify(details) : ""
     );
+  }
+
+  /**
+   * Get caption style for a clip
+   */
+  private static async getCaptionStyle(clipId: string) {
+    const result = await db.select().from(captionStyle).where(eq(captionStyle.clipId, clipId));
+    return result[0]?.config;
+  }
+
+  /**
+   * Extract words for clip time range from video transcript
+   */
+  private static extractClipWords(
+    transcriptWords: any[],
+    startTime: number,
+    endTime: number
+  ): Array<{ word: string; start: number; end: number }> {
+    if (!transcriptWords || !Array.isArray(transcriptWords)) {
+      return [];
+    }
+
+    return transcriptWords
+      .filter((w: any) => w.start >= startTime && w.end <= endTime)
+      .map((w: any) => ({
+        word: w.punctuated_word || w.word,
+        start: w.start - startTime, // Normalize to clip start
+        end: w.end - startTime,
+      }));
   }
 
   /**
@@ -31,7 +63,7 @@ export class ExportController {
       const body = await c.req.json();
       const { options } = body;
 
-      // Get the video to access the source
+      // Get the video to access the source and transcript
       const video = await VideoModel.getById(clip.videoId);
       if (!video) {
         return c.json({ error: "Video not found" }, 404);
@@ -43,6 +75,16 @@ export class ExportController {
         if (res === "720p") return "720p";
         return "1080p";
       };
+
+      // Get caption style and words for this clip
+      const style = await ExportController.getCaptionStyle(clipId);
+      const words = ExportController.extractClipWords(
+        video.transcriptWords as any[],
+        clip.startTime,
+        clip.endTime
+      );
+
+      console.log(`[EXPORT CONTROLLER] Caption data: ${words.length} words, style: ${style ? 'yes' : 'no'}`);
 
       // Create export record
       const exportId = nanoid();
@@ -56,7 +98,7 @@ export class ExportController {
         createdAt: new Date().toISOString(),
       };
 
-      // Add job to queue for clip generation
+      // Add job to queue for clip generation with caption data
       await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
@@ -67,6 +109,10 @@ export class ExportController {
         endTime: clip.endTime,
         aspectRatio: (clip.aspectRatio as "9:16" | "1:1" | "16:9") || "9:16",
         quality: resolutionToQuality(options?.resolution || "1080p"),
+        captions: words.length > 0 ? {
+          words,
+          style: style || undefined,
+        } : undefined,
       });
 
       // Update clip status to generating
