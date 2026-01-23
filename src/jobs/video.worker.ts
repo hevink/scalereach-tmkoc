@@ -10,6 +10,7 @@ import { ViralDetectionService } from "../services/viral-detection.service";
 import { FFmpegService } from "../services/ffmpeg.service";
 import { TIKTOK_TEMPLATE, getTemplateById } from "../data/caption-templates";
 import { VideoConfigModel } from "../models/video-config.model";
+import { ClipCaptionModel } from "../models/clip-caption.model";
 import {
   createWorker,
   QUEUE_NAMES,
@@ -199,9 +200,10 @@ async function processYouTubeVideo(
 
         // Adjust word timings to be relative to clip start
         const adjustedWords = clipWords.map((w) => ({
+          id: nanoid(8),
           word: w.word,
-          start: w.start - clipRecord.startTime,
-          end: w.end - clipRecord.startTime,
+          start: Number((w.start - clipRecord.startTime).toFixed(3)),
+          end: Number((w.end - clipRecord.startTime).toFixed(3)),
         }));
 
         // Get caption template from config or use default
@@ -216,12 +218,21 @@ async function processYouTubeVideo(
           backgroundOpacity: template.style.backgroundOpacity,
           position: template.style.position,
           alignment: template.style.alignment,
+          animation: template.style.animation,
           highlightColor: template.style.highlightColor,
           highlightEnabled: template.style.highlightEnabled,
           shadow: template.style.shadow,
           outline: template.style.outline,
           outlineColor: template.style.outlineColor,
         };
+
+        // Save caption data to database for editing
+        await ClipCaptionModel.create({
+          clipId: clipRecord.id,
+          words: adjustedWords,
+          styleConfig: captionStyle,
+          templateId: templateId,
+        });
 
         // Get aspect ratio from config or use default
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
@@ -449,9 +460,10 @@ async function processUploadedVideo(
 
         // Adjust word timings to be relative to clip start
         const adjustedWords = clipWords.map((w) => ({
+          id: nanoid(8),
           word: w.word,
-          start: w.start - clipRecord.startTime,
-          end: w.end - clipRecord.startTime,
+          start: Number((w.start - clipRecord.startTime).toFixed(3)),
+          end: Number((w.end - clipRecord.startTime).toFixed(3)),
         }));
 
         // Get caption template from config or use default
@@ -466,12 +478,21 @@ async function processUploadedVideo(
           backgroundOpacity: template.style.backgroundOpacity,
           position: template.style.position,
           alignment: template.style.alignment,
+          animation: template.style.animation,
           highlightColor: template.style.highlightColor,
           highlightEnabled: template.style.highlightEnabled,
           shadow: template.style.shadow,
           outline: template.style.outline,
           outlineColor: template.style.outlineColor,
         };
+
+        // Save caption data to database for editing
+        await ClipCaptionModel.create({
+          clipId: clipRecord.id,
+          words: adjustedWords,
+          styleConfig: captionStyle,
+          templateId: templateId,
+        });
 
         // Get aspect ratio from config or use default
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
