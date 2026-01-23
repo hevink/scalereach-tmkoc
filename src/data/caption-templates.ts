@@ -19,6 +19,8 @@ export interface CaptionTemplate {
   platform: string;
   style: CaptionStyleConfig;
   preview: string; // Preview image URL or placeholder
+  previewThumbnail?: string; // Static thumbnail for grid display
+  isNew?: boolean; // Flag for new templates
   createdAt: Date;
   updatedAt: Date;
 }
@@ -193,11 +195,331 @@ export const BOLD_TEMPLATE: CaptionTemplate = {
   updatedAt: new Date("2024-01-01"),
 };
 
+// ============================================
+// Opus.pro-style Templates (New)
+// ============================================
+
+/**
+ * Karaoke Template - Opus.pro style
+ * Classic karaoke highlighting with yellow text
+ */
+export const KARAOKE_TEMPLATE: CaptionTemplate = {
+  id: "karaoke",
+  name: "Karaoke",
+  description: "Classic karaoke-style word highlighting. Great for music and podcast content.",
+  platform: "Universal",
+  style: {
+    fontFamily: "Montserrat",
+    fontSize: 48,
+    textColor: "#FFFF00",
+    backgroundColor: "#000000",
+    backgroundOpacity: 60,
+    position: "bottom",
+    alignment: "center",
+    animation: "karaoke",
+    highlightColor: "#FFFFFF",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/karaoke-preview.png",
+  previewThumbnail: "/templates/karaoke-thumb.png",
+  createdAt: new Date("2024-01-01"),
+  updatedAt: new Date("2024-01-01"),
+};
+
+/**
+ * Deep Diver Template - Opus.pro style
+ * Clean, professional look with white text on dark background
+ */
+export const DEEP_DIVER_TEMPLATE: CaptionTemplate = {
+  id: "deep-diver",
+  name: "Deep Diver",
+  description: "Clean, professional captions. Perfect for educational and documentary content.",
+  platform: "Universal",
+  style: {
+    fontFamily: "Inter",
+    fontSize: 36,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 80,
+    position: "bottom",
+    alignment: "center",
+    animation: "fade",
+    highlightColor: "#4A90D9",
+    highlightEnabled: true,
+    shadow: false,
+    outline: false,
+    outlineColor: undefined,
+  },
+  preview: "/templates/deep-diver-preview.png",
+  previewThumbnail: "/templates/deep-diver-thumb.png",
+  createdAt: new Date("2024-01-01"),
+  updatedAt: new Date("2024-01-01"),
+};
+
+/**
+ * Pod P Template - Opus.pro style
+ * Podcast-optimized with magenta accents
+ */
+export const POD_P_TEMPLATE: CaptionTemplate = {
+  id: "pod-p",
+  name: "Pod P",
+  description: "Podcast-optimized captions with vibrant accents. Great for interview content.",
+  platform: "Podcast",
+  style: {
+    fontFamily: "Poppins",
+    fontSize: 42,
+    textColor: "#FF00FF",
+    backgroundColor: "#1A1A2E",
+    backgroundOpacity: 75,
+    position: "bottom",
+    alignment: "center",
+    animation: "fade",
+    highlightColor: "#00FFFF",
+    highlightEnabled: true,
+    shadow: true,
+    outline: false,
+    outlineColor: undefined,
+  },
+  preview: "/templates/pod-p-preview.png",
+  previewThumbnail: "/templates/pod-p-thumb.png",
+  isNew: true,
+  createdAt: new Date("2025-01-01"),
+  updatedAt: new Date("2025-01-01"),
+};
+
+/**
+ * Popline Template - Opus.pro style
+ * Bold, attention-grabbing with pop animation
+ */
+export const POPLINE_TEMPLATE: CaptionTemplate = {
+  id: "popline",
+  name: "Popline",
+  description: "Bold, attention-grabbing captions with pop animation. Perfect for viral content.",
+  platform: "Universal",
+  style: {
+    fontFamily: "Oswald",
+    fontSize: 44,
+    textColor: "#FFFFFF",
+    backgroundColor: "#FF4500",
+    backgroundOpacity: 85,
+    position: "center",
+    alignment: "center",
+    animation: "bounce",
+    highlightColor: "#FFD700",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/popline-preview.png",
+  previewThumbnail: "/templates/popline-thumb.png",
+  isNew: true,
+  createdAt: new Date("2025-01-01"),
+  updatedAt: new Date("2025-01-01"),
+};
+
+/**
+ * Seamless Bounce Template - Opus.pro style
+ * Smooth bouncing animation with green accents
+ */
+export const SEAMLESS_BOUNCE_TEMPLATE: CaptionTemplate = {
+  id: "seamless-bounce",
+  name: "Seamless Bounce",
+  description: "Smooth bouncing animation that keeps viewers engaged. Great for energetic content.",
+  platform: "Universal",
+  style: {
+    fontFamily: "Nunito",
+    fontSize: 40,
+    textColor: "#00FF00",
+    backgroundColor: "#0D0D0D",
+    backgroundOpacity: 70,
+    position: "bottom",
+    alignment: "center",
+    animation: "bounce",
+    highlightColor: "#FFFFFF",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/seamless-bounce-preview.png",
+  previewThumbnail: "/templates/seamless-bounce-thumb.png",
+  createdAt: new Date("2024-06-01"),
+  updatedAt: new Date("2024-06-01"),
+};
+
+/**
+ * Beasty Template - Opus.pro style
+ * Clean, minimal style inspired by MrBeast
+ */
+export const BEASTY_TEMPLATE: CaptionTemplate = {
+  id: "beasty",
+  name: "Beasty",
+  description: "Clean, minimal style inspired by top YouTubers. Professional and readable.",
+  platform: "YouTube",
+  style: {
+    fontFamily: "Roboto",
+    fontSize: 38,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 65,
+    position: "bottom",
+    alignment: "center",
+    animation: "none",
+    highlightColor: "#FF0000",
+    highlightEnabled: false,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/beasty-preview.png",
+  previewThumbnail: "/templates/beasty-thumb.png",
+  createdAt: new Date("2024-01-01"),
+  updatedAt: new Date("2024-01-01"),
+};
+
+/**
+ * Youshaei Template - Opus.pro style
+ * Slide animation with cyan accents
+ */
+export const YOUSHAEI_TEMPLATE: CaptionTemplate = {
+  id: "youshaei",
+  name: "Youshaei",
+  description: "Elegant slide animation with modern aesthetics. Perfect for lifestyle content.",
+  platform: "Universal",
+  style: {
+    fontFamily: "Raleway",
+    fontSize: 42,
+    textColor: "#00BFFF",
+    backgroundColor: "#1C1C1C",
+    backgroundOpacity: 75,
+    position: "bottom",
+    alignment: "center",
+    animation: "fade",
+    highlightColor: "#FF69B4",
+    highlightEnabled: true,
+    shadow: true,
+    outline: false,
+    outlineColor: undefined,
+  },
+  preview: "/templates/youshaei-preview.png",
+  previewThumbnail: "/templates/youshaei-thumb.png",
+  isNew: true,
+  createdAt: new Date("2025-01-01"),
+  updatedAt: new Date("2025-01-01"),
+};
+
+/**
+ * Mozi Template - Opus.pro style
+ * Yellow text with green highlight, karaoke style
+ */
+export const MOZI_TEMPLATE: CaptionTemplate = {
+  id: "mozi",
+  name: "Mozi",
+  description: "Vibrant karaoke style with dual-color highlighting. Eye-catching and dynamic.",
+  platform: "Universal",
+  style: {
+    fontFamily: "Montserrat",
+    fontSize: 46,
+    textColor: "#FFFF00",
+    backgroundColor: "#000000",
+    backgroundOpacity: 70,
+    position: "bottom",
+    alignment: "center",
+    animation: "karaoke",
+    highlightColor: "#00FF00",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/mozi-preview.png",
+  previewThumbnail: "/templates/mozi-thumb.png",
+  createdAt: new Date("2024-03-01"),
+  updatedAt: new Date("2024-03-01"),
+};
+
+/**
+ * Glitch Infinite Template - Opus.pro style
+ * Glitch effect with orange text
+ */
+export const GLITCH_INFINITE_TEMPLATE: CaptionTemplate = {
+  id: "glitch-infinite",
+  name: "Glitch Infinite",
+  description: "Edgy glitch effect for tech and gaming content. Adds a cyberpunk vibe.",
+  platform: "Gaming",
+  style: {
+    fontFamily: "Oswald",
+    fontSize: 44,
+    textColor: "#FF6600",
+    backgroundColor: "#0A0A0A",
+    backgroundOpacity: 80,
+    position: "center",
+    alignment: "center",
+    animation: "word-by-word",
+    highlightColor: "#00FFFF",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#FF0000",
+  },
+  preview: "/templates/glitch-infinite-preview.png",
+  previewThumbnail: "/templates/glitch-infinite-thumb.png",
+  isNew: true,
+  createdAt: new Date("2025-01-01"),
+  updatedAt: new Date("2025-01-01"),
+};
+
+/**
+ * Baby Earthquake Template - Opus.pro style
+ * Shake animation with green text
+ */
+export const BABY_EARTHQUAKE_TEMPLATE: CaptionTemplate = {
+  id: "baby-earthquake",
+  name: "Baby Earthquake",
+  description: "Subtle shake animation that adds energy without being distracting.",
+  platform: "Universal",
+  style: {
+    fontFamily: "Poppins",
+    fontSize: 40,
+    textColor: "#00FF00",
+    backgroundColor: "#000000",
+    backgroundOpacity: 65,
+    position: "bottom",
+    alignment: "center",
+    animation: "bounce",
+    highlightColor: "#FFFF00",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/baby-earthquake-preview.png",
+  previewThumbnail: "/templates/baby-earthquake-thumb.png",
+  createdAt: new Date("2024-06-01"),
+  updatedAt: new Date("2024-06-01"),
+};
+
 /**
  * All built-in caption templates
  * Validates: Requirement 11.1 (at least 5 pre-built templates)
  */
 export const CAPTION_TEMPLATES: CaptionTemplate[] = [
+  // Opus.pro-style templates (featured)
+  KARAOKE_TEMPLATE,
+  DEEP_DIVER_TEMPLATE,
+  POD_P_TEMPLATE,
+  POPLINE_TEMPLATE,
+  SEAMLESS_BOUNCE_TEMPLATE,
+  BEASTY_TEMPLATE,
+  YOUSHAEI_TEMPLATE,
+  MOZI_TEMPLATE,
+  GLITCH_INFINITE_TEMPLATE,
+  BABY_EARTHQUAKE_TEMPLATE,
+  // Platform-specific templates
   TIKTOK_TEMPLATE,
   REELS_TEMPLATE,
   SHORTS_TEMPLATE,

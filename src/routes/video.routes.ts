@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { VideoController } from "../controllers/video.controller";
+import { VideoConfigController } from "../controllers/video-config.controller";
 import { TranscriptController } from "../controllers/transcript.controller";
 import { ViralDetectionController } from "../controllers/viral-detection.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
@@ -73,5 +74,11 @@ videoRouter.patch("/:id/transcript/words/:index", TranscriptController.updateWor
 // Validates: Requirements 5.1, 5.2, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6
 videoRouter.post("/:id/analyze", ViralDetectionController.analyzeVideo);
 videoRouter.get("/:id/clips", ViralDetectionController.getVideoClips);
+
+// Video configuration endpoints
+// Validates: YouTube Upload Config Requirements 7.2, 7.3
+videoRouter.get("/:id/config", VideoConfigController.getConfig);
+videoRouter.post("/:id/configure", VideoConfigController.configure);
+videoRouter.patch("/:id/config", VideoConfigController.updateConfig);
 
 export default videoRouter;

@@ -43,6 +43,13 @@
       "when": 1769040000000,
       "tag": "0005_user_onboarding_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769212800000,
+      "tag": "0006_video_config",
+      "breakpoints": true
     }
   ]
 }
