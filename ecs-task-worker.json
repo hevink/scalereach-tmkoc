@@ -1,0 +1,38 @@
+{
+  "family": "scalereach-worker",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::YOUR_ACCOUNT_ID:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "worker",
+      "image": "YOUR_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/scalereach-api:latest",
+      "essential": true,
+      "environment": [
+        {"name": "NODE_ENV", "value": "production"}
+      ],
+      "secrets": [
+        {"name": "DATABASE_URL", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:scalereach/database-url"},
+        {"name": "REDIS_HOST", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:scalereach/redis-host"},
+        {"name": "DEEPGRAM_API_KEY", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:scalereach/deepgram-key"},
+        {"name": "GROQ_API_KEY", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:scalereach/groq-key"},
+        {"name": "R2_ACCOUNT_ID", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:scalereach/r2-account"},
+        {"name": "R2_ACCESS_KEY_ID", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:scalereach/r2-access-key"},
+        {"name": "R2_SECRET_ACCESS_KEY", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:scalereach/r2-secret-key"},
+        {"name": "R2_BUCKET_NAME", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:scalereach/r2-bucket"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/scalereach-worker",
+          "awslogs-region": "YOUR_REGION",
+          "awslogs-stream-prefix": "worker"
+        }
+      },
+      "command": ["bun", "run", "src/worker.ts"]
+    }
+  ]
+}
