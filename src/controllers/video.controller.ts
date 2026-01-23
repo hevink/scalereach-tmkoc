@@ -84,8 +84,8 @@ export class VideoController {
           skipClipping: config.skipClipping ?? false,
           clipModel: config.clipModel ?? "ClipBasic",
           genre: config.genre ?? "Auto",
-          clipDurationMin: config.clipDurationMin ?? 0,
-          clipDurationMax: config.clipDurationMax ?? 180,
+          clipDurationMin: config.clipDurationMin ?? 15,
+          clipDurationMax: config.clipDurationMax ?? 90,
           timeframeStart: config.timeframeStart ?? 0,
           timeframeEnd: config.timeframeEnd ?? null,
           enableAutoHook: config.enableAutoHook ?? true,
@@ -144,7 +144,9 @@ export class VideoController {
       );
     } catch (error) {
       console.error(`[VIDEO CONTROLLER] SUBMIT_YOUTUBE_URL error:`, error);
-      return c.json({ error: "Failed to submit video" }, 500);
+      // Return more detailed error message
+      const errorMessage = error instanceof Error ? error.message : "Failed to submit video";
+      return c.json({ error: errorMessage, details: String(error) }, 500);
     }
   }
 
