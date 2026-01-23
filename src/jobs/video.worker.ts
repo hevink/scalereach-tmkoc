@@ -8,10 +8,13 @@ import { R2Service } from "../services/r2.service";
 import { DeepgramService } from "../services/deepgram.service";
 import { ViralDetectionService } from "../services/viral-detection.service";
 import { FFmpegService } from "../services/ffmpeg.service";
+import { TIKTOK_TEMPLATE, getTemplateById } from "../data/caption-templates";
+import { VideoConfigModel } from "../models/video-config.model";
 import {
   createWorker,
   QUEUE_NAMES,
   VideoProcessingJobData,
+  addClipGenerationJob,
 } from "./queue";
 
 async function updateVideoStatus(
@@ -53,6 +56,18 @@ async function processYouTubeVideo(
   console.log(`[VIDEO WORKER] Source URL: ${sourceUrl}`);
 
   try {
+    // Fetch video configuration
+    const videoConfig = await VideoConfigModel.getByVideoId(videoId);
+    console.log(`[VIDEO WORKER] Video config loaded:`, videoConfig ? {
+      skipClipping: videoConfig.skipClipping,
+      clipModel: videoConfig.clipModel,
+      genre: videoConfig.genre,
+      captionTemplateId: videoConfig.captionTemplateId,
+      aspectRatio: videoConfig.aspectRatio,
+      timeframeStart: videoConfig.timeframeStart,
+      timeframeEnd: videoConfig.timeframeEnd,
+    } : 'No config found, using defaults');
+
     await updateVideoStatus(videoId, "downloading");
     await job.updateProgress(10);
 
@@ -112,25 +127,51 @@ async function processYouTubeVideo(
 
     console.log(`[VIDEO WORKER] Transcript stored with language: ${transcriptResult.language}, confidence: ${transcriptResult.confidence.toFixed(3)}`);
 
+    // Check if clipping is disabled
+    if (videoConfig?.skipClipping) {
+      console.log(`[VIDEO WORKER] Clipping disabled, skipping viral detection`);
+      await updateVideoStatus(videoId, "completed", {});
+      await job.updateProgress(100);
+      console.log(`[VIDEO WORKER] Video processing complete (no clipping): ${videoId}`);
+      return;
+    }
+
     // Detect viral clips using AI
     console.log(`[VIDEO WORKER] Detecting viral clips...`);
+    
+    // Apply timeframe filtering if configured
+    const timeframeStart = videoConfig?.timeframeStart ?? 0;
+    const timeframeEnd = videoConfig?.timeframeEnd ?? videoInfo.duration;
+    
+    // Filter transcript words to the configured timeframe
+    const filteredWords = transcriptResult.words.filter(
+      (w) => w.start >= timeframeStart && w.end <= timeframeEnd
+    );
+    
+    // Build filtered transcript text
+    const filteredTranscript = filteredWords.map((w) => w.word).join(" ");
+    
+    console.log(`[VIDEO WORKER] Processing timeframe: ${timeframeStart}s - ${timeframeEnd}s`);
+    
     const viralClips = await ViralDetectionService.detectViralClips(
-      transcriptResult.transcript,
-      transcriptResult.words,
+      filteredTranscript,
+      filteredWords,
       {
         maxClips: 5,
-        minDuration: 15,
-        maxDuration: 60,
+        minDuration: videoConfig?.clipDurationMin ?? 15,
+        maxDuration: videoConfig?.clipDurationMax ?? 60,
         videoTitle: videoInfo.title,
+        genre: videoConfig?.genre ?? "Auto",
+        customPrompt: videoConfig?.customPrompt ?? undefined,
       }
     );
 
     await job.updateProgress(90);
 
-    // Save viral clips to database
+    // Save viral clips to database and queue clip generation with captions
     // Validates: Requirements 5.3, 5.4, 5.5, 5.8, 5.9
     if (viralClips.length > 0) {
-      console.log(`[VIDEO WORKER] Saving ${viralClips.length} viral clips...`);
+      console.log(`[VIDEO WORKER] Saving ${viralClips.length} viral clips and queuing generation with captions...`);
 
       const clipRecords = viralClips.map((clip) => ({
         id: nanoid(),
@@ -148,12 +189,67 @@ async function processYouTubeVideo(
       }));
 
       await db.insert(viralClip).values(clipRecords);
+
+      // Auto-generate clips with captions burned in
+      // Extract words for each clip's time range and queue generation
+      for (const clipRecord of clipRecords) {
+        const clipWords = transcriptResult.words.filter(
+          (w) => w.start >= clipRecord.startTime && w.end <= clipRecord.endTime
+        );
+
+        // Adjust word timings to be relative to clip start
+        const adjustedWords = clipWords.map((w) => ({
+          word: w.word,
+          start: w.start - clipRecord.startTime,
+          end: w.end - clipRecord.startTime,
+        }));
+
+        // Get caption template from config or use default
+        const templateId = videoConfig?.captionTemplateId ?? "tiktok";
+        const template = getTemplateById(templateId) ?? TIKTOK_TEMPLATE;
+        
+        const captionStyle = {
+          fontFamily: template.style.fontFamily,
+          fontSize: template.style.fontSize,
+          textColor: template.style.textColor,
+          backgroundColor: template.style.backgroundColor,
+          backgroundOpacity: template.style.backgroundOpacity,
+          position: template.style.position,
+          alignment: template.style.alignment,
+          highlightColor: template.style.highlightColor,
+          highlightEnabled: template.style.highlightEnabled,
+          shadow: template.style.shadow,
+          outline: template.style.outline,
+          outlineColor: template.style.outlineColor,
+        };
+
+        // Get aspect ratio from config or use default
+        const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
+
+        // Queue clip generation with captions
+        await addClipGenerationJob({
+          clipId: clipRecord.id,
+          videoId: videoId,
+          sourceType: "youtube",
+          sourceUrl: sourceUrl,
+          startTime: clipRecord.startTime,
+          endTime: clipRecord.endTime,
+          aspectRatio: aspectRatio,
+          quality: "1080p",
+          captions: {
+            words: adjustedWords,
+            style: captionStyle,
+          },
+        });
+
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}`);
+      }
     }
 
     await updateVideoStatus(videoId, "completed", {});
 
     await job.updateProgress(100);
-    console.log(`[VIDEO WORKER] Video processing complete: ${videoId}, found ${viralClips.length} viral clips`);
+    console.log(`[VIDEO WORKER] Video processing complete: ${videoId}, found ${viralClips.length} viral clips (generation queued)`);
   } catch (error) {
     console.error(`[VIDEO WORKER] Error processing video ${videoId}:`, error);
 
@@ -190,6 +286,18 @@ async function processUploadedVideo(
   console.log(`[VIDEO WORKER] Source URL: ${sourceUrl}`);
 
   try {
+    // Fetch video configuration
+    const videoConfig = await VideoConfigModel.getByVideoId(videoId);
+    console.log(`[VIDEO WORKER] Video config loaded:`, videoConfig ? {
+      skipClipping: videoConfig.skipClipping,
+      clipModel: videoConfig.clipModel,
+      genre: videoConfig.genre,
+      captionTemplateId: videoConfig.captionTemplateId,
+      aspectRatio: videoConfig.aspectRatio,
+      timeframeStart: videoConfig.timeframeStart,
+      timeframeEnd: videoConfig.timeframeEnd,
+    } : 'No config found, using defaults');
+
     // Get the video record to get the storage key
     const videoRecord = await db.select().from(video).where(eq(video.id, videoId));
     if (!videoRecord[0]) {
@@ -268,25 +376,52 @@ async function processUploadedVideo(
 
     console.log(`[VIDEO WORKER] Transcript stored with language: ${transcriptResult.language}, confidence: ${transcriptResult.confidence.toFixed(3)}`);
 
+    // Check if clipping is disabled
+    if (videoConfig?.skipClipping) {
+      console.log(`[VIDEO WORKER] Clipping disabled, skipping viral detection`);
+      await updateVideoStatus(videoId, "completed", {});
+      await job.updateProgress(100);
+      console.log(`[VIDEO WORKER] Uploaded video processing complete (no clipping): ${videoId}`);
+      return;
+    }
+
     // Detect viral clips using AI
     console.log(`[VIDEO WORKER] Detecting viral clips...`);
+    
+    // Apply timeframe filtering if configured
+    const videoDuration = videoMetadata?.duration ?? 300;
+    const timeframeStart = videoConfig?.timeframeStart ?? 0;
+    const timeframeEnd = videoConfig?.timeframeEnd ?? videoDuration;
+    
+    // Filter transcript words to the configured timeframe
+    const filteredWords = transcriptResult.words.filter(
+      (w) => w.start >= timeframeStart && w.end <= timeframeEnd
+    );
+    
+    // Build filtered transcript text
+    const filteredTranscript = filteredWords.map((w) => w.word).join(" ");
+    
+    console.log(`[VIDEO WORKER] Processing timeframe: ${timeframeStart}s - ${timeframeEnd}s`);
+    
     const viralClips = await ViralDetectionService.detectViralClips(
-      transcriptResult.transcript,
-      transcriptResult.words,
+      filteredTranscript,
+      filteredWords,
       {
         maxClips: 5,
-        minDuration: 15,
-        maxDuration: 60,
+        minDuration: videoConfig?.clipDurationMin ?? 15,
+        maxDuration: videoConfig?.clipDurationMax ?? 60,
         videoTitle: videoRecord[0].title || undefined,
+        genre: videoConfig?.genre ?? "Auto",
+        customPrompt: videoConfig?.customPrompt ?? undefined,
       }
     );
 
     await job.updateProgress(90);
 
-    // Save viral clips to database
+    // Save viral clips to database and queue clip generation with captions
     // Validates: Requirements 5.3, 5.4, 5.5, 5.8, 5.9
     if (viralClips.length > 0) {
-      console.log(`[VIDEO WORKER] Saving ${viralClips.length} viral clips...`);
+      console.log(`[VIDEO WORKER] Saving ${viralClips.length} viral clips and queuing generation with captions...`);
 
       const clipRecords = viralClips.map((clip) => ({
         id: nanoid(),
@@ -304,13 +439,68 @@ async function processUploadedVideo(
       }));
 
       await db.insert(viralClip).values(clipRecords);
+
+      // Auto-generate clips with captions burned in
+      // Extract words for each clip's time range and queue generation
+      for (const clipRecord of clipRecords) {
+        const clipWords = transcriptResult.words.filter(
+          (w) => w.start >= clipRecord.startTime && w.end <= clipRecord.endTime
+        );
+
+        // Adjust word timings to be relative to clip start
+        const adjustedWords = clipWords.map((w) => ({
+          word: w.word,
+          start: w.start - clipRecord.startTime,
+          end: w.end - clipRecord.startTime,
+        }));
+
+        // Get caption template from config or use default
+        const templateId = videoConfig?.captionTemplateId ?? "tiktok";
+        const template = getTemplateById(templateId) ?? TIKTOK_TEMPLATE;
+        
+        const captionStyle = {
+          fontFamily: template.style.fontFamily,
+          fontSize: template.style.fontSize,
+          textColor: template.style.textColor,
+          backgroundColor: template.style.backgroundColor,
+          backgroundOpacity: template.style.backgroundOpacity,
+          position: template.style.position,
+          alignment: template.style.alignment,
+          highlightColor: template.style.highlightColor,
+          highlightEnabled: template.style.highlightEnabled,
+          shadow: template.style.shadow,
+          outline: template.style.outline,
+          outlineColor: template.style.outlineColor,
+        };
+
+        // Get aspect ratio from config or use default
+        const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
+
+        // Queue clip generation with captions
+        await addClipGenerationJob({
+          clipId: clipRecord.id,
+          videoId: videoId,
+          sourceType: "upload",
+          storageKey: storageKey,
+          startTime: clipRecord.startTime,
+          endTime: clipRecord.endTime,
+          aspectRatio: aspectRatio,
+          quality: "1080p",
+          captions: {
+            words: adjustedWords,
+            style: captionStyle,
+          },
+        });
+
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}`);
+      }
     }
 
     await updateVideoStatus(videoId, "completed", {});
 
     await job.updateProgress(100);
     console.log(
-      `[VIDEO WORKER] Uploaded video processing complete: ${videoId}, found ${viralClips.length} viral clips`
+      `[VIDEO WORKER] Uploaded video processing complete: ${videoId}, found ${viralClips.length} viral clips (generation queued)`
     );
   } catch (error) {
     console.error(`[VIDEO WORKER] Error processing uploaded video ${videoId}:`, error);

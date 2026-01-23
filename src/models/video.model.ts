@@ -80,6 +80,43 @@ export class VideoModel {
     }
   }
 
+  /**
+   * Get videos by user ID with only essential fields for grid display
+   * Returns: id, title, duration, status, sourceType, sourceUrl, createdAt
+   */
+  static async getByUserIdLite(userId: string) {
+    this.logOperation("GET_VIDEOS_BY_USER_LITE", { userId });
+    const startTime = performance.now();
+
+    try {
+      const result = await db
+        .select({
+          id: video.id,
+          title: video.title,
+          duration: video.duration,
+          status: video.status,
+          sourceType: video.sourceType,
+          sourceUrl: video.sourceUrl,
+          createdAt: video.createdAt,
+        })
+        .from(video)
+        .where(eq(video.userId, userId))
+        .orderBy(video.createdAt);
+      const duration = performance.now() - startTime;
+      console.log(
+        `[VIDEO MODEL] GET_VIDEOS_BY_USER_LITE completed in ${duration.toFixed(2)}ms, found ${result.length} videos`
+      );
+      return result;
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(
+        `[VIDEO MODEL] GET_VIDEOS_BY_USER_LITE failed after ${duration.toFixed(2)}ms:`,
+        error
+      );
+      throw error;
+    }
+  }
+
   static async create(data: {
     id: string;
     projectId?: string | null;
@@ -127,7 +164,7 @@ export class VideoModel {
       fileSize: number;
       mimeType: string;
       metadata: any;
-      status: "pending" | "downloading" | "uploading" | "transcribing" | "analyzing" | "completed" | "failed";
+      status: "pending" | "pending_config" | "downloading" | "uploading" | "transcribing" | "analyzing" | "completed" | "failed";
       errorMessage: string;
       transcript: string;
       transcriptWords: any[];

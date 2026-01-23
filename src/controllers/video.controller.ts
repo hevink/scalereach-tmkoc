@@ -20,13 +20,15 @@ export class VideoController {
 
     try {
       const body = await c.req.json();
-      const { projectId, youtubeUrl } = body;
+      const { projectId, youtubeUrl, workspaceSlug, config } = body;
       const user = c.get("user") as { id: string };
 
       console.log(`[VIDEO CONTROLLER] SUBMIT_YOUTUBE_URL request:`, {
         projectId,
         youtubeUrl,
         userId: user.id,
+        workspaceSlug,
+        hasConfig: !!config,
       });
 
       if (!youtubeUrl) {
@@ -63,30 +65,80 @@ export class VideoController {
 
       const videoId = nanoid();
 
+      // Create video record
       const videoRecord = await VideoModel.create({
         id: videoId,
         projectId: projectId || null,
         userId: user.id,
         sourceType: "youtube",
         sourceUrl: youtubeUrl,
+        title: videoInfo.title,
       });
 
-      await addVideoProcessingJob({
-        videoId,
-        projectId: projectId || null,
-        userId: user.id,
-        sourceType: "youtube",
-        sourceUrl: youtubeUrl,
-      });
+      // If config is provided, save it and start processing immediately
+      if (config) {
+        const { VideoConfigModel } = await import("../models/video-config.model");
+        const configId = nanoid();
+        
+        await VideoConfigModel.upsert(videoId, configId, {
+          skipClipping: config.skipClipping ?? false,
+          clipModel: config.clipModel ?? "ClipBasic",
+          genre: config.genre ?? "Auto",
+          clipDurationMin: config.clipDurationMin ?? 0,
+          clipDurationMax: config.clipDurationMax ?? 180,
+          timeframeStart: config.timeframeStart ?? 0,
+          timeframeEnd: config.timeframeEnd ?? null,
+          enableAutoHook: config.enableAutoHook ?? true,
+          customPrompt: config.customPrompt ?? "",
+          topicKeywords: config.topicKeywords ?? [],
+          captionTemplateId: config.captionTemplateId ?? "karaoke",
+          aspectRatio: config.aspectRatio ?? "9:16",
+          enableWatermark: config.enableWatermark ?? true,
+        });
+
+        // Start processing immediately
+        await VideoModel.update(videoId, { status: "downloading" });
+        
+        await addVideoProcessingJob({
+          videoId,
+          projectId: projectId || null,
+          userId: user.id,
+          sourceType: "youtube",
+          sourceUrl: youtubeUrl,
+        });
+
+        console.log(
+          `[VIDEO CONTROLLER] SUBMIT_YOUTUBE_URL success - created video: ${videoId} with config, processing started`
+        );
+
+        return c.json(
+          {
+            message: "Video submitted for processing",
+            video: { ...videoRecord, status: "downloading" },
+            videoInfo,
+          },
+          201
+        );
+      }
+
+      // No config provided - create with pending_config status
+      await VideoModel.update(videoId, { status: "pending_config" as any });
+
+      // Build redirect URL for configuration page
+      const redirectUrl = workspaceSlug 
+        ? `/${workspaceSlug}/configure/${videoId}`
+        : `/configure/${videoId}`;
 
       console.log(
-        `[VIDEO CONTROLLER] SUBMIT_YOUTUBE_URL success - created video: ${videoId}`
+        `[VIDEO CONTROLLER] SUBMIT_YOUTUBE_URL success - created video: ${videoId} with pending_config status`
       );
 
       return c.json(
         {
-          message: "Video submitted for processing",
-          video: videoRecord,
+          message: "Video created. Please configure processing options.",
+          video: { ...videoRecord, status: "pending_config" },
+          videoInfo,
+          redirectUrl,
         },
         201
       );
@@ -132,7 +184,8 @@ export class VideoController {
     VideoController.logRequest(c, "GET_MY_VIDEOS", { userId: user.id });
 
     try {
-      const videos = await VideoModel.getByUserId(user.id);
+      // Use lite version to return only essential fields for grid display
+      const videos = await VideoModel.getByUserIdLite(user.id);
       return c.json(videos);
     } catch (error) {
       console.error(`[VIDEO CONTROLLER] GET_MY_VIDEOS error:`, error);

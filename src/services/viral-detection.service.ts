@@ -56,6 +56,8 @@ export interface ViralDetectionOptions {
   minDuration?: number;     // Minimum clip duration in seconds (default: 15, min: 10)
   maxDuration?: number;     // Maximum clip duration in seconds (default: 60, max: 90)
   videoTitle?: string;      // Video title for context
+  genre?: string;           // Content genre for better detection (Auto, Podcast, Gaming, etc.)
+  customPrompt?: string;    // Custom prompt for specific moment detection
 }
 
 /**
