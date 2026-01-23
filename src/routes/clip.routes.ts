@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { ViralDetectionController } from "../controllers/viral-detection.controller";
 import { ClipGenerationController } from "../controllers/clip-generation.controller";
 import { ClipAdjustmentController } from "../controllers/clip-adjustment.controller";
+import { ClipCaptionController } from "../controllers/clip-caption.controller";
 import { ExportController } from "../controllers/export.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
@@ -20,6 +21,15 @@ clipRouter.post("/:id/favorite", ViralDetectionController.toggleFavorite);
 // Validates: Requirements 9.1, 9.3, 9.4, 9.5
 clipRouter.patch("/:id/boundaries", ClipAdjustmentController.updateBoundaries);
 clipRouter.get("/:id/boundaries", ClipAdjustmentController.getBoundaries);
+
+// Caption editing endpoints
+clipRouter.get("/:id/captions", ClipCaptionController.getCaptions);
+clipRouter.put("/:id/captions/words", ClipCaptionController.updateWords);
+clipRouter.patch("/:id/captions/style", ClipCaptionController.updateStyle);
+clipRouter.post("/:id/captions/words", ClipCaptionController.addWord);
+clipRouter.patch("/:id/captions/words/:wordId", ClipCaptionController.updateWord);
+clipRouter.delete("/:id/captions/words/:wordId", ClipCaptionController.removeWord);
+clipRouter.post("/:id/captions/reset", ClipCaptionController.resetCaptions);
 
 // Clip generation endpoints
 // Validates: Requirements 7.1, 7.6
