@@ -50,6 +50,13 @@
       "when": 1769212800000,
       "tag": "0006_video_config",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1769385600000,
+      "tag": "0007_workspace_plan",
+      "breakpoints": true
     }
   ]
 }

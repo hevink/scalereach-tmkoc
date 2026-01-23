@@ -16,6 +16,7 @@ export const workspace = pgTable(
     slug: text("slug").notNull().unique(),
     description: text("description"),
     logo: text("logo"),
+    plan: text("plan").notNull().default("free"), // 'free' | 'pro' | 'agency'
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

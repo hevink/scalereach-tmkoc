@@ -36,6 +36,7 @@ export class WorkspaceModel {
           slug: workspace.slug,
           description: workspace.description,
           logo: workspace.logo,
+          plan: workspace.plan,
           ownerId: workspace.ownerId,
           createdAt: workspace.createdAt,
           updatedAt: workspace.updatedAt,
@@ -141,6 +142,7 @@ export class WorkspaceModel {
       slug: string;
       description: string;
       logo: string;
+      plan: string;
     }>
   ) {
     this.logOperation('UPDATE_WORKSPACE', { id, fields: Object.keys(data) });
