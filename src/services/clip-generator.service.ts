@@ -35,6 +35,7 @@ export interface ClipGenerationOptions {
       backgroundOpacity?: number;
       position?: "top" | "center" | "bottom";
       alignment?: "left" | "center" | "right";
+      animation?: "none" | "word-by-word" | "karaoke" | "bounce" | "fade";
       highlightColor?: string;
       highlightEnabled?: boolean;
       shadow?: boolean;
@@ -175,6 +176,7 @@ export class ClipGeneratorService {
 
   /**
    * Generate ASS subtitle content from caption words
+   * Supports word-by-word karaoke effect with scaling animation
    */
   private static generateASSSubtitles(
     words: Array<{ word: string; start: number; end: number }>,
@@ -197,7 +199,7 @@ export class ClipGeneratorService {
     // Vertical margin based on position
     const marginV = style?.position === "center" ? 0 : 60;
 
-    // ASS header
+    // ASS header with styles for normal and highlighted text
     let ass = `[Script Info]
 Title: Generated Captions
 ScriptType: v4.00+
@@ -208,13 +210,13 @@ WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
-Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
+Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,120,120,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
-    // Group words into lines (max ~6 words per line for readability)
+    // Group words into lines (max ~5 words per line for readability)
     const lines: Array<{ words: typeof words; start: number; end: number }> = [];
     let currentLine: typeof words = [];
     
@@ -237,22 +239,43 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       });
     }
 
-    // Generate dialogue lines with word-by-word highlighting if enabled
-    for (const line of lines) {
-      const startTime = this.formatASSTime(line.start);
-      const endTime = this.formatASSTime(line.end);
-      
-      if (style?.highlightEnabled) {
-        // Word-by-word karaoke effect
-        let text = "";
+    // Generate dialogue lines
+    if (style?.highlightEnabled) {
+      // Word-by-word karaoke with scale effect
+      // Each word gets its own dialogue line that shows highlighted during its time
+      for (const line of lines) {
         for (let i = 0; i < line.words.length; i++) {
           const word = line.words[i];
-          const duration = Math.round((word.end - word.start) * 100); // centiseconds
-          text += `{\\k${duration}}${word.word} `;
+          const wordStart = this.formatASSTime(word.start);
+          const wordEnd = this.formatASSTime(word.end);
+          
+          // Build the line text with current word highlighted (scaled + colored)
+          let text = "";
+          for (let j = 0; j < line.words.length; j++) {
+            const w = line.words[j];
+            if (j === i) {
+              // Current word: scale 1.2x and highlight color
+              text += `{\\fscx120\\fscy120\\c${highlightColor}}${w.word}{\\fscx100\\fscy100\\c${textColor}} `;
+            } else {
+              text += `${w.word} `;
+            }
+          }
+          
+          ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
         }
-        ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,karaoke,${text.trim()}\n`;
-      } else {
-        // Simple text display
+        
+        // Also show the full line without highlight between words (for smooth transition)
+        // This fills gaps if there are pauses between words
+        const lineText = line.words.map(w => w.word).join(" ");
+        const lineStart = this.formatASSTime(line.start);
+        const lineEnd = this.formatASSTime(line.end);
+        ass += `Dialogue: -1,${lineStart},${lineEnd},Default,,0,0,0,,${lineText}\n`;
+      }
+    } else {
+      // Simple text display without word highlighting
+      for (const line of lines) {
+        const startTime = this.formatASSTime(line.start);
+        const endTime = this.formatASSTime(line.end);
         const text = line.words.map(w => w.word).join(" ");
         ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${text}\n`;
       }
