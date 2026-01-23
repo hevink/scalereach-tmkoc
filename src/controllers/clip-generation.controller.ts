@@ -8,6 +8,7 @@
 import { Context } from "hono";
 import { ClipModel } from "../models/clip.model";
 import { VideoModel } from "../models/video.model";
+import { ClipCaptionModel } from "../models/clip-caption.model";
 import { ClipGeneratorService, AspectRatio, VideoQuality } from "../services/clip-generator.service";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
 
@@ -200,7 +201,7 @@ export class ClipGenerationController {
 
   /**
    * POST /api/clips/:id/regenerate
-   * Regenerate a clip with different options
+   * Regenerate a clip with saved captions burned in
    */
   static async regenerateClip(c: Context) {
     const clipId = c.req.param("id");
@@ -244,7 +245,7 @@ export class ClipGenerationController {
       }
 
       // Get aspect ratio and quality from request or use defaults
-      const aspectRatio: AspectRatio = body.aspectRatio || "9:16";
+      const aspectRatio: AspectRatio = body.aspectRatio || clip.aspectRatio || "9:16";
       const quality: VideoQuality = body.quality || "1080p";
 
       // Determine source type and URL/key
@@ -252,7 +253,24 @@ export class ClipGenerationController {
       const sourceUrl = video.sourceUrl || undefined;
       const storageKey = video.storageKey || undefined;
 
-      // Add job to queue
+      // Get saved captions from database
+      const savedCaptions = await ClipCaptionModel.getByClipId(clipId);
+      
+      // Build captions object for job
+      let captions: any = undefined;
+      if (savedCaptions && savedCaptions.words.length > 0) {
+        captions = {
+          words: savedCaptions.words.map(w => ({
+            word: w.word,
+            start: w.start,
+            end: w.end,
+          })),
+          style: savedCaptions.styleConfig || undefined,
+        };
+        console.log(`[CLIP GENERATION CONTROLLER] Using saved captions: ${savedCaptions.words.length} words, isEdited: ${savedCaptions.isEdited}`);
+      }
+
+      // Add job to queue with captions
       const job = await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
@@ -263,6 +281,7 @@ export class ClipGenerationController {
         endTime: clip.endTime,
         aspectRatio,
         quality,
+        captions,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Regeneration job queued: ${job.id}`);
@@ -277,6 +296,8 @@ export class ClipGenerationController {
           startTime: clip.startTime,
           endTime: clip.endTime,
           duration: clip.endTime - clip.startTime,
+          hasCaptions: !!captions,
+          captionWordCount: captions?.words?.length || 0,
         },
       });
     } catch (error) {
