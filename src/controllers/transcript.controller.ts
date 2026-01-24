@@ -39,19 +39,74 @@ export class TranscriptController {
         return c.json({ error: "Video not found" }, 404);
       }
 
+      // Convert transcriptWords to segments for frontend
+      const transcriptWords = (video.transcriptWords as TranscriptWord[]) || [];
+      const segments = TranscriptController.wordsToSegments(transcriptWords);
+
       // Return transcript data with timestamps
       return c.json({
         videoId: video.id,
         transcript: video.transcript || "",
-        transcriptWords: video.transcriptWords || [],
+        transcriptWords: transcriptWords,
         transcriptLanguage: video.transcriptLanguage || null,
         transcriptConfidence: video.transcriptConfidence || null,
         duration: video.duration || null,
+        segments: segments,
       });
     } catch (error) {
       console.error(`[TRANSCRIPT CONTROLLER] GET_TRANSCRIPT error:`, error);
       return c.json({ error: "Failed to fetch transcript" }, 500);
     }
+  }
+
+  /**
+   * Convert flat word array to segments (grouped by ~10 words or sentence boundaries)
+   */
+  private static wordsToSegments(words: TranscriptWord[]): Array<{
+    id: string;
+    text: string;
+    startTime: number;
+    endTime: number;
+    words: TranscriptWord[];
+  }> {
+    if (!words || words.length === 0) return [];
+
+    const segments: Array<{
+      id: string;
+      text: string;
+      startTime: number;
+      endTime: number;
+      words: TranscriptWord[];
+    }> = [];
+
+    let currentSegmentWords: TranscriptWord[] = [];
+    let segmentIndex = 0;
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      currentSegmentWords.push(word);
+
+      // Check if we should end the segment
+      const isSentenceEnd = /[.!?]$/.test(word.word);
+      const isMaxWords = currentSegmentWords.length >= 15;
+      const isLastWord = i === words.length - 1;
+
+      if (isSentenceEnd || isMaxWords || isLastWord) {
+        if (currentSegmentWords.length > 0) {
+          segments.push({
+            id: `segment-${segmentIndex}`,
+            text: currentSegmentWords.map(w => w.word).join(" "),
+            startTime: currentSegmentWords[0].start,
+            endTime: currentSegmentWords[currentSegmentWords.length - 1].end,
+            words: currentSegmentWords,
+          });
+          segmentIndex++;
+          currentSegmentWords = [];
+        }
+      }
+    }
+
+    return segments;
   }
 
   /**
