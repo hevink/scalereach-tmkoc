@@ -73,7 +73,15 @@ async function processYouTubeVideo(
     await job.updateProgress(10);
 
     // Get audio stream directly from YouTube
-    const { stream, videoInfo, mimeType } = await YouTubeService.streamAudio(sourceUrl);
+    let streamResult;
+    try {
+      streamResult = await YouTubeService.streamAudio(sourceUrl);
+    } catch (error: any) {
+      console.error(`[VIDEO WORKER] Failed to start YouTube stream: ${error.message}`);
+      throw new Error(`YouTube download failed: ${error.message}`);
+    }
+    
+    const { stream, videoInfo, mimeType } = streamResult;
 
     await job.updateProgress(30);
     console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
@@ -95,11 +103,31 @@ async function processYouTubeVideo(
     const storageKey = R2Service.generateVideoKey(storagePath, filename);
 
     // Stream directly to R2 without saving to disk
-    const { url: storageUrl } = await R2Service.uploadFromStream(
-      storageKey,
-      stream,
-      mimeType
-    );
+    // Wrap in promise to catch stream errors
+    let storageUrl: string;
+    try {
+      const uploadResult = await new Promise<{ url: string }>((resolve, reject) => {
+        // Listen for stream errors
+        stream.on("error", (err) => {
+          console.error(`[VIDEO WORKER] Stream error during upload: ${err.message}`);
+          reject(new Error(`Stream failed: ${err.message}`));
+        });
+
+        R2Service.uploadFromStream(storageKey, stream, mimeType)
+          .then(resolve)
+          .catch(reject);
+      });
+      storageUrl = uploadResult.url;
+    } catch (error: any) {
+      console.error(`[VIDEO WORKER] Upload failed: ${error.message}`);
+      // Try to clean up partial upload
+      try {
+        await R2Service.deleteFile(storageKey);
+      } catch (deleteError) {
+        console.warn(`[VIDEO WORKER] Failed to clean up partial upload: ${storageKey}`);
+      }
+      throw new Error(`Failed to upload audio: ${error.message}`);
+    }
 
     await job.updateProgress(60);
 
