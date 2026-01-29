@@ -160,10 +160,16 @@ export class YouTubeService {
     const videoInfo = await this.getVideoInfo(url);
 
     const args = [
-      "-f", "bestaudio[ext=m4a]/bestaudio",
+      "-f", "bestaudio[ext=m4a]/bestaudio/best",
       "-o", "-", // Output to stdout
       "--quiet", // Suppress progress output
       "--no-warnings",
+      "--no-check-certificates",
+      "--prefer-free-formats",
+      "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "--extractor-retries", "3",
+      "--fragment-retries", "3",
+      "--retry-sleep", "1",
       url,
     ];
 
@@ -180,6 +186,11 @@ export class YouTubeService {
 
     const stream = ytdlpProcess.stdout as unknown as Readable;
     let stderr = "";
+    let hasReceivedData = false;
+
+    stream.on("data", () => {
+      hasReceivedData = true;
+    });
 
     ytdlpProcess.stderr?.on("data", (data) => {
       stderr += data.toString();
@@ -187,13 +198,21 @@ export class YouTubeService {
 
     ytdlpProcess.on("error", (err) => {
       console.error(`[YOUTUBE SERVICE] Process error: ${err.message}`);
-      stream.destroy(new Error(`Failed to spawn yt-dlp: ${err.message}. Make sure yt-dlp is installed.`));
+      stream.destroy(new Error(`Failed to spawn yt-dlp: ${err.message}. Make sure yt-dlp is installed and up to date (run: yt-dlp -U)`));
     });
 
     ytdlpProcess.on("close", (code) => {
       if (code !== 0 && code !== null) {
-        console.error(`[YOUTUBE SERVICE] Stream failed: ${stderr}`);
-        stream.destroy(new Error(`Stream failed with code ${code}: ${stderr}`));
+        console.error(`[YOUTUBE SERVICE] Stream failed with code ${code}: ${stderr}`);
+        
+        // Check for common errors
+        if (stderr.includes("403") || stderr.includes("Forbidden")) {
+          stream.destroy(new Error(`YouTube blocked the download (403 Forbidden). Try updating yt-dlp: yt-dlp -U. If using cookies, ensure they are fresh.`));
+        } else if (stderr.includes("Video unavailable")) {
+          stream.destroy(new Error(`Video is unavailable or private`));
+        } else if (!hasReceivedData) {
+          stream.destroy(new Error(`Failed to download audio: ${stderr || 'No data received'}`));
+        }
       }
     });
 
