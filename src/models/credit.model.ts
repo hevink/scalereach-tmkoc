@@ -256,13 +256,13 @@ export class CreditModel {
     }
   }
 
-  static async getPackageByPolarProductId(polarProductId: string) {
-    this.logOperation("GET_PACKAGE_BY_POLAR_PRODUCT_ID", { polarProductId });
+  static async getPackageByDodoProductId(dodoProductId: string) {
+    this.logOperation("GET_PACKAGE_BY_DODO_PRODUCT_ID", { dodoProductId });
 
     const result = await db
       .select()
       .from(creditPackage)
-      .where(eq(creditPackage.polarProductId, polarProductId));
+      .where(eq(creditPackage.dodoProductId, dodoProductId));
 
     return result[0];
   }
@@ -271,7 +271,9 @@ export class CreditModel {
     name: string;
     credits: number;
     priceInCents: number;
-    polarProductId: string;
+    dodoProductId: string;
+    isSubscription?: boolean;
+    billingPeriod?: string;
   }) {
     this.logOperation("CREATE_PACKAGE", data);
 
@@ -279,7 +281,12 @@ export class CreditModel {
       .insert(creditPackage)
       .values({
         id: this.generateId(),
-        ...data,
+        name: data.name,
+        credits: data.credits,
+        priceInCents: data.priceInCents,
+        dodoProductId: data.dodoProductId,
+        isSubscription: data.isSubscription ? 1 : 0,
+        billingPeriod: data.billingPeriod || null,
       })
       .returning();
 

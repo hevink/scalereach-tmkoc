@@ -1,17 +1,22 @@
 /**
  * Clip Generation Controller
  * Handles API endpoints for clip generation
- * 
+ *
  * Validates: Requirements 7.1, 7.6
  */
 
 import { Context } from "hono";
 import { ClipModel } from "../models/clip.model";
 import { VideoModel } from "../models/video.model";
+import { ProjectModel } from "../models/project.model";
+import { CreditModel } from "../models/credit.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { ClipGeneratorService, AspectRatio, VideoQuality } from "../services/clip-generator.service";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
 import { R2Service } from "../services/r2.service";
+
+// Credit cost per clip generation (can be moved to config/database later)
+const CREDIT_COST_PER_CLIP = 1;
 
 export class ClipGenerationController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -101,6 +106,29 @@ export class ClipGenerationController {
         return c.json({ error: "Storage key not found for uploaded video" }, 400);
       }
 
+      // Get workspace ID from video -> project relationship
+      let workspaceId: string | null = null;
+      if (video.projectId) {
+        const project = await ProjectModel.getById(video.projectId);
+        workspaceId = project?.workspaceId || null;
+      }
+
+      // Get current user
+      const user = c.get("user");
+      const userId = user?.id;
+
+      // Check credits if workspace exists
+      if (workspaceId) {
+        const hasCredits = await CreditModel.hasCredits(workspaceId, CREDIT_COST_PER_CLIP);
+        if (!hasCredits) {
+          return c.json({
+            error: "Insufficient credits",
+            message: `You need ${CREDIT_COST_PER_CLIP} credit(s) to generate this clip. Please upgrade your plan or purchase more credits.`,
+            creditCost: CREDIT_COST_PER_CLIP,
+          }, 402);
+        }
+      }
+
       // Validate clip options
       const validation = ClipGeneratorService.validateOptions({
         videoId: clip.videoId,
@@ -118,10 +146,12 @@ export class ClipGenerationController {
         return c.json({ error: validation.error }, 400);
       }
 
-      // Add job to queue
+      // Add job to queue with credit info
       const job = await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
+        workspaceId: workspaceId || "",
+        userId: userId || "",
         sourceType,
         sourceUrl,
         storageKey,
@@ -129,6 +159,7 @@ export class ClipGenerationController {
         endTime: clip.endTime,
         aspectRatio,
         quality,
+        creditCost: workspaceId ? CREDIT_COST_PER_CLIP : 0,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Job queued: ${job.id}`);
@@ -137,6 +168,7 @@ export class ClipGenerationController {
         message: "Clip generation started",
         clipId,
         jobId: job.id,
+        creditCost: workspaceId ? CREDIT_COST_PER_CLIP : 0,
         options: {
           aspectRatio,
           quality,
@@ -254,9 +286,32 @@ export class ClipGenerationController {
       const sourceUrl = video.sourceUrl || undefined;
       const storageKey = video.storageKey || undefined;
 
+      // Get workspace ID from video -> project relationship
+      let workspaceId: string | null = null;
+      if (video.projectId) {
+        const project = await ProjectModel.getById(video.projectId);
+        workspaceId = project?.workspaceId || null;
+      }
+
+      // Get current user
+      const user = c.get("user");
+      const userId = user?.id;
+
+      // Check credits if workspace exists
+      if (workspaceId) {
+        const hasCredits = await CreditModel.hasCredits(workspaceId, CREDIT_COST_PER_CLIP);
+        if (!hasCredits) {
+          return c.json({
+            error: "Insufficient credits",
+            message: `You need ${CREDIT_COST_PER_CLIP} credit(s) to regenerate this clip. Please upgrade your plan or purchase more credits.`,
+            creditCost: CREDIT_COST_PER_CLIP,
+          }, 402);
+        }
+      }
+
       // Get saved captions from database
       const savedCaptions = await ClipCaptionModel.getByClipId(clipId);
-      
+
       // Build captions object for job
       let captions: any = undefined;
       if (savedCaptions && savedCaptions.words.length > 0) {
@@ -271,10 +326,12 @@ export class ClipGenerationController {
         console.log(`[CLIP GENERATION CONTROLLER] Using saved captions: ${savedCaptions.words.length} words, isEdited: ${savedCaptions.isEdited}`);
       }
 
-      // Add job to queue with captions
+      // Add job to queue with captions and credit info
       const job = await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
+        workspaceId: workspaceId || "",
+        userId: userId || "",
         sourceType,
         sourceUrl,
         storageKey,
@@ -282,6 +339,7 @@ export class ClipGenerationController {
         endTime: clip.endTime,
         aspectRatio,
         quality,
+        creditCost: workspaceId ? CREDIT_COST_PER_CLIP : 0,
         captions,
       });
 
@@ -291,6 +349,7 @@ export class ClipGenerationController {
         message: "Clip regeneration started",
         clipId,
         jobId: job.id,
+        creditCost: workspaceId ? CREDIT_COST_PER_CLIP : 0,
         options: {
           aspectRatio,
           quality,

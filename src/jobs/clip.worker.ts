@@ -1,12 +1,13 @@
 /**
  * Clip Generation Worker
  * Processes clip generation jobs from BullMQ queue
- * 
+ *
  * Validates: Requirements 7.5, 7.6, 7.7
  */
 
 import { Job } from "bullmq";
 import { ClipModel } from "../models/clip.model";
+import { CreditModel } from "../models/credit.model";
 import { ClipGeneratorService } from "../services/clip-generator.service";
 import {
   createWorker,
@@ -44,6 +45,8 @@ async function processClipGenerationJob(
   const {
     clipId,
     videoId,
+    workspaceId,
+    userId,
     sourceType,
     sourceUrl,
     storageKey,
@@ -51,6 +54,7 @@ async function processClipGenerationJob(
     endTime,
     aspectRatio,
     quality,
+    creditCost,
     captions,
   } = job.data;
 
@@ -58,11 +62,37 @@ async function processClipGenerationJob(
   console.log(`[CLIP WORKER] Source type: ${sourceType}, Aspect ratio: ${aspectRatio}`);
   console.log(`[CLIP WORKER] Time range: ${startTime}s - ${endTime}s`);
   console.log(`[CLIP WORKER] Captions: ${captions?.words?.length || 0} words`);
+  console.log(`[CLIP WORKER] Credit cost: ${creditCost}, Workspace: ${workspaceId}`);
+
+  let creditsConsumed = false;
 
   try {
     // Update status to generating (Requirement 7.5)
     await updateClipStatus(clipId, "generating");
     await job.updateProgress(10);
+
+    // Consume credits before starting generation
+    if (workspaceId && creditCost > 0) {
+      try {
+        await CreditModel.useCredits({
+          workspaceId,
+          userId,
+          amount: creditCost,
+          description: `Clip generation - ${aspectRatio} ${quality}`,
+          metadata: {
+            clipId,
+            videoId,
+            aspectRatio,
+            quality,
+          },
+        });
+        creditsConsumed = true;
+        console.log(`[CLIP WORKER] Credits consumed: ${creditCost} for workspace ${workspaceId}`);
+      } catch (creditError: any) {
+        console.error(`[CLIP WORKER] Failed to consume credits:`, creditError);
+        throw new Error(`Insufficient credits: ${creditError.message}`);
+      }
+    }
 
     // Validate options
     const validation = ClipGeneratorService.validateOptions({
@@ -116,7 +146,28 @@ async function processClipGenerationJob(
     console.error(`[CLIP WORKER] Error generating clip ${clipId}:`, error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    
+
+    // Refund credits on failure if they were consumed
+    if (creditsConsumed && workspaceId && creditCost > 0) {
+      try {
+        await CreditModel.addCredits({
+          workspaceId,
+          userId,
+          amount: creditCost,
+          type: "refund",
+          description: `Refund for failed clip generation - ${clipId}`,
+          metadata: {
+            clipId,
+            videoId,
+            reason: errorMessage,
+          },
+        });
+        console.log(`[CLIP WORKER] Credits refunded: ${creditCost} for workspace ${workspaceId}`);
+      } catch (refundError) {
+        console.error(`[CLIP WORKER] Failed to refund credits:`, refundError);
+      }
+    }
+
     // Update status to failed (Requirement 7.7 - after 3 retries)
     // Note: BullMQ handles retries automatically, this is called on final failure
     await updateClipStatus(clipId, "failed", { errorMessage });

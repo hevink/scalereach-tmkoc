@@ -1,10 +1,12 @@
 {
   "name": "scalereach-tmkoc",
   "scripts": {
-    "dev": "bun --watch run src/index.ts",
+    "dev": "nodemon",
+    "dev:bun": "bun --watch run src/index.ts",
     "start": "bun run src/index.ts",
     "build": "tsc --noEmit",
     "worker": "bun run src/worker.ts",
+    "worker:dev": "nodemon --exec 'bun run src/worker.ts' --watch src",
     "worker:watch": "bun --watch run src/worker.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit push",
@@ -29,6 +31,7 @@
     "bcryptjs": "^3.0.3",
     "better-auth": "^1.4.11",
     "bullmq": "^5.66.5",
+    "dodopayments": "^2.17.2",
     "drizzle-orm": "^0.45.1",
     "hono": "^4.11.3",
     "ioredis": "^5.9.2",
@@ -45,7 +48,9 @@
     "@types/nodemailer": "^7.0.5",
     "dotenv": "^17.2.3",
     "drizzle-kit": "0.30.0",
+    "nodemon": "^3.1.11",
     "openapi-types": "^12.1.3",
+    "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
 }
