@@ -36,6 +36,7 @@ clipRouter.post("/:id/captions/reset", ClipCaptionController.resetCaptions);
 clipRouter.post("/:id/generate", ClipGenerationController.generateClip);
 clipRouter.get("/:id/status", ClipGenerationController.getClipStatus);
 clipRouter.post("/:id/regenerate", ClipGenerationController.regenerateClip);
+clipRouter.get("/:id/download", ClipGenerationController.getDownloadUrl);
 
 // Export endpoints
 // Validates: Requirements 23.1

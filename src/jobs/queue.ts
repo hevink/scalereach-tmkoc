@@ -72,7 +72,7 @@ export const videoProcessingQueue = new Queue<VideoProcessingJobData>(
   {
     connection: redisConnection,
     defaultJobOptions: {
-      attempts: 3,
+      attempts: 1,
       backoff: {
         type: "exponential",
         delay: 5000,
@@ -155,7 +155,7 @@ export const clipGenerationQueue = new Queue<ClipGenerationJobData>(
   {
     connection: redisConnection,
     defaultJobOptions: {
-      attempts: 3, // Retry up to 3 times (Requirement 7.7)
+      attempts: 1, // Retry up to 3 times (Requirement 7.7)
       backoff: {
         type: "exponential",
         delay: 5000,
