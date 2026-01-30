@@ -11,6 +11,7 @@ import { VideoModel } from "../models/video.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { ClipGeneratorService, AspectRatio, VideoQuality } from "../services/clip-generator.service";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
+import { R2Service } from "../services/r2.service";
 
 export class ClipGenerationController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -304,6 +305,56 @@ export class ClipGenerationController {
       console.error(`[CLIP GENERATION CONTROLLER] REGENERATE_CLIP error:`, error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       return c.json({ error: `Failed to regenerate clip: ${errorMessage}` }, 500);
+    }
+  }
+
+  /**
+   * GET /api/clips/:id/download
+   * Get a signed download URL for the generated clip
+   */
+  static async getDownloadUrl(c: Context) {
+    const clipId = c.req.param("id");
+    ClipGenerationController.logRequest(c, "GET_DOWNLOAD_URL", { clipId });
+
+    try {
+      // Get the clip
+      const clip = await ClipModel.getById(clipId);
+      if (!clip) {
+        return c.json({ error: "Clip not found" }, 404);
+      }
+
+      // Check if clip has been generated
+      if (!clip.storageKey) {
+        return c.json({ 
+          error: "Clip has not been generated yet",
+          status: clip.status,
+        }, 400);
+      }
+
+      // Get expiration from query params (default 1 hour)
+      const expiresIn = parseInt(c.req.query("expiresIn") || "3600", 10);
+      const maxExpiration = 7 * 24 * 60 * 60; // 7 days max
+      const validExpiration = Math.min(Math.max(expiresIn, 60), maxExpiration);
+
+      // Generate signed download URL
+      const downloadUrl = await R2Service.getSignedDownloadUrl(clip.storageKey, validExpiration);
+
+      // Update clip status to exported if it was ready
+      if (clip.status === "ready") {
+        await ClipModel.update(clipId, { status: "exported" });
+      }
+
+      return c.json({
+        clipId,
+        downloadUrl,
+        expiresIn: validExpiration,
+        filename: `${clip.title || "clip"}-${clipId}.mp4`,
+        status: "exported",
+      });
+    } catch (error) {
+      console.error(`[CLIP GENERATION CONTROLLER] GET_DOWNLOAD_URL error:`, error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to get download URL: ${errorMessage}` }, 500);
     }
   }
 }
