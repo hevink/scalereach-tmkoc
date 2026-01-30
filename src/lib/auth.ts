@@ -15,10 +15,16 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false,
+    requireEmailVerification: true,
     sendResetPassword: async ({ user, url }) => {
       await emailService.sendPasswordResetEmailWithUrl({ to: user.email, resetUrl: url });
     },
+  },
+  emailVerification: {
+    sendVerificationEmail: async ({ user, url }) => {
+      await emailService.sendVerificationEmail({ to: user.email, verificationUrl: url });
+    },
+    sendOnSignUp: true,
   },
   plugins: [
     username(),
