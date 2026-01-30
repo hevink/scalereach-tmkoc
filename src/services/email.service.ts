@@ -90,7 +90,6 @@ class EmailService {
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     const inviteLink = `${frontendUrl}/invite/${inviteToken}`;
 
-    // Always log the invite link to terminal for easy access
     console.log("\n╔══════════════════════════════════════════════════════════════╗");
     console.log("║              🎉 WORKSPACE INVITATION CREATED 🎉              ║");
     console.log("╠══════════════════════════════════════════════════════════════╣");
@@ -111,7 +110,6 @@ class EmailService {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Workspace Invitation</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5;">
   <table role="presentation" style="width: 100%; border-collapse: collapse;">
@@ -120,21 +118,13 @@ class EmailService {
         <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
           <tr>
             <td style="padding: 40px 40px 20px;">
-              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #18181b;">
-                You're invited to join ${workspaceName}
-              </h1>
-              <p style="margin: 0 0 20px; font-size: 16px; line-height: 24px; color: #52525b;">
-                <strong>${inviterName}</strong> has invited you to join <strong>${workspaceName}</strong> as a <strong>${role}</strong>.
-              </p>
-              <p style="margin: 0 0 30px; font-size: 16px; line-height: 24px; color: #52525b;">
-                Click the button below to accept the invitation and get started.
-              </p>
+              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #18181b;">You're invited to join ${workspaceName}</h1>
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 24px; color: #52525b;"><strong>${inviterName}</strong> has invited you to join <strong>${workspaceName}</strong> as a <strong>${role}</strong>.</p>
+              <p style="margin: 0 0 30px; font-size: 16px; line-height: 24px; color: #52525b;">Click the button below to accept the invitation.</p>
               <table role="presentation" style="border-collapse: collapse;">
                 <tr>
                   <td style="border-radius: 6px; background-color: #18181b;">
-                    <a href="${inviteLink}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 500; color: #ffffff; text-decoration: none;">
-                      Accept Invitation
-                    </a>
+                    <a href="${inviteLink}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 500; color: #ffffff; text-decoration: none;">Accept Invitation</a>
                   </td>
                 </tr>
               </table>
@@ -142,19 +132,13 @@ class EmailService {
           </tr>
           <tr>
             <td style="padding: 20px 40px 40px;">
-              <p style="margin: 0 0 10px; font-size: 14px; color: #71717a;">
-                Or copy and paste this link into your browser:
-              </p>
-              <p style="margin: 0; font-size: 14px; color: #3b82f6; word-break: break-all;">
-                ${inviteLink}
-              </p>
+              <p style="margin: 0 0 10px; font-size: 14px; color: #71717a;">Or copy and paste this link:</p>
+              <p style="margin: 0; font-size: 14px; color: #3b82f6; word-break: break-all;">${inviteLink}</p>
             </td>
           </tr>
           <tr>
             <td style="padding: 20px 40px; border-top: 1px solid #e4e4e7;">
-              <p style="margin: 0; font-size: 12px; color: #a1a1aa;">
-                This invitation will expire in 7 days. If you didn't expect this invitation, you can safely ignore this email.
-              </p>
+              <p style="margin: 0; font-size: 12px; color: #a1a1aa;">This invitation expires in 7 days.</p>
             </td>
           </tr>
         </table>
@@ -162,23 +146,76 @@ class EmailService {
     </tr>
   </table>
 </body>
-</html>
-    `;
+</html>`;
 
-    const text = `
-You've been invited to join ${workspaceName}
+    return this.sendEmail({ to, subject, html });
+  }
 
-${inviterName} has invited you to join ${workspaceName} as a ${role}.
+  async sendPasswordResetEmail(params: { to: string; resetToken: string }): Promise<boolean> {
+    const { to, resetToken } = params;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
+    return this.sendPasswordResetEmailWithUrl({ to, resetUrl: resetLink });
+  }
 
-Click the link below to accept the invitation:
-${inviteLink}
+  async sendPasswordResetEmailWithUrl(params: { to: string; resetUrl: string }): Promise<boolean> {
+    const { to, resetUrl } = params;
 
-This invitation will expire in 7 days.
+    console.log("\n╔══════════════════════════════════════════════════════════════╗");
+    console.log("║              🔐 PASSWORD RESET REQUESTED 🔐                  ║");
+    console.log("╠══════════════════════════════════════════════════════════════╣");
+    console.log(`║ To: ${to}`);
+    console.log("╠══════════════════════════════════════════════════════════════╣");
+    console.log("║ 🔗 RESET LINK:");
+    console.log(`║ ${resetUrl}`);
+    console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
-If you didn't expect this invitation, you can safely ignore this email.
-    `;
+    const subject = "Reset your ScaleReach password";
 
-    return this.sendEmail({ to, subject, html, text });
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 0;">
+        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="padding: 40px 40px 20px;">
+              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #18181b;">Reset your password</h1>
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 24px; color: #52525b;">We received a request to reset your password. Click the button below to create a new password.</p>
+              <table role="presentation" style="border-collapse: collapse;">
+                <tr>
+                  <td style="border-radius: 6px; background-color: #18181b;">
+                    <a href="${resetUrl}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 500; color: #ffffff; text-decoration: none;">Reset Password</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px 40px;">
+              <p style="margin: 0 0 10px; font-size: 14px; color: #71717a;">Or copy and paste this link:</p>
+              <p style="margin: 0; font-size: 14px; color: #3b82f6; word-break: break-all;">${resetUrl}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0; font-size: 12px; color: #a1a1aa;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    return this.sendEmail({ to, subject, html });
   }
 }
 

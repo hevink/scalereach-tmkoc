@@ -5,16 +5,20 @@ import { username } from "better-auth/plugins/username";
 import { passkey } from "@better-auth/passkey";
 import { db } from "../db";
 import * as schema from "../db/schema";
+import { emailService } from "../services/email.service";
 
 export const auth = betterAuth({
   basePath: "/api/auth",
   database: drizzleAdapter(db, {
-    provider: "pg", // Using PostgreSQL with Neon
+    provider: "pg",
     schema,
   }),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false, // Set to true in production
+    requireEmailVerification: false,
+    sendResetPassword: async ({ user, url }) => {
+      await emailService.sendPasswordResetEmailWithUrl({ to: user.email, resetUrl: url });
+    },
   },
   plugins: [
     username(),
@@ -27,19 +31,7 @@ export const auth = betterAuth({
       issuer: "Scalereach",
     }),
   ],
-  socialProviders: {
-    // Uncomment and configure these when you have the credentials
-    /*
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-    },
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }
-    */
-  },
+  socialProviders: {},
   user: {
     additionalFields: {
       isOnboarded: {
@@ -48,7 +40,7 @@ export const auth = betterAuth({
         required: false,
       },
       preferences: {
-        type: "string", // Store as JSON string
+        type: "string",
         defaultValue: "{}",
         required: false,
       },
