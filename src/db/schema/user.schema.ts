@@ -39,7 +39,8 @@ export const user = pgTable(
       .default([]),
   },
   (table) => ({
-    idIdx: index("idx_user_id").on(table.id),
+    emailIdx: index("idx_user_email").on(table.email),
+    usernameIdx: index("idx_user_username").on(table.username),
     isOnboardedIdx: index("idx_user_isOnboarded").on(table.isOnboarded),
   })
 );

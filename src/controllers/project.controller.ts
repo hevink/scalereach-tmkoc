@@ -1,6 +1,13 @@
 import { Context } from "hono";
 import { nanoid } from "nanoid";
 import { ProjectModel } from "../models/project.model";
+import { validateBody } from "../middleware/validation.middleware";
+import {
+  createProjectSchema,
+  updateProjectSchema,
+  type CreateProjectInput,
+  type UpdateProjectInput,
+} from "../schemas/validation.schemas";
 
 export class ProjectController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -16,8 +23,13 @@ export class ProjectController {
     ProjectController.logRequest(c, "CREATE_PROJECT");
 
     try {
-      const body = await c.req.json();
-      const { workspaceId, name, description } = body;
+      // Validate request body using Zod schema
+      const validation = await validateBody(c, createProjectSchema);
+      if (!validation.success) {
+        return c.json(validation.error, 400);
+      }
+
+      const { workspaceId, name, description } = validation.data;
       const user = c.get("user");
 
       console.log(`[PROJECT CONTROLLER] CREATE_PROJECT request:`, {
@@ -25,13 +37,6 @@ export class ProjectController {
         name,
         userId: user?.id,
       });
-
-      if (!workspaceId || !name) {
-        return c.json(
-          { error: "Workspace ID and name are required" },
-          400
-        );
-      }
 
       if (!user?.id) {
         return c.json({ error: "User not authenticated" }, 401);
@@ -120,13 +125,19 @@ export class ProjectController {
     ProjectController.logRequest(c, "UPDATE_PROJECT", { id });
 
     try {
-      const body = await c.req.json();
-      const project = await ProjectModel.update(id, body);
+      // Validate request body using Zod schema
+      const validation = await validateBody(c, updateProjectSchema);
+      if (!validation.success) {
+        return c.json(validation.error, 400);
+      }
+
+      const project = await ProjectModel.update(id, validation.data);
 
       if (!project) {
         return c.json({ error: "Project not found" }, 404);
       }
 
+      console.log(`[PROJECT CONTROLLER] UPDATE_PROJECT success - updated: ${project.id}`);
       return c.json(project);
     } catch (error) {
       console.error(`[PROJECT CONTROLLER] UPDATE_PROJECT error:`, error);

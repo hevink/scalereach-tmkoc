@@ -410,7 +410,7 @@ export class CreditController {
           plan,
           subscriptionId: subscriptionId,
           subscriptionStatus: "active",
-          subscriptionCancelledAt: null,
+          subscriptionCancelledAt: undefined,
         });
         console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan}, subscription tracked: ${subscriptionId}`);
       }

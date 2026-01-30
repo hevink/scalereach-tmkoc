@@ -106,6 +106,8 @@ export const video = pgTable(
     userIdIdx: index("idx_video_userId").on(table.userId),
     statusIdx: index("idx_video_status").on(table.status),
     sourceTypeIdx: index("idx_video_sourceType").on(table.sourceType),
+    createdAtIdx: index("idx_video_createdAt").on(table.createdAt),
+    userIdCreatedAtIdx: index("idx_video_userId_createdAt").on(table.userId, table.createdAt),
   })
 );
 
@@ -148,6 +150,8 @@ export const viralClip = pgTable(
     statusIdx: index("idx_viralClip_status").on(table.status),
     scoreIdx: index("idx_viralClip_score").on(table.score),
     favoritedIdx: index("idx_viralClip_favorited").on(table.favorited),
+    videoIdStatusIdx: index("idx_viralClip_videoId_status").on(table.videoId, table.status),
+    videoIdScoreIdx: index("idx_viralClip_videoId_score").on(table.videoId, table.score),
   })
 );
 

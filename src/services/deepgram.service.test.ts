@@ -100,15 +100,15 @@ describe("DeepgramService - Language Support", () => {
     test("should return codes that match SUPPORTED_LANGUAGES keys", () => {
       const codes = getSupportedLanguageCodes();
       const expectedCodes = Object.keys(SUPPORTED_LANGUAGES);
-      expect(codes.sort()).toEqual(expectedCodes.sort());
+      expect(codes.sort()).toEqual(expectedCodes.sort() as typeof codes);
     });
 
     test("should include all required language codes", () => {
       const codes = getSupportedLanguageCodes();
-      const requiredCodes = ["en", "es", "fr", "de", "it", "pt", "ja", "ko", "zh", "hi"];
-      
+      const requiredCodes = ["en", "es", "fr", "de", "it", "pt", "ja", "ko", "zh", "hi"] as const;
+
       for (const required of requiredCodes) {
-        expect(codes).toContain(required);
+        expect(codes).toContain(required as typeof codes[number]);
       }
     });
   });

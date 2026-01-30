@@ -36,6 +36,12 @@ export const workspaceInvitation = pgTable(
       table.workspaceId,
       table.email
     ),
+    expiresAtIdx: index("idx_invitation_expiresAt").on(table.expiresAt),
+    emailStatusExpiresAtIdx: index("idx_invitation_email_status_expiresAt").on(
+      table.email,
+      table.status,
+      table.expiresAt
+    ),
   })
 );
 

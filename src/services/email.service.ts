@@ -1,4 +1,19 @@
 import nodemailer from "nodemailer";
+import {
+  welcomeEmailTemplate,
+  welcomeEmailSubject,
+  clipReadyEmailTemplate,
+  clipReadyEmailSubject,
+  invitationEmailTemplate,
+  invitationEmailSubject,
+  passwordResetEmailTemplate,
+  passwordResetEmailSubject,
+  baseTemplate,
+  primaryButton,
+  divider,
+  BRAND_COLORS,
+  FONT_STACK,
+} from "../templates/emails";
 
 interface EmailConfig {
   host: string;
@@ -24,7 +39,7 @@ class EmailService {
 
   constructor() {
     this.fromEmail = process.env.SMTP_FROM_EMAIL || "noreply@scalereach.com";
-    this.fromName = process.env.SMTP_FROM_NAME || "Scalereach";
+    this.fromName = process.env.SMTP_FROM_NAME || "ScaleReach";
     this.initTransporter();
   }
 
@@ -79,201 +94,237 @@ class EmailService {
     }
   }
 
+  /**
+   * Send welcome email to new users after signup
+   */
+  async sendWelcomeEmail(params: {
+    to: string;
+    userName: string;
+  }): Promise<boolean> {
+    const { to, userName } = params;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const dashboardUrl = `${frontendUrl}/dashboard`;
+
+    console.log("\n╔══════════════════════════════════════════════════════════════╗");
+    console.log("║              WELCOME EMAIL                                   ║");
+    console.log("╠══════════════════════════════════════════════════════════════╣");
+    console.log(`║ To: ${to}`);
+    console.log(`║ User: ${userName}`);
+    console.log("╚══════════════════════════════════════════════════════════════╝\n");
+
+    const subject = welcomeEmailSubject();
+    const html = welcomeEmailTemplate({
+      userName,
+      dashboardUrl,
+    });
+
+    return this.sendEmail({ to, subject, html });
+  }
+
+  /**
+   * Send clip ready notification when a clip has finished generating
+   */
+  async sendClipReadyNotification(params: {
+    to: string;
+    userName: string;
+    clipId: string;
+    clipTitle: string;
+    clipDuration: number;
+    aspectRatio: string;
+    viralityScore?: number;
+    thumbnailUrl?: string;
+    projectName?: string;
+  }): Promise<boolean> {
+    const {
+      to,
+      userName,
+      clipId,
+      clipTitle,
+      clipDuration,
+      aspectRatio,
+      viralityScore,
+      thumbnailUrl,
+      projectName,
+    } = params;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const viewClipUrl = `${frontendUrl}/clips/${clipId}`;
+
+    console.log("\n╔══════════════════════════════════════════════════════════════╗");
+    console.log("║              CLIP READY NOTIFICATION                         ║");
+    console.log("╠══════════════════════════════════════════════════════════════╣");
+    console.log(`║ To: ${to}`);
+    console.log(`║ Clip: ${clipTitle}`);
+    console.log(`║ Duration: ${clipDuration}s`);
+    console.log(`║ Aspect Ratio: ${aspectRatio}`);
+    if (viralityScore !== undefined) {
+      console.log(`║ Virality Score: ${viralityScore}/100`);
+    }
+    console.log("╠══════════════════════════════════════════════════════════════╣");
+    console.log("║ VIEW CLIP:");
+    console.log(`║ ${viewClipUrl}`);
+    console.log("╚══════════════════════════════════════════════════════════════╝\n");
+
+    const subject = clipReadyEmailSubject(clipTitle);
+    const html = clipReadyEmailTemplate({
+      userName,
+      clipTitle,
+      clipDuration,
+      aspectRatio,
+      viralityScore,
+      thumbnailUrl,
+      viewClipUrl,
+      projectName,
+    });
+
+    return this.sendEmail({ to, subject, html });
+  }
+
+  /**
+   * Send workspace invitation email
+   */
   async sendWorkspaceInvitation(params: {
     to: string;
     inviterName: string;
+    inviterEmail?: string;
     workspaceName: string;
     role: string;
     inviteToken: string;
   }): Promise<boolean> {
-    const { to, inviterName, workspaceName, role, inviteToken } = params;
+    const { to, inviterName, inviterEmail, workspaceName, role, inviteToken } = params;
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    const inviteLink = `${frontendUrl}/invite/${inviteToken}`;
+    const inviteUrl = `${frontendUrl}/invite/${inviteToken}`;
 
     console.log("\n╔══════════════════════════════════════════════════════════════╗");
-    console.log("║              🎉 WORKSPACE INVITATION CREATED 🎉              ║");
+    console.log("║              WORKSPACE INVITATION CREATED                    ║");
     console.log("╠══════════════════════════════════════════════════════════════╣");
     console.log(`║ To: ${to}`);
     console.log(`║ Workspace: ${workspaceName}`);
     console.log(`║ Role: ${role}`);
     console.log(`║ Invited by: ${inviterName}`);
     console.log("╠══════════════════════════════════════════════════════════════╣");
-    console.log("║ 🔗 INVITATION LINK:");
-    console.log(`║ ${inviteLink}`);
+    console.log("║ INVITATION LINK:");
+    console.log(`║ ${inviteUrl}`);
     console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
-    const subject = `You've been invited to join ${workspaceName}`;
-
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse;">
-    <tr>
-      <td align="center" style="padding: 40px 0;">
-        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
-          <tr>
-            <td style="padding: 40px 40px 20px;">
-              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #18181b;">You're invited to join ${workspaceName}</h1>
-              <p style="margin: 0 0 20px; font-size: 16px; line-height: 24px; color: #52525b;"><strong>${inviterName}</strong> has invited you to join <strong>${workspaceName}</strong> as a <strong>${role}</strong>.</p>
-              <p style="margin: 0 0 30px; font-size: 16px; line-height: 24px; color: #52525b;">Click the button below to accept the invitation.</p>
-              <table role="presentation" style="border-collapse: collapse;">
-                <tr>
-                  <td style="border-radius: 6px; background-color: #18181b;">
-                    <a href="${inviteLink}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 500; color: #ffffff; text-decoration: none;">Accept Invitation</a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 20px 40px 40px;">
-              <p style="margin: 0 0 10px; font-size: 14px; color: #71717a;">Or copy and paste this link:</p>
-              <p style="margin: 0; font-size: 14px; color: #3b82f6; word-break: break-all;">${inviteLink}</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 20px 40px; border-top: 1px solid #e4e4e7;">
-              <p style="margin: 0; font-size: 12px; color: #a1a1aa;">This invitation expires in 7 days.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+    const subject = invitationEmailSubject(workspaceName);
+    const html = invitationEmailTemplate({
+      inviterName,
+      inviterEmail,
+      workspaceName,
+      role,
+      inviteUrl,
+      expiresInDays: 7,
+    });
 
     return this.sendEmail({ to, subject, html });
   }
 
+  /**
+   * Send password reset email with token
+   */
   async sendPasswordResetEmail(params: { to: string; resetToken: string }): Promise<boolean> {
     const { to, resetToken } = params;
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    const resetLink = `${frontendUrl}/reset-password/${resetToken}`;
-    return this.sendPasswordResetEmailWithUrl({ to, resetUrl: resetLink });
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+    return this.sendPasswordResetEmailWithUrl({ to, resetUrl });
   }
 
-  async sendPasswordResetEmailWithUrl(params: { to: string; resetUrl: string }): Promise<boolean> {
-    const { to, resetUrl } = params;
+  /**
+   * Send password reset email with full URL
+   */
+  async sendPasswordResetEmailWithUrl(params: {
+    to: string;
+    resetUrl: string;
+    userName?: string;
+    ipAddress?: string;
+    userAgent?: string;
+  }): Promise<boolean> {
+    const { to, resetUrl, userName, ipAddress, userAgent } = params;
 
     console.log("\n╔══════════════════════════════════════════════════════════════╗");
-    console.log("║              🔐 PASSWORD RESET REQUESTED 🔐                  ║");
+    console.log("║              PASSWORD RESET REQUESTED                        ║");
     console.log("╠══════════════════════════════════════════════════════════════╣");
     console.log(`║ To: ${to}`);
-    console.log("╠══════════════════════════════════════════════════════════════╣");
-    console.log("║ 🔗 RESET LINK:");
+    console.log("╠═════════════════════════════════════════════════════════════╣");
+    console.log("║ RESET LINK:");
     console.log(`║ ${resetUrl}`);
     console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
-    const subject = "Reset your ScaleReach password";
-
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse;">
-    <tr>
-      <td align="center" style="padding: 40px 0;">
-        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
-          <tr>
-            <td style="padding: 40px 40px 20px;">
-              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #18181b;">Reset your password</h1>
-              <p style="margin: 0 0 20px; font-size: 16px; line-height: 24px; color: #52525b;">We received a request to reset your password. Click the button below to create a new password.</p>
-              <table role="presentation" style="border-collapse: collapse;">
-                <tr>
-                  <td style="border-radius: 6px; background-color: #18181b;">
-                    <a href="${resetUrl}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 500; color: #ffffff; text-decoration: none;">Reset Password</a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 20px 40px 40px;">
-              <p style="margin: 0 0 10px; font-size: 14px; color: #71717a;">Or copy and paste this link:</p>
-              <p style="margin: 0; font-size: 14px; color: #3b82f6; word-break: break-all;">${resetUrl}</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 20px 40px; border-top: 1px solid #e4e4e7;">
-              <p style="margin: 0; font-size: 12px; color: #a1a1aa;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+    const subject = passwordResetEmailSubject();
+    const html = passwordResetEmailTemplate({
+      userName,
+      resetUrl,
+      expiresInMinutes: 60,
+      ipAddress,
+      userAgent,
+    });
 
     return this.sendEmail({ to, subject, html });
   }
 
+  /**
+   * Send email verification email
+   */
   async sendVerificationEmail(params: { to: string; verificationUrl: string }): Promise<boolean> {
     const { to, verificationUrl } = params;
 
     console.log("\n╔══════════════════════════════════════════════════════════════╗");
-    console.log("║              ✉️  EMAIL VERIFICATION REQUESTED ✉️              ║");
+    console.log("║              EMAIL VERIFICATION REQUESTED                    ║");
     console.log("╠══════════════════════════════════════════════════════════════╣");
     console.log(`║ To: ${to}`);
     console.log("╠══════════════════════════════════════════════════════════════╣");
-    console.log("║ 🔗 VERIFICATION LINK:");
+    console.log("║ VERIFICATION LINK:");
     console.log(`║ ${verificationUrl}`);
     console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
     const subject = "Verify your ScaleReach email";
 
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5;">
-  <table role="presentation" style="width: 100%; border-collapse: collapse;">
-    <tr>
-      <td align="center" style="padding: 40px 0;">
-        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
-          <tr>
-            <td style="padding: 40px 40px 20px;">
-              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #18181b;">Verify your email</h1>
-              <p style="margin: 0 0 20px; font-size: 16px; line-height: 24px; color: #52525b;">Thanks for signing up! Please verify your email address to get started.</p>
-              <table role="presentation" style="border-collapse: collapse;">
-                <tr>
-                  <td style="border-radius: 6px; background-color: #18181b;">
-                    <a href="${verificationUrl}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 500; color: #ffffff; text-decoration: none;">Verify Email</a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 20px 40px 40px;">
-              <p style="margin: 0 0 10px; font-size: 14px; color: #71717a;">Or copy and paste this link:</p>
-              <p style="margin: 0; font-size: 14px; color: #3b82f6; word-break: break-all;">${verificationUrl}</p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding: 20px 40px; border-top: 1px solid #e4e4e7;">
-              <p style="margin: 0; font-size: 12px; color: #a1a1aa;">If you didn't create an account, you can safely ignore this email.</p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+    // Use the base template for verification email
+    const content = `
+      <!-- Verification icon -->
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div style="display: inline-block; width: 64px; height: 64px; background-color: #eff6ff; border-radius: 50%; line-height: 64px;">
+          <span style="font-size: 28px;">&#9993;</span>
+        </div>
+      </div>
+
+      <!-- Heading -->
+      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textDark}; font-family: ${FONT_STACK}; text-align: center;">
+        Verify Your Email
+      </h1>
+      <p style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textGray}; text-align: center;">
+        Thanks for signing up! Please verify your email address to get started.
+      </p>
+
+      <!-- CTA Button -->
+      <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td align="center" style="padding-bottom: 16px;">
+            ${primaryButton('Verify Email', verificationUrl)}
+          </td>
+        </tr>
+      </table>
+
+      <!-- Link fallback -->
+      <p style="margin: 0 0 24px; font-size: 13px; color: ${BRAND_COLORS.textLight}; text-align: center;">
+        Or copy and paste this link into your browser:<br>
+        <a href="${verificationUrl}" style="color: ${BRAND_COLORS.linkBlue}; text-decoration: none; word-break: break-all; font-size: 12px;">
+          ${verificationUrl}
+        </a>
+      </p>
+
+      ${divider()}
+
+      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textLight}; text-align: center;">
+        If you didn't create an account, you can safely ignore this email.
+      </p>
+    `;
+
+    const html = baseTemplate({
+      preheaderText: 'Verify your email address to get started with ScaleReach.',
+      content,
+      footerText: `You're receiving this because you signed up for ScaleReach.`,
+    });
 
     return this.sendEmail({ to, subject, html });
   }
