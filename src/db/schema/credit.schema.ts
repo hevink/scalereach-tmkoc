@@ -67,7 +67,10 @@ export const creditPackage = pgTable(
     billingPeriod: text("billing_period"), // 'monthly' | 'yearly' | null for one-time
     isActive: integer("is_active").notNull().default(1),
     createdAt: timestamp("created_at").defaultNow().notNull(),
-  }
+  },
+  (table) => ({
+    isActiveIdx: index("idx_credit_package_isActive").on(table.isActive),
+  })
 );
 
 // Relations

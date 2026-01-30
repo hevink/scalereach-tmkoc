@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { workspace, workspaceMember, user } from "../db/schema";
+import { workspace, workspaceMember, user, type WorkspaceCaptionStyle } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { performance } from 'perf_hooks';
 
@@ -143,6 +143,11 @@ export class WorkspaceModel {
       description: string;
       logo: string;
       plan: string;
+      defaultCaptionStyle: WorkspaceCaptionStyle;
+      subscriptionId: string;
+      subscriptionStatus: string;
+      subscriptionRenewalDate: Date;
+      subscriptionCancelledAt: Date;
     }>
   ) {
     this.logOperation('UPDATE_WORKSPACE', { id, fields: Object.keys(data) });

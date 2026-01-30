@@ -1,5 +1,13 @@
 import { Context } from "hono";
 import { WorkspaceModel } from "../models/workspace.model";
+import { validateBody } from "../middleware/validation.middleware";
+import {
+  createWorkspaceSchema,
+  updateWorkspaceSchema,
+  addWorkspaceMemberSchema,
+  updateMemberRoleSchema,
+  uploadLogoSchema,
+} from "../schemas/validation.schemas";
 
 export class WorkspaceController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -87,10 +95,15 @@ export class WorkspaceController {
   static async updateWorkspaceBySlug(c: Context) {
     const slug = c.req.param("slug");
     WorkspaceController.logRequest(c, 'UPDATE_WORKSPACE_BY_SLUG', { slug });
-    
+
     try {
-      const body = await c.req.json();
-      console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE_BY_SLUG request body:`, body);
+      // Validate request body using Zod schema
+      const validation = await validateBody(c, updateWorkspaceSchema);
+      if (!validation.success) {
+        return c.json(validation.error, 400);
+      }
+
+      console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE_BY_SLUG request body:`, validation.data);
 
       // Get the workspace first to get its ID
       const existingWorkspace = await WorkspaceModel.getBySlug(slug);
@@ -99,7 +112,7 @@ export class WorkspaceController {
         return c.json({ error: "Workspace not found" }, 404);
       }
 
-      const workspace = await WorkspaceModel.update(existingWorkspace.id, body);
+      const workspace = await WorkspaceModel.update(existingWorkspace.id, validation.data);
 
       if (!workspace) {
         console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE_BY_SLUG - update failed for workspace: ${slug}`);
@@ -116,7 +129,7 @@ export class WorkspaceController {
 
   static async createWorkspace(c: Context) {
     WorkspaceController.logRequest(c, 'CREATE_WORKSPACE');
-    
+
     try {
       const user = c.get("user");
       if (!user) {
@@ -124,17 +137,14 @@ export class WorkspaceController {
         return c.json({ error: "Unauthorized" }, 401);
       }
 
-      const body = await c.req.json();
-      const { name, slug, description, logo } = body;
-      console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE request body:`, { name, slug });
-
-      if (!name || !slug) {
-        console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - missing required fields`);
-        return c.json(
-          { error: "Name and slug are required" },
-          400
-        );
+      // Validate request body using Zod schema
+      const validation = await validateBody(c, createWorkspaceSchema);
+      if (!validation.success) {
+        return c.json(validation.error, 400);
       }
+
+      const { name, slug, description, logo } = validation.data;
+      console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE request body:`, { name, slug });
 
       // Auto-generate ID and use authenticated user as owner
       const generateId = () => Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -154,7 +164,7 @@ export class WorkspaceController {
       // Add owner as workspace member
       const memberId = generateId();
       console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - adding owner as member: ${memberId}`);
-      
+
       await WorkspaceModel.addMember({
         id: memberId,
         workspaceId: workspace.id,
@@ -173,12 +183,17 @@ export class WorkspaceController {
   static async updateWorkspace(c: Context) {
     const id = c.req.param("id");
     WorkspaceController.logRequest(c, 'UPDATE_WORKSPACE', { id });
-    
-    try {
-      const body = await c.req.json();
-      console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE request body:`, body);
 
-      const workspace = await WorkspaceModel.update(id, body);
+    try {
+      // Validate request body using Zod schema
+      const validation = await validateBody(c, updateWorkspaceSchema);
+      if (!validation.success) {
+        return c.json(validation.error, 400);
+      }
+
+      console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE request body:`, validation.data);
+
+      const workspace = await WorkspaceModel.update(id, validation.data);
 
       if (!workspace) {
         console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE - workspace not found: ${id}`);
@@ -224,16 +239,16 @@ export class WorkspaceController {
   static async addWorkspaceMember(c: Context) {
     const workspaceId = c.req.param("id");
     WorkspaceController.logRequest(c, 'ADD_WORKSPACE_MEMBER', { workspaceId });
-    
-    try {
-      const body = await c.req.json();
-      const { id, userId, role } = body;
-      console.log(`[WORKSPACE CONTROLLER] ADD_WORKSPACE_MEMBER request body:`, { id, userId, role });
 
-      if (!id || !userId || !role) {
-        console.log(`[WORKSPACE CONTROLLER] ADD_WORKSPACE_MEMBER - missing required fields`);
-        return c.json({ error: "ID, userId and role are required" }, 400);
+    try {
+      // Validate request body using Zod schema
+      const validation = await validateBody(c, addWorkspaceMemberSchema);
+      if (!validation.success) {
+        return c.json(validation.error, 400);
       }
+
+      const { id, userId, role } = validation.data;
+      console.log(`[WORKSPACE CONTROLLER] ADD_WORKSPACE_MEMBER request body:`, { id, userId, role });
 
       const member = await WorkspaceModel.addMember({
         id,
@@ -254,19 +269,20 @@ export class WorkspaceController {
     const workspaceId = c.req.param("id");
     const memberId = c.req.param("memberId");
     WorkspaceController.logRequest(c, 'UPDATE_MEMBER_ROLE', { workspaceId, memberId });
-    
+
     try {
       const user = c.get("user");
       if (!user) {
         return c.json({ error: "Unauthorized" }, 401);
       }
 
-      const body = await c.req.json();
-      const { role } = body;
-
-      if (!role || !["admin", "member"].includes(role)) {
-        return c.json({ error: "Invalid role. Must be 'admin' or 'member'" }, 400);
+      // Validate request body using Zod schema
+      const validation = await validateBody(c, updateMemberRoleSchema);
+      if (!validation.success) {
+        return c.json(validation.error, 400);
       }
+
+      const { role } = validation.data;
 
       // Check if current user has permission (owner or admin)
       const members = await WorkspaceModel.getMembers(workspaceId);
@@ -410,7 +426,7 @@ export class WorkspaceController {
   static async uploadLogo(c: Context) {
     const slug = c.req.param("slug");
     WorkspaceController.logRequest(c, 'UPLOAD_LOGO', { slug });
-    
+
     try {
       const workspace = await WorkspaceModel.getBySlug(slug);
       if (!workspace) {
@@ -418,15 +434,16 @@ export class WorkspaceController {
         return c.json({ error: "Workspace not found" }, 404);
       }
 
-      const body = await c.req.json();
-      const { logo } = body;
-      
-      if (!logo) {
-        return c.json({ error: "Logo is required" }, 400);
+      // Validate request body using Zod schema
+      const validation = await validateBody(c, uploadLogoSchema);
+      if (!validation.success) {
+        return c.json(validation.error, 400);
       }
 
+      const { logo } = validation.data;
+
       const updatedWorkspace = await WorkspaceModel.update(workspace.id, { logo });
-      
+
       console.log(`[WORKSPACE CONTROLLER] UPLOAD_LOGO success - workspace: ${slug}`);
       return c.json({ success: true, logo: updatedWorkspace?.logo });
     } catch (error) {

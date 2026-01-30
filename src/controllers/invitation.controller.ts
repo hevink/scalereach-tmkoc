@@ -68,8 +68,16 @@ export class InvitationController {
         await InvitationModel.delete(existingInvitation.id);
       }
 
-      // Check if user is already a member
-      // TODO: Add check for existing member by email
+      // Check if user is already a member by email
+      const existingMember = members.find(
+        (m) => m.user.email.toLowerCase() === email.toLowerCase()
+      );
+      if (existingMember) {
+        return c.json(
+          { error: "This user is already a member of the workspace" },
+          409
+        );
+      }
 
       // Create invitation
       const invitation = await InvitationModel.create({

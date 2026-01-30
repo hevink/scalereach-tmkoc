@@ -1,12 +1,31 @@
 import { relations } from "drizzle-orm";
 import {
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { user } from "./user.schema";
+
+// Caption style type for workspace default settings
+export interface WorkspaceCaptionStyle {
+  fontFamily: string;
+  fontSize: number;
+  textColor: string;
+  backgroundColor?: string;
+  backgroundOpacity: number;
+  position: "top" | "center" | "bottom";
+  alignment: "left" | "center" | "right";
+  animation: "none" | "word-by-word" | "karaoke" | "bounce" | "fade";
+  highlightColor?: string;
+  highlightEnabled: boolean;
+  shadow: boolean;
+  outline: boolean;
+  outlineColor?: string;
+  templateId?: string;
+}
 
 export const workspace = pgTable(
   "workspace",
@@ -22,6 +41,8 @@ export const workspace = pgTable(
     subscriptionStatus: text("subscription_status"), // 'active' | 'cancelled' | 'expired' | 'paused'
     subscriptionRenewalDate: timestamp("subscription_renewal_date"),
     subscriptionCancelledAt: timestamp("subscription_cancelled_at"),
+    // Default caption style settings for the workspace
+    defaultCaptionStyle: jsonb("default_caption_style").$type<WorkspaceCaptionStyle>(),
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

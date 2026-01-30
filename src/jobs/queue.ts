@@ -5,12 +5,15 @@ const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379");
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || undefined;
 
-export const redisConnection = new IORedis({
+// Create Redis connection config for BullMQ
+const redisConfig = {
   host: REDIS_HOST,
   port: REDIS_PORT,
   password: REDIS_PASSWORD,
   maxRetriesPerRequest: null,
-});
+};
+
+export const redisConnection = new IORedis(redisConfig);
 
 redisConnection.on("connect", () => {
   console.log("[REDIS] Connected to Redis");
@@ -73,7 +76,7 @@ export interface ClipGenerationJobData {
 export const videoProcessingQueue = new Queue<VideoProcessingJobData>(
   QUEUE_NAMES.VIDEO_PROCESSING,
   {
-    connection: redisConnection,
+    connection: redisConfig as any,
     defaultJobOptions: {
       attempts: 1,
       backoff: {
@@ -129,7 +132,7 @@ export function createWorker<T>(
   concurrency: number = 2
 ) {
   const worker = new Worker<T>(queueName, processor, {
-    connection: redisConnection,
+    connection: redisConfig as any,
     concurrency,
   });
 
@@ -156,7 +159,7 @@ export function createWorker<T>(
 export const clipGenerationQueue = new Queue<ClipGenerationJobData>(
   QUEUE_NAMES.CLIP_GENERATION,
   {
-    connection: redisConnection,
+    connection: redisConfig as any,
     defaultJobOptions: {
       attempts: 1, // Retry up to 3 times (Requirement 7.7)
       backoff: {

@@ -102,6 +102,9 @@ export class ExportController {
       await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
+        workspaceId: (video as any).workspaceId || "",
+        userId: video.userId || "",
+        creditCost: 0, // Export doesn't cost additional credits
         sourceType: video.sourceType as "youtube" | "upload",
         sourceUrl: video.sourceUrl || undefined,
         storageKey: video.storageKey || undefined,
@@ -235,6 +238,9 @@ export class ExportController {
         await addClipGenerationJob({
           clipId,
           videoId: clip.videoId,
+          workspaceId: (video as any).workspaceId || "",
+          userId: video.userId || "",
+          creditCost: 0, // Batch export doesn't cost additional credits
           sourceType: video.sourceType as "youtube" | "upload",
           sourceUrl: video.sourceUrl || undefined,
           storageKey: video.storageKey || undefined,

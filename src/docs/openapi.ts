@@ -168,6 +168,194 @@ export const YouTubeValidationResponseSchema = z.object({
   error: z.string().optional(),
 });
 
+// Define schemas for clip module
+export const ClipSchema = z.object({
+  id: z.string(),
+  videoId: z.string(),
+  title: z.string().nullable(),
+  startTime: z.number(),
+  endTime: z.number(),
+  duration: z.number(),
+  viralScore: z.number().nullable(),
+  status: z.enum(['pending', 'processing', 'completed', 'failed']).default('pending'),
+  storageKey: z.string().nullable(),
+  storageUrl: z.string().nullable(),
+  thumbnailUrl: z.string().nullable(),
+  isFavorite: z.boolean().default(false),
+  errorMessage: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const ClipBoundariesSchema = z.object({
+  startTime: z.number(),
+  endTime: z.number(),
+});
+
+export const UpdateClipBoundariesSchema = z.object({
+  startTime: z.number().optional(),
+  endTime: z.number().optional(),
+});
+
+// Define schemas for caption module
+export const CaptionWordSchema = z.object({
+  id: z.string(),
+  word: z.string(),
+  startTime: z.number(),
+  endTime: z.number(),
+  confidence: z.number().optional(),
+});
+
+export const CaptionStyleSchema = z.object({
+  fontFamily: z.string(),
+  fontSize: z.number(),
+  fontColor: z.string(),
+  backgroundColor: z.string().nullable(),
+  position: z.enum(['top', 'middle', 'bottom']),
+  alignment: z.enum(['left', 'center', 'right']),
+});
+
+export const ClipCaptionSchema = z.object({
+  clipId: z.string(),
+  words: z.array(CaptionWordSchema),
+  style: CaptionStyleSchema,
+});
+
+// Define schemas for transcript module
+export const TranscriptWordSchema = z.object({
+  word: z.string(),
+  start: z.number(),
+  end: z.number(),
+  confidence: z.number().optional(),
+});
+
+export const TranscriptSchema = z.object({
+  videoId: z.string(),
+  text: z.string(),
+  words: z.array(TranscriptWordSchema),
+  language: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+// Define schemas for credit module
+export const CreditPackageSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  credits: z.number(),
+  price: z.number(),
+  currency: z.string(),
+  isPopular: z.boolean().optional(),
+  description: z.string().optional(),
+});
+
+export const CreditBalanceSchema = z.object({
+  workspaceId: z.string(),
+  balance: z.number(),
+  updatedAt: z.string().datetime(),
+});
+
+export const CreditTransactionSchema = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  amount: z.number(),
+  type: z.enum(['purchase', 'usage', 'bonus', 'refund']),
+  description: z.string().nullable(),
+  createdAt: z.string().datetime(),
+});
+
+// Define schemas for invitation module
+export const InvitationSchema = z.object({
+  id: z.string(),
+  workspaceId: z.string(),
+  email: z.string().email(),
+  role: z.enum(['owner', 'admin', 'member']),
+  status: z.enum(['pending', 'accepted', 'declined', 'expired']),
+  token: z.string(),
+  invitedBy: z.string(),
+  expiresAt: z.string().datetime(),
+  createdAt: z.string().datetime(),
+});
+
+// Define schemas for upload module
+export const InitUploadSchema = z.object({
+  projectId: z.string(),
+  fileName: z.string(),
+  fileSize: z.number(),
+  mimeType: z.string(),
+  partSize: z.number().optional(),
+});
+
+export const UploadPartSchema = z.object({
+  partNumber: z.number(),
+  etag: z.string(),
+});
+
+export const CompleteUploadSchema = z.object({
+  uploadId: z.string(),
+  key: z.string(),
+  parts: z.array(UploadPartSchema),
+});
+
+// Define schemas for export module
+export const ExportSchema = z.object({
+  id: z.string(),
+  clipId: z.string(),
+  status: z.enum(['pending', 'processing', 'completed', 'failed']),
+  format: z.string(),
+  quality: z.string().nullable(),
+  storageUrl: z.string().nullable(),
+  errorMessage: z.string().nullable(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+// Define schemas for caption template module
+export const CaptionTemplateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  platform: z.string().optional(),
+  style: CaptionStyleSchema,
+  preview: z.string().optional(),
+});
+
+// Define schemas for health module
+export const HealthCheckSchema = z.object({
+  status: z.enum(['healthy', 'unhealthy', 'degraded']),
+  timestamp: z.string().datetime(),
+  version: z.string(),
+  uptime: z.number(),
+  checks: z.object({
+    database: z.object({
+      status: z.enum(['healthy', 'unhealthy']),
+      latency: z.number().optional(),
+      error: z.string().optional(),
+    }),
+    redis: z.object({
+      status: z.enum(['healthy', 'unhealthy']),
+      latency: z.number().optional(),
+      error: z.string().optional(),
+    }),
+    queues: z.object({
+      status: z.enum(['healthy', 'unhealthy', 'degraded']),
+      videoProcessing: z.object({
+        waiting: z.number(),
+        active: z.number(),
+        completed: z.number(),
+        failed: z.number(),
+        delayed: z.number(),
+      }),
+      clipGeneration: z.object({
+        waiting: z.number(),
+        active: z.number(),
+        completed: z.number(),
+        failed: z.number(),
+        delayed: z.number(),
+      }),
+    }).optional(),
+  }),
+});
+
 // Define auth routes
 export const registerRoute = createRoute({
   method: 'post',
@@ -1578,10 +1766,12 @@ export const getProjectWithVideosRoute = createRoute({
     200: {
       description: 'Project with videos retrieved successfully',
       content: {
-        'application/json': z.object({
-          ...ProjectSchema.shape,
-          videos: z.array(VideoSchema),
-        }),
+        'application/json': {
+          schema: z.object({
+            ...ProjectSchema.shape,
+            videos: z.array(VideoSchema),
+          }),
+        },
       },
     },
     401: {
@@ -1765,10 +1955,12 @@ export const submitYouTubeUrlRoute = createRoute({
     201: {
       description: 'Video submitted for processing successfully',
       content: {
-        'application/json': z.object({
-          message: z.string(),
-          video: VideoSchema,
-        }),
+        'application/json': {
+          schema: z.object({
+            message: z.string(),
+            video: VideoSchema,
+          }),
+        },
       },
     },
     400: {
@@ -1935,18 +2127,20 @@ export const getVideoStatusRoute = createRoute({
     200: {
       description: 'Video status retrieved successfully',
       content: {
-        'application/json': z.object({
-          video: VideoSchema,
-          job: z.object({
-            id: z.string(),
-            state: z.string(),
-            progress: z.number(),
-            data: z.any(),
-            failedReason: z.string().nullable(),
-            processedOn: z.number().nullable(),
-            finishedOn: z.number().nullable(),
-          }).nullable(),
-        }),
+        'application/json': {
+          schema: z.object({
+            video: VideoSchema,
+            job: z.object({
+              id: z.string(),
+              state: z.string(),
+              progress: z.number(),
+              data: z.any(),
+              failedReason: z.string().nullable(),
+              processedOn: z.number().nullable(),
+              finishedOn: z.number().nullable(),
+            }).nullable(),
+          }),
+        },
       },
     },
     401: {
@@ -2052,7 +2246,9 @@ export const validateYouTubeUrlRoute = createRoute({
     200: {
       description: 'YouTube URL validation result',
       content: {
-        'application/json': YouTubeValidationResponseSchema,
+        'application/json': {
+          schema: YouTubeValidationResponseSchema,
+        },
       },
     },
     400: {

@@ -1,3 +1,6 @@
+// Initialize Sentry first (must be at the very top)
+import "./lib/sentry";
+
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
@@ -14,15 +17,24 @@ import uploadRouter from "./routes/upload.routes";
 import uppyUploadRouter from "./routes/uppy-upload.routes";
 import captionTemplateRouter from "./routes/caption-template.routes";
 import exportRouter from "./routes/export.routes";
+import healthRouter from "./routes/health.routes";
 import swaggerApp from "./docs/swagger-ui";
 import { openApiDocument } from "./docs/openapi";
 import type { AuthContext } from "./lib/auth";
+import {
+  sentryMiddleware,
+  sentryRequestMiddleware,
+} from "./middleware/sentry.middleware";
 
 // Define the main app with AuthContext
 const app = new Hono<{ Variables: AuthContext }>();
 
 // Add middleware
 app.use(logger());
+
+// Add Sentry middleware for error tracking
+app.use(sentryRequestMiddleware);
+app.use(sentryMiddleware);
 
 const allowedOrigins = [
   "http://localhost:3000",
@@ -55,16 +67,12 @@ app.route("/api/upload", uploadRouter);
 app.route("/api/uppy", uppyUploadRouter);
 app.route("/api/caption-templates", captionTemplateRouter);
 app.route("/api/exports", exportRouter);
+app.route("/health", healthRouter); // Enhanced health checks
 app.route("/api-docs", swaggerApp); // Swagger UI at api-docs path
 
 // Serve the OpenAPI JSON specification directly at /api-docs.json too
 app.get("/api-docs.json", (c) => {
   return c.json(openApiDocument);
-});
-
-// Health check endpoint for Docker/Render
-app.get("/health", (c) => {
-  return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Root route

@@ -269,6 +269,9 @@ async function processYouTubeVideo(
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
+          workspaceId: "", // Will be populated from video record
+          userId: userId,
+          creditCost: 1, // Default credit cost per clip
           sourceType: "youtube",
           sourceUrl: sourceUrl,
           startTime: clipRecord.startTime,
@@ -529,6 +532,9 @@ async function processUploadedVideo(
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
+          workspaceId: "", // Will be populated from video record
+          userId: userId,
+          creditCost: 1, // Default credit cost per clip
           sourceType: "upload",
           storageKey: storageKey,
           startTime: clipRecord.startTime,
