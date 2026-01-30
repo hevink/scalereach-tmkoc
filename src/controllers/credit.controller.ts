@@ -1,7 +1,17 @@
 import { Context } from "hono";
 import { CreditModel } from "../models/credit.model";
 import { WorkspaceModel } from "../models/workspace.model";
-import { PolarService } from "../services/polar.service";
+import { DodoService, DodoWebhookPayload } from "../services/dodo.service";
+
+// Map product IDs to plan names
+const PRODUCT_TO_PLAN: Record<string, string> = {
+  "pdt_0NXOu8euwYE6EmEoLs6eQ": "starter",
+  "pdt_starter_yearly": "starter",
+  "pdt_pro_monthly": "pro",
+  "pdt_pro_yearly": "pro",
+  "pdt_pro_plus_monthly": "pro-plus",
+  "pdt_pro_plus_yearly": "pro-plus",
+};
 
 export class CreditController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -110,122 +120,167 @@ export class CreditController {
         return c.json({ error: "Only owners and admins can purchase credits" }, 403);
       }
 
-      if (!PolarService.isConfigured()) {
+      if (!DodoService.isConfigured()) {
         return c.json({ error: "Payment system not configured" }, 503);
       }
 
       const body = await c.req.json();
-      const { packageId, successUrl } = body;
+      const { productId, successUrl, cancelUrl, isSubscription } = body;
 
-      if (!packageId) {
-        return c.json({ error: "Package ID is required" }, 400);
+      if (!productId) {
+        return c.json({ error: "Product ID is required" }, 400);
       }
 
-      // Get package details - packageId can be either our internal ID or Polar product ID
+      // Get package details
       const packages = await CreditModel.getActivePackages();
-      let pkg = packages.find((p) => p.id === packageId);
-      
-      // If not found by internal ID, try by Polar product ID
+      let pkg = packages.find((p) => p.id === productId);
+
+      // If not found by internal ID, try by Dodo product ID
       if (!pkg) {
-        pkg = packages.find((p) => p.polarProductId === packageId);
+        pkg = packages.find((p) => p.dodoProductId === productId);
       }
 
-      // If still not found, use the packageId directly as Polar product ID (for direct plan selection)
-      const polarProductId = pkg?.polarProductId || packageId;
+      const dodoProductId = pkg?.dodoProductId || productId;
       const credits = pkg?.credits || 0;
       const planName = pkg?.name || "Plan";
 
-      // Create Polar checkout session
-      const checkout = await PolarService.createCheckoutSession({
-        productId: polarProductId,
-        successUrl: successUrl || `${process.env.FRONTEND_URL}/${workspaceId}?checkout=success`,
-        customerEmail: user.email,
-        metadata: {
-          workspaceId,
-          userId: user.id,
-          packageId: pkg?.id || packageId,
-          credits: credits.toString(),
-          planName,
-        },
-      });
+      const metadata = {
+        workspaceId,
+        userId: user.id,
+        packageId: pkg?.id || productId,
+        credits: credits.toString(),
+        planName,
+      };
 
-      console.log(`[CREDIT CONTROLLER] CREATE_CHECKOUT success - checkout: ${checkout.id}`);
-      return c.json({
-        checkoutId: checkout.id,
-        checkoutUrl: checkout.url,
-      });
+      const returnUrl = successUrl || `${process.env.FRONTEND_URL}/checkout/success?workspace=${workspaceId}`;
+      const failUrl = cancelUrl || `${process.env.FRONTEND_URL}/checkout/cancel?workspace=${workspaceId}`;
+
+      let result;
+      if (isSubscription) {
+        // Create subscription for recurring billing
+        result = await DodoService.createSubscription({
+          productId: dodoProductId,
+          successUrl: returnUrl,
+          cancelUrl: failUrl,
+          customerEmail: user.email,
+          metadata,
+        });
+
+        console.log(`[CREDIT CONTROLLER] CREATE_CHECKOUT (subscription) success - id: ${result.subscription_id}`);
+
+        // Use payment_link from response
+        const checkoutUrl = result.payment_link;
+        if (!checkoutUrl) {
+          throw new Error("No checkout URL returned from payment provider");
+        }
+
+        return c.json({
+          checkoutId: result.subscription_id,
+          checkoutUrl,
+          type: "subscription",
+        });
+      } else {
+        // Create one-time payment
+        result = await DodoService.createPaymentLink({
+          productId: dodoProductId,
+          successUrl: returnUrl,
+          customerEmail: user.email,
+          metadata,
+        });
+
+        console.log(`[CREDIT CONTROLLER] CREATE_CHECKOUT (payment) success - id: ${result.payment_id}`);
+
+        // Construct checkout URL from payment_id
+        const paymentBaseUrl = process.env.DODO_ENVIRONMENT === "live_mode"
+          ? "https://checkout.dodopayments.com"
+          : "https://test.checkout.dodopayments.com";
+        const paymentCheckoutUrl = result.payment_link || `${paymentBaseUrl}/buy/${result.payment_id}`;
+
+        return c.json({
+          checkoutId: result.payment_id,
+          checkoutUrl: paymentCheckoutUrl,
+          type: "payment",
+        });
+      }
     } catch (error: any) {
       console.error(`[CREDIT CONTROLLER] CREATE_CHECKOUT error:`, error);
       return c.json({ error: error.message || "Failed to create checkout" }, 500);
     }
   }
 
-  // Webhook handler for Polar events
+  // Webhook handler for Dodo Payments events
   static async handleWebhook(c: Context) {
     CreditController.logRequest(c, "HANDLE_WEBHOOK");
 
     try {
-      const webhookId = c.req.header("webhook-id");
-      const webhookTimestamp = c.req.header("webhook-timestamp");
-      const webhookSignature = c.req.header("webhook-signature");
       const body = await c.req.text();
 
+      // Log headers for debugging
+      const headers = Object.fromEntries(c.req.raw.headers.entries());
+      console.log(`[CREDIT CONTROLLER] Webhook headers:`, JSON.stringify(headers, null, 2));
+
       // Verify webhook signature if secret is configured
-      const webhookSecret = process.env.POLAR_WEBHOOK_SECRET;
-      if (webhookSecret) {
-        if (!webhookId || !webhookTimestamp || !webhookSignature) {
-          console.error("[CREDIT CONTROLLER] Missing webhook headers");
-          return c.json({ error: "Missing webhook headers" }, 400);
-        }
+      const webhookSecret = process.env.DODO_WEBHOOK_SECRET;
+      const signature = c.req.header("webhook-signature") ||
+                        c.req.header("x-webhook-signature") ||
+                        c.req.header("dodo-signature") ||
+                        c.req.header("x-dodo-signature");
 
-        // Verify signature using HMAC-SHA256
-        const crypto = await import("crypto");
-        const signedContent = `${webhookId}.${webhookTimestamp}.${body}`;
-        const expectedSignature = crypto
-          .createHmac("sha256", webhookSecret)
-          .update(signedContent)
-          .digest("base64");
-
-        // Polar sends multiple signatures, check if any match
-        const signatures = webhookSignature.split(" ");
-        const isValid = signatures.some((sig) => {
-          const [version, signature] = sig.split(",");
-          return version === "v1" && signature === expectedSignature;
-        });
-
+      if (webhookSecret && signature) {
+        const isValid = DodoService.verifyWebhookSignature(body, signature, webhookSecret);
         if (!isValid) {
-          console.error("[CREDIT CONTROLLER] Invalid webhook signature");
-          return c.json({ error: "Invalid signature" }, 401);
+          console.warn("[CREDIT CONTROLLER] Webhook signature verification failed");
+          // In production, reject invalid signatures
+          if (process.env.NODE_ENV === "production") {
+            return c.json({ error: "Invalid signature" }, 401);
+          }
+          console.warn("[CREDIT CONTROLLER] Allowing invalid signature in development mode");
         }
+      } else if (process.env.NODE_ENV === "production" && webhookSecret) {
+        // In production, require signature if secret is configured
+        console.warn("[CREDIT CONTROLLER] No webhook signature provided in production");
+        return c.json({ error: "Missing signature" }, 401);
+      } else {
+        console.log("[CREDIT CONTROLLER] No webhook signature provided or secret not configured");
       }
 
-      const payload = JSON.parse(body);
-      console.log(`[CREDIT CONTROLLER] Webhook event: ${payload.type}`, JSON.stringify(payload.data?.id || {}));
+      const payload: DodoWebhookPayload = JSON.parse(body);
+      console.log(`[CREDIT CONTROLLER] Webhook event: ${payload.type}`, JSON.stringify(payload.data || {}, null, 2));
 
-      // Handle different Polar webhook events
+      // Handle different Dodo webhook events
       switch (payload.type) {
-        case "checkout.created":
-          console.log(`[CREDIT CONTROLLER] Checkout created: ${payload.data?.id}`);
+        case "payment.succeeded":
+          await CreditController.handlePaymentSucceeded(payload.data);
           break;
 
-        case "checkout.updated":
-          console.log(`[CREDIT CONTROLLER] Checkout updated: ${payload.data?.id}, status: ${payload.data?.status}`);
+        case "payment.failed":
+          console.log(`[CREDIT CONTROLLER] Payment failed: ${payload.data?.payment_id}`);
           break;
 
-        case "order.created":
-        case "order.paid":
-          await CreditController.handleOrderPaid(payload.data);
+        case "payment.processing":
+          console.log(`[CREDIT CONTROLLER] Payment processing: ${payload.data?.payment_id}`);
           break;
 
-        case "subscription.created":
-        case "subscription.updated":
+        case "payment.cancelled":
+          console.log(`[CREDIT CONTROLLER] Payment cancelled: ${payload.data?.payment_id}`);
+          break;
+
         case "subscription.active":
           await CreditController.handleSubscriptionActive(payload.data);
           break;
 
-        case "subscription.canceled":
-        case "subscription.revoked":
+        case "subscription.renewed":
+          await CreditController.handleSubscriptionRenewed(payload.data);
+          break;
+
+        case "subscription.cancelled":
+        case "subscription.expired":
           await CreditController.handleSubscriptionCanceled(payload.data);
+          break;
+
+        case "subscription.on_hold":
+        case "subscription.paused":
+          console.log(`[CREDIT CONTROLLER] Subscription paused/on_hold: ${payload.data?.subscription_id}`);
           break;
 
         default:
@@ -239,12 +294,36 @@ export class CreditController {
     }
   }
 
-  // Handle order paid event (one-time purchase or subscription payment)
-  private static async handleOrderPaid(data: any) {
+  // Handle successful payment
+  private static async handlePaymentSucceeded(data: any) {
     const metadata = data?.metadata || {};
     const { workspaceId, userId, packageId, credits, planName } = metadata;
+    const paymentId = data?.payment_id;
 
-    console.log(`[CREDIT CONTROLLER] Order paid - workspace: ${workspaceId}, credits: ${credits}, plan: ${planName}`);
+    console.log(`[CREDIT CONTROLLER] Payment succeeded - workspace: ${workspaceId}, credits: ${credits}, plan: ${planName}, paymentId: ${paymentId}`);
+
+    // Check for duplicate webhook (idempotency)
+    if (paymentId && workspaceId) {
+      const existingTransactions = await CreditModel.getTransactions({
+        workspaceId,
+        limit: 10,
+      });
+
+      const isDuplicate = existingTransactions.some((tx) => {
+        if (!tx.metadata) return false;
+        try {
+          const meta = JSON.parse(tx.metadata);
+          return meta.paymentId === paymentId;
+        } catch {
+          return false;
+        }
+      });
+
+      if (isDuplicate) {
+        console.log(`[CREDIT CONTROLLER] Duplicate webhook detected for paymentId: ${paymentId}, skipping`);
+        return;
+      }
+    }
 
     if (workspaceId && credits) {
       const creditAmount = parseInt(credits);
@@ -254,14 +333,23 @@ export class CreditController {
         userId,
         amount: creditAmount,
         type: "purchase",
-        description: planName ? `${planName} plan - ${creditAmount} credits` : `Purchased ${creditAmount} credits`,
+        description: planName ? `${planName} - ${creditAmount} credits` : `Purchased ${creditAmount} credits`,
         metadata: {
-          orderId: data?.id,
+          paymentId: paymentId,
           packageId,
-          productId: data?.product_id,
-          polarEvent: "order.paid",
+          dodoEvent: "payment.succeeded",
+          amount: data?.total_amount,
+          currency: data?.currency,
         },
       });
+
+      // Update workspace plan based on product
+      const productId = packageId || data?.product_cart?.[0]?.product_id;
+      const plan = PRODUCT_TO_PLAN[productId];
+      if (plan && workspaceId) {
+        await WorkspaceModel.update(workspaceId, { plan });
+        console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan}`);
+      }
 
       console.log(`[CREDIT CONTROLLER] Credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
     }
@@ -270,14 +358,119 @@ export class CreditController {
   // Handle subscription active event
   private static async handleSubscriptionActive(data: any) {
     const metadata = data?.metadata || {};
-    const { workspaceId, userId, planName, monthlyCredits } = metadata;
+    const { workspaceId, userId, planName, credits } = metadata;
+    const subscriptionId = data?.subscription_id;
 
-    console.log(`[CREDIT CONTROLLER] Subscription active - workspace: ${workspaceId}, plan: ${planName}`);
+    console.log(`[CREDIT CONTROLLER] Subscription active - workspace: ${workspaceId}, plan: ${planName}, subscriptionId: ${subscriptionId}`);
 
-    // You can store subscription info in the database here
-    // For now, just log it - credits are added via order.paid event
-    if (workspaceId && monthlyCredits) {
-      console.log(`[CREDIT CONTROLLER] Subscription ${planName} active for workspace ${workspaceId}`);
+    // Check for duplicate webhook (idempotency)
+    if (subscriptionId && workspaceId) {
+      const existingTransactions = await CreditModel.getTransactions({
+        workspaceId,
+        limit: 10,
+      });
+
+      const isDuplicate = existingTransactions.some((tx) => {
+        if (!tx.metadata) return false;
+        try {
+          const meta = JSON.parse(tx.metadata);
+          return meta.subscriptionId === subscriptionId && meta.dodoEvent === "subscription.active";
+        } catch {
+          return false;
+        }
+      });
+
+      if (isDuplicate) {
+        console.log(`[CREDIT CONTROLLER] Duplicate webhook detected for subscriptionId: ${subscriptionId}, skipping`);
+        return;
+      }
+    }
+
+    // Add initial credits for new subscription
+    if (workspaceId && credits) {
+      const creditAmount = parseInt(credits);
+
+      await CreditModel.addCredits({
+        workspaceId,
+        userId,
+        amount: creditAmount,
+        type: "purchase",
+        description: `${planName} subscription - ${creditAmount} credits`,
+        metadata: {
+          subscriptionId: subscriptionId,
+          dodoEvent: "subscription.active",
+        },
+      });
+
+      // Update workspace plan and subscription tracking
+      const productId = metadata?.packageId || data?.product_id;
+      const plan = PRODUCT_TO_PLAN[productId];
+      if (plan) {
+        await WorkspaceModel.update(workspaceId, {
+          plan,
+          subscriptionId: subscriptionId,
+          subscriptionStatus: "active",
+          subscriptionCancelledAt: null,
+        });
+        console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan}, subscription tracked: ${subscriptionId}`);
+      }
+
+      console.log(`[CREDIT CONTROLLER] Subscription credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
+    }
+  }
+
+  // Handle subscription renewal
+  private static async handleSubscriptionRenewed(data: any) {
+    const metadata = data?.metadata || {};
+    const { workspaceId, userId, planName, credits } = metadata;
+    const subscriptionId = data?.subscription_id;
+    const renewalDate = data?.created_at || new Date().toISOString();
+
+    console.log(`[CREDIT CONTROLLER] Subscription renewed - workspace: ${workspaceId}, plan: ${planName}, subscriptionId: ${subscriptionId}`);
+
+    // Check for duplicate webhook (idempotency) - check for same subscription renewed on same date
+    if (subscriptionId && workspaceId) {
+      const existingTransactions = await CreditModel.getTransactions({
+        workspaceId,
+        limit: 20,
+      });
+
+      const isDuplicate = existingTransactions.some((tx) => {
+        if (!tx.metadata) return false;
+        try {
+          const meta = JSON.parse(tx.metadata);
+          return meta.subscriptionId === subscriptionId &&
+                 meta.dodoEvent === "subscription.renewed" &&
+                 meta.renewalDate === renewalDate;
+        } catch {
+          return false;
+        }
+      });
+
+      if (isDuplicate) {
+        console.log(`[CREDIT CONTROLLER] Duplicate renewal webhook detected for subscriptionId: ${subscriptionId}, skipping`);
+        return;
+      }
+    }
+
+    // Add credits for renewal
+    if (workspaceId && credits) {
+      const creditAmount = parseInt(credits);
+
+      await CreditModel.addCredits({
+        workspaceId,
+        userId,
+        amount: creditAmount,
+        type: "purchase",
+        description: `${planName} renewal - ${creditAmount} credits`,
+        metadata: {
+          subscriptionId: subscriptionId,
+          dodoEvent: "subscription.renewed",
+          renewalDate: renewalDate,
+        },
+      });
+
+      console.log(`[CREDIT CONTROLLER] Renewal credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
     }
   }
 
@@ -285,13 +478,19 @@ export class CreditController {
   private static async handleSubscriptionCanceled(data: any) {
     const metadata = data?.metadata || {};
     const { workspaceId, planName } = metadata;
+    const subscriptionId = data?.subscription_id;
 
-    console.log(`[CREDIT CONTROLLER] Subscription canceled - workspace: ${workspaceId}, plan: ${planName}`);
+    console.log(`[CREDIT CONTROLLER] Subscription canceled - workspace: ${workspaceId}, plan: ${planName}, subscriptionId: ${subscriptionId}`);
 
-    // You can update subscription status in the database here
+    // Update workspace subscription status
     if (workspaceId) {
-      console.log(`[CREDIT CONTROLLER] Subscription ${planName} canceled for workspace ${workspaceId}`);
+      await WorkspaceModel.update(workspaceId, {
+        subscriptionStatus: "cancelled",
+        subscriptionCancelledAt: new Date(),
+      });
+      console.log(`[CREDIT CONTROLLER] Workspace subscription marked as cancelled: ${workspaceId}`);
     }
+    // Credits remain until they're used - no credit action needed
   }
 
   // Get customer portal URL
@@ -312,20 +511,27 @@ export class CreditController {
         return c.json({ error: "Access denied" }, 403);
       }
 
-      if (!PolarService.isConfigured()) {
+      if (!DodoService.isConfigured()) {
         return c.json({ error: "Payment system not configured" }, 503);
       }
 
-      // Polar customer portal URL
-      const portalUrl = process.env.POLAR_ENVIRONMENT === "production"
-        ? "https://polar.sh/purchases"
-        : "https://sandbox.polar.sh/purchases";
+      // Find customer ID by email
+      const customerId = await DodoService.getCustomerByEmail(user.email);
+      if (!customerId) {
+        return c.json({
+          error: "No billing account found",
+          message: "You need to make a purchase first to access the billing portal."
+        }, 404);
+      }
+
+      // Create customer portal session
+      const portalUrl = await DodoService.createCustomerPortalSession(customerId);
 
       console.log(`[CREDIT CONTROLLER] GET_CUSTOMER_PORTAL success`);
       return c.json({ portalUrl });
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[CREDIT CONTROLLER] GET_CUSTOMER_PORTAL error:`, error);
-      return c.json({ error: "Failed to get customer portal" }, 500);
+      return c.json({ error: error.message || "Failed to get customer portal" }, 500);
     }
   }
 
@@ -367,6 +573,39 @@ export class CreditController {
     } catch (error) {
       console.error(`[CREDIT CONTROLLER] ADD_BONUS_CREDITS error:`, error);
       return c.json({ error: "Failed to add bonus credits" }, 500);
+    }
+  }
+
+  // Cancel subscription
+  static async cancelSubscription(c: Context) {
+    const workspaceId = c.req.param("workspaceId");
+    const subscriptionId = c.req.param("subscriptionId");
+    CreditController.logRequest(c, "CANCEL_SUBSCRIPTION", { workspaceId, subscriptionId });
+
+    try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Check if user is owner or admin
+      const members = await WorkspaceModel.getMembers(workspaceId);
+      const currentMember = members.find((m) => m.userId === user.id);
+      if (!currentMember || !["owner", "admin"].includes(currentMember.role)) {
+        return c.json({ error: "Only owners and admins can cancel subscriptions" }, 403);
+      }
+
+      if (!DodoService.isConfigured()) {
+        return c.json({ error: "Payment system not configured" }, 503);
+      }
+
+      await DodoService.cancelSubscription(subscriptionId);
+
+      console.log(`[CREDIT CONTROLLER] CANCEL_SUBSCRIPTION success`);
+      return c.json({ success: true, message: "Subscription cancelled" });
+    } catch (error: any) {
+      console.error(`[CREDIT CONTROLLER] CANCEL_SUBSCRIPTION error:`, error);
+      return c.json({ error: error.message || "Failed to cancel subscription" }, 500);
     }
   }
 }

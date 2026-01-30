@@ -40,6 +40,8 @@ export interface VideoProcessingJobData {
 export interface ClipGenerationJobData {
   clipId: string;
   videoId: string;
+  workspaceId: string; // For credit tracking
+  userId: string; // For credit tracking
   sourceType: "youtube" | "upload";
   sourceUrl?: string;
   storageKey?: string;
@@ -47,6 +49,7 @@ export interface ClipGenerationJobData {
   endTime: number;
   aspectRatio: "9:16" | "1:1" | "16:9";
   quality: "720p" | "1080p" | "4k";
+  creditCost: number; // Credits to consume for this generation
   // Caption data for burning into video
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;

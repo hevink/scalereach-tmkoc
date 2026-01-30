@@ -62,7 +62,9 @@ export const creditPackage = pgTable(
     name: text("name").notNull(),
     credits: integer("credits").notNull(),
     priceInCents: integer("price_in_cents").notNull(),
-    polarProductId: text("polar_product_id").notNull().unique(),
+    dodoProductId: text("dodo_product_id").notNull().unique(),
+    isSubscription: integer("is_subscription").notNull().default(0),
+    billingPeriod: text("billing_period"), // 'monthly' | 'yearly' | null for one-time
     isActive: integer("is_active").notNull().default(1),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   }

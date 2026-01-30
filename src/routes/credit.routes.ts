@@ -4,20 +4,23 @@ import { authMiddleware } from "../middleware/auth.middleware";
 
 const creditRouter = new Hono();
 
-// Public routes
+// Public routes (no auth required)
 creditRouter.get("/packages", CreditController.getPackages);
-
-// Webhook route (no auth, verified by signature)
 creditRouter.post("/webhook", CreditController.handleWebhook);
 
-// Protected routes
-creditRouter.use("/*", authMiddleware);
+// Protected routes - create a sub-router with auth
+const protectedRoutes = new Hono();
+protectedRoutes.use("*", authMiddleware);
 
-// Workspace credit routes
-creditRouter.get("/workspaces/:workspaceId/balance", CreditController.getBalance);
-creditRouter.get("/workspaces/:workspaceId/transactions", CreditController.getTransactions);
-creditRouter.post("/workspaces/:workspaceId/checkout", CreditController.createCheckout);
-creditRouter.get("/workspaces/:workspaceId/portal", CreditController.getCustomerPortal);
-creditRouter.post("/workspaces/:workspaceId/bonus", CreditController.addBonusCredits);
+// Workspace credit routes (protected)
+protectedRoutes.get("/workspaces/:workspaceId/balance", CreditController.getBalance);
+protectedRoutes.get("/workspaces/:workspaceId/transactions", CreditController.getTransactions);
+protectedRoutes.post("/workspaces/:workspaceId/checkout", CreditController.createCheckout);
+protectedRoutes.get("/workspaces/:workspaceId/portal", CreditController.getCustomerPortal);
+protectedRoutes.post("/workspaces/:workspaceId/bonus", CreditController.addBonusCredits);
+protectedRoutes.delete("/workspaces/:workspaceId/subscriptions/:subscriptionId", CreditController.cancelSubscription);
+
+// Mount protected routes
+creditRouter.route("/", protectedRoutes);
 
 export default creditRouter;

@@ -16,7 +16,12 @@ export const workspace = pgTable(
     slug: text("slug").notNull().unique(),
     description: text("description"),
     logo: text("logo"),
-    plan: text("plan").notNull().default("free"), // 'free' | 'pro' | 'agency'
+    plan: text("plan").notNull().default("free"), // 'free' | 'starter' | 'pro' | 'pro-plus'
+    // Subscription tracking
+    subscriptionId: text("subscription_id"), // Dodo subscription ID
+    subscriptionStatus: text("subscription_status"), // 'active' | 'cancelled' | 'expired' | 'paused'
+    subscriptionRenewalDate: timestamp("subscription_renewal_date"),
+    subscriptionCancelledAt: timestamp("subscription_cancelled_at"),
     ownerId: text("owner_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
