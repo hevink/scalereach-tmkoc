@@ -217,6 +217,67 @@ class EmailService {
 
     return this.sendEmail({ to, subject, html });
   }
+
+  async sendVerificationEmail(params: { to: string; verificationUrl: string }): Promise<boolean> {
+    const { to, verificationUrl } = params;
+
+    console.log("\n╔══════════════════════════════════════════════════════════════╗");
+    console.log("║              ✉️  EMAIL VERIFICATION REQUESTED ✉️              ║");
+    console.log("╠══════════════════════════════════════════════════════════════╣");
+    console.log(`║ To: ${to}`);
+    console.log("╠══════════════════════════════════════════════════════════════╣");
+    console.log("║ 🔗 VERIFICATION LINK:");
+    console.log(`║ ${verificationUrl}`);
+    console.log("╚══════════════════════════════════════════════════════════════╝\n");
+
+    const subject = "Verify your ScaleReach email";
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center" style="padding: 40px 0;">
+        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+          <tr>
+            <td style="padding: 40px 40px 20px;">
+              <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 600; color: #18181b;">Verify your email</h1>
+              <p style="margin: 0 0 20px; font-size: 16px; line-height: 24px; color: #52525b;">Thanks for signing up! Please verify your email address to get started.</p>
+              <table role="presentation" style="border-collapse: collapse;">
+                <tr>
+                  <td style="border-radius: 6px; background-color: #18181b;">
+                    <a href="${verificationUrl}" target="_blank" style="display: inline-block; padding: 14px 28px; font-size: 16px; font-weight: 500; color: #ffffff; text-decoration: none;">Verify Email</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px 40px;">
+              <p style="margin: 0 0 10px; font-size: 14px; color: #71717a;">Or copy and paste this link:</p>
+              <p style="margin: 0; font-size: 14px; color: #3b82f6; word-break: break-all;">${verificationUrl}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0; font-size: 12px; color: #a1a1aa;">If you didn't create an account, you can safely ignore this email.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    return this.sendEmail({ to, subject, html });
+  }
 }
+
 
 export const emailService = new EmailService();
