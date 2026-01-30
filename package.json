@@ -1,7 +1,7 @@
 {
   "name": "scalereach-tmkoc",
   "scripts": {
-    "dev": "bun run --hot src/index.ts",
+    "dev": "bun --watch run src/index.ts",
     "start": "bun run src/index.ts",
     "build": "tsc --noEmit",
     "worker": "bun run src/worker.ts",
@@ -26,6 +26,7 @@
     "@polar-sh/sdk": "^0.42.2",
     "ai": "^6.0.39",
     "axios": "^1.13.2",
+    "bcryptjs": "^3.0.3",
     "better-auth": "^1.4.11",
     "bullmq": "^5.66.5",
     "drizzle-orm": "^0.45.1",
@@ -38,6 +39,7 @@
   },
   "devDependencies": {
     "@better-auth/cli": "^1.4.10",
+    "@types/bcryptjs": "^3.0.0",
     "@types/bun": "latest",
     "@types/node": "^25.0.9",
     "@types/nodemailer": "^7.0.5",
