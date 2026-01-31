@@ -117,9 +117,46 @@ export class VideoModel {
     }
   }
 
+  /**
+   * Get videos by workspace ID with only essential fields for grid display
+   */
+  static async getByWorkspaceId(workspaceId: string) {
+    this.logOperation("GET_VIDEOS_BY_WORKSPACE", { workspaceId });
+    const startTime = performance.now();
+
+    try {
+      const result = await db
+        .select({
+          id: video.id,
+          title: video.title,
+          duration: video.duration,
+          status: video.status,
+          sourceType: video.sourceType,
+          sourceUrl: video.sourceUrl,
+          createdAt: video.createdAt,
+        })
+        .from(video)
+        .where(eq(video.workspaceId, workspaceId))
+        .orderBy(video.createdAt);
+      const duration = performance.now() - startTime;
+      console.log(
+        `[VIDEO MODEL] GET_VIDEOS_BY_WORKSPACE completed in ${duration.toFixed(2)}ms, found ${result.length} videos`
+      );
+      return result;
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(
+        `[VIDEO MODEL] GET_VIDEOS_BY_WORKSPACE failed after ${duration.toFixed(2)}ms:`,
+        error
+      );
+      throw error;
+    }
+  }
+
   static async create(data: {
     id: string;
     projectId?: string | null;
+    workspaceId?: string | null;
     userId: string;
     sourceType: "youtube" | "upload";
     sourceUrl?: string;
@@ -130,6 +167,7 @@ export class VideoModel {
     this.logOperation("CREATE_VIDEO", {
       id: data.id,
       projectId: data.projectId,
+      workspaceId: data.workspaceId,
       userId: data.userId,
       sourceType: data.sourceType,
     });

@@ -39,6 +39,19 @@ export class UppyUploadController {
         return c.json({ error: "filename and type are required" }, 400);
       }
 
+      // Require workspaceId
+      const workspaceId = metadata?.workspaceId;
+      if (!workspaceId) {
+        return c.json({ error: "workspaceId is required in metadata" }, 400);
+      }
+
+      // Verify user has access to this workspace
+      const { WorkspaceModel } = await import("../models/workspace.model");
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspaceId);
+      if (!member) {
+        return c.json({ error: "You don't have access to this workspace" }, 403);
+      }
+
       // Validate file format (MP4, MOV, WebM only)
       const formatValidation = UploadValidationService.validateFileFormat(type, filename);
       if (!formatValidation.valid) {
@@ -64,11 +77,12 @@ export class UppyUploadController {
       const storagePath = projectId || `user-${user.id}`;
       const key = R2Service.generateVideoKey(storagePath, filename);
 
-      // Create video record
+      // Create video record with workspaceId
       const videoId = nanoid();
       await VideoModel.create({
         id: videoId,
         projectId: projectId || null,
+        workspaceId: workspaceId,
         userId: user.id,
         sourceType: "upload",
         sourceUrl: filename,
@@ -80,7 +94,7 @@ export class UppyUploadController {
       // Create multipart upload in R2
       const uploadId = await R2Service.createMultipartUpload(key, type);
 
-      console.log(`[UPPY UPLOAD] Created multipart upload: ${uploadId}, key: ${key}, videoId: ${videoId}`);
+      console.log(`[UPPY UPLOAD] Created multipart upload: ${uploadId}, key: ${key}, videoId: ${videoId}, workspaceId: ${workspaceId}`);
 
       return c.json({
         uploadId,

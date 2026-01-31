@@ -71,6 +71,7 @@ export const video = pgTable(
   {
     id: text("id").primaryKey(),
     projectId: text("project_id").references(() => project.id, { onDelete: "cascade" }),
+    workspaceId: text("workspace_id").references(() => workspace.id, { onDelete: "cascade" }),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -103,6 +104,7 @@ export const video = pgTable(
   },
   (table) => ({
     projectIdIdx: index("idx_video_projectId").on(table.projectId),
+    workspaceIdIdx: index("idx_video_workspaceId").on(table.workspaceId),
     userIdIdx: index("idx_video_userId").on(table.userId),
     statusIdx: index("idx_video_status").on(table.status),
     sourceTypeIdx: index("idx_video_sourceType").on(table.sourceType),

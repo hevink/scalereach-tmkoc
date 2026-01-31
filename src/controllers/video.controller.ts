@@ -20,7 +20,7 @@ export class VideoController {
 
     try {
       const body = await c.req.json();
-      const { projectId, youtubeUrl, workspaceSlug, config } = body;
+      const { projectId, youtubeUrl, workspaceSlug, workspaceId, config } = body;
       const user = c.get("user") as { id: string };
 
       console.log(`[VIDEO CONTROLLER] SUBMIT_YOUTUBE_URL request:`, {
@@ -28,11 +28,23 @@ export class VideoController {
         youtubeUrl,
         userId: user.id,
         workspaceSlug,
+        workspaceId,
         hasConfig: !!config,
       });
 
       if (!youtubeUrl) {
         return c.json({ error: "YouTube URL is required" }, 400);
+      }
+
+      if (!workspaceId) {
+        return c.json({ error: "workspaceId is required" }, 400);
+      }
+
+      // Verify user has access to this workspace
+      const { WorkspaceModel } = await import("../models/workspace.model");
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspaceId);
+      if (!member) {
+        return c.json({ error: "You don't have access to this workspace" }, 403);
       }
 
       if (!YouTubeService.isValidYouTubeUrl(youtubeUrl)) {
@@ -65,10 +77,11 @@ export class VideoController {
 
       const videoId = nanoid();
 
-      // Create video record
+      // Create video record with workspaceId
       const videoRecord = await VideoModel.create({
         id: videoId,
         projectId: projectId || null,
+        workspaceId: workspaceId,
         userId: user.id,
         sourceType: "youtube",
         sourceUrl: youtubeUrl,
@@ -183,11 +196,25 @@ export class VideoController {
 
   static async getMyVideos(c: Context) {
     const user = c.get("user") as { id: string };
-    VideoController.logRequest(c, "GET_MY_VIDEOS", { userId: user.id });
+    const workspaceId = c.req.query("workspaceId");
+    VideoController.logRequest(c, "GET_MY_VIDEOS", { userId: user.id, workspaceId });
 
     try {
-      // Use lite version to return only essential fields for grid display
-      const videos = await VideoModel.getByUserIdLite(user.id);
+      if (!workspaceId) {
+        return c.json({ error: "workspaceId query parameter is required" }, 400);
+      }
+
+      // Check if user is a member of this workspace
+      const { WorkspaceModel } = await import("../models/workspace.model");
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspaceId);
+      if (!member) {
+        console.log(`[VIDEO CONTROLLER] GET_MY_VIDEOS - user ${user.id} is not a member of workspace: ${workspaceId}`);
+        return c.json({ error: "You don't have access to this workspace" }, 403);
+      }
+
+      // Get videos for this workspace
+      // Videos are linked to workspace through projects, or directly via workspaceId
+      const videos = await VideoModel.getByWorkspaceId(workspaceId);
       return c.json(videos);
     } catch (error) {
       console.error(`[VIDEO CONTROLLER] GET_MY_VIDEOS error:`, error);
