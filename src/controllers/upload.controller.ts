@@ -28,12 +28,24 @@ export class UploadController {
 
     try {
       const body = await c.req.json();
-      const { filename, fileSize, contentType, projectId } = body;
+      const { filename, fileSize, contentType, projectId, workspaceId } = body;
       const user = c.get("user") as { id: string };
 
       // Validation
       if (!filename || !fileSize || !contentType) {
         return c.json({ error: "filename, fileSize, and contentType are required" }, 400);
+      }
+
+      // Require workspaceId
+      if (!workspaceId) {
+        return c.json({ error: "workspaceId is required" }, 400);
+      }
+
+      // Verify user has access to this workspace
+      const { WorkspaceModel } = await import("../models/workspace.model");
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspaceId);
+      if (!member) {
+        return c.json({ error: "You don't have access to this workspace" }, 403);
       }
 
       // Validate file format (MP4, MOV, WebM only)
@@ -65,11 +77,12 @@ export class UploadController {
         return c.json({ error: "File too large - exceeds maximum parts limit" }, 400);
       }
 
-      // Create video record in pending state
+      // Create video record in pending state with workspaceId
       const videoId = nanoid();
       await VideoModel.create({
         id: videoId,
         projectId: projectId || null,
+        workspaceId: workspaceId,
         userId: user.id,
         sourceType: "upload",
         sourceUrl: filename,
@@ -89,7 +102,7 @@ export class UploadController {
         3600 // 1 hour expiry
       );
 
-      console.log(`[UPLOAD CONTROLLER] Initialized upload: ${uploadId}, ${totalParts} parts`);
+      console.log(`[UPLOAD CONTROLLER] Initialized upload: ${uploadId}, ${totalParts} parts, workspaceId: ${workspaceId}`);
 
       return c.json({
         uploadId,

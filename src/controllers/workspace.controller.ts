@@ -47,6 +47,12 @@ export class WorkspaceController {
     WorkspaceController.logRequest(c, 'GET_WORKSPACE_BY_ID', { id });
     
     try {
+      const user = c.get("user");
+      if (!user) {
+        console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_ID - unauthorized access attempt`);
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
       const workspace = await WorkspaceModel.getById(id);
 
       if (!workspace) {
@@ -54,8 +60,15 @@ export class WorkspaceController {
         return c.json({ error: "Workspace not found" }, 404);
       }
 
-      console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_ID success - found workspace: ${workspace.id}`);
-      return c.json(workspace);
+      // Check if user is a member of this workspace
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspace.id);
+      if (!member) {
+        console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_ID - user ${user.id} is not a member of workspace: ${id}`);
+        return c.json({ error: "You don't have access to this workspace" }, 403);
+      }
+
+      console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_ID success - found workspace: ${workspace.id}, user role: ${member.role}`);
+      return c.json({ ...workspace, role: member.role });
     } catch (error) {
       console.error(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_ID error:`, error);
       return c.json({ error: "Failed to fetch workspace" }, 500);
@@ -68,6 +81,11 @@ export class WorkspaceController {
     
     try {
       const user = c.get("user");
+      if (!user) {
+        console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_SLUG - unauthorized access attempt`);
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
       const workspace = await WorkspaceModel.getBySlug(slug);
 
       if (!workspace) {
@@ -75,17 +93,15 @@ export class WorkspaceController {
         return c.json({ error: "Workspace not found" }, 404);
       }
 
-      // Get user's role in this workspace
-      let role = "member";
-      if (user) {
-        const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspace.id);
-        if (member) {
-          role = member.role;
-        }
+      // Check if user is a member of this workspace
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspace.id);
+      if (!member) {
+        console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_SLUG - user ${user.id} is not a member of workspace: ${slug}`);
+        return c.json({ error: "You don't have access to this workspace" }, 403);
       }
 
-      console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_SLUG success - found workspace: ${workspace.id} (${slug}), user role: ${role}`);
-      return c.json({ ...workspace, role });
+      console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_SLUG success - found workspace: ${workspace.id} (${slug}), user role: ${member.role}`);
+      return c.json({ ...workspace, role: member.role });
     } catch (error) {
       console.error(`[WORKSPACE CONTROLLER] GET_WORKSPACE_BY_SLUG error:`, error);
       return c.json({ error: "Failed to fetch workspace" }, 500);
@@ -97,6 +113,11 @@ export class WorkspaceController {
     WorkspaceController.logRequest(c, 'UPDATE_WORKSPACE_BY_SLUG', { slug });
 
     try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
       // Validate request body using Zod schema
       const validation = await validateBody(c, updateWorkspaceSchema);
       if (!validation.success) {
@@ -110,6 +131,13 @@ export class WorkspaceController {
       if (!existingWorkspace) {
         console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE_BY_SLUG - workspace not found: ${slug}`);
         return c.json({ error: "Workspace not found" }, 404);
+      }
+
+      // Check if user has permission (owner or admin)
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, existingWorkspace.id);
+      if (!member || !["owner", "admin"].includes(member.role)) {
+        console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE_BY_SLUG - user ${user.id} doesn't have permission to update workspace: ${slug}`);
+        return c.json({ error: "You don't have permission to update this workspace" }, 403);
       }
 
       const workspace = await WorkspaceModel.update(existingWorkspace.id, validation.data);
@@ -185,6 +213,11 @@ export class WorkspaceController {
     WorkspaceController.logRequest(c, 'UPDATE_WORKSPACE', { id });
 
     try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
       // Validate request body using Zod schema
       const validation = await validateBody(c, updateWorkspaceSchema);
       if (!validation.success) {
@@ -192,6 +225,13 @@ export class WorkspaceController {
       }
 
       console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE request body:`, validation.data);
+
+      // Check if user has permission (owner or admin)
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, id);
+      if (!member || !["owner", "admin"].includes(member.role)) {
+        console.log(`[WORKSPACE CONTROLLER] UPDATE_WORKSPACE - user ${user.id} doesn't have permission for workspace: ${id}`);
+        return c.json({ error: "You don't have permission to update this workspace" }, 403);
+      }
 
       const workspace = await WorkspaceModel.update(id, validation.data);
 
@@ -227,6 +267,18 @@ export class WorkspaceController {
     WorkspaceController.logRequest(c, 'GET_WORKSPACE_MEMBERS', { workspaceId });
     
     try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Check if user is a member of this workspace
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspaceId);
+      if (!member) {
+        console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_MEMBERS - user ${user.id} is not a member of workspace: ${workspaceId}`);
+        return c.json({ error: "You don't have access to this workspace" }, 403);
+      }
+
       const members = await WorkspaceModel.getMembers(workspaceId);
       console.log(`[WORKSPACE CONTROLLER] GET_WORKSPACE_MEMBERS success - found ${members.length} members for workspace: ${workspaceId}`);
       return c.json(members);
@@ -241,6 +293,18 @@ export class WorkspaceController {
     WorkspaceController.logRequest(c, 'ADD_WORKSPACE_MEMBER', { workspaceId });
 
     try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      // Check if user has permission (owner or admin)
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspaceId);
+      if (!member || !["owner", "admin"].includes(member.role)) {
+        console.log(`[WORKSPACE CONTROLLER] ADD_WORKSPACE_MEMBER - user ${user.id} doesn't have permission for workspace: ${workspaceId}`);
+        return c.json({ error: "You don't have permission to add members to this workspace" }, 403);
+      }
+
       // Validate request body using Zod schema
       const validation = await validateBody(c, addWorkspaceMemberSchema);
       if (!validation.success) {
@@ -250,14 +314,14 @@ export class WorkspaceController {
       const { id, userId, role } = validation.data;
       console.log(`[WORKSPACE CONTROLLER] ADD_WORKSPACE_MEMBER request body:`, { id, userId, role });
 
-      const member = await WorkspaceModel.addMember({
+      const newMember = await WorkspaceModel.addMember({
         id,
         workspaceId,
         userId,
         role,
       });
-      console.log(`[WORKSPACE CONTROLLER] ADD_WORKSPACE_MEMBER success - added member: ${member.id} to workspace: ${workspaceId}`);
-      return c.json(member, 201);
+      console.log(`[WORKSPACE CONTROLLER] ADD_WORKSPACE_MEMBER success - added member: ${newMember.id} to workspace: ${workspaceId}`);
+      return c.json(newMember, 201);
     } catch (error) {
       console.error(`[WORKSPACE CONTROLLER] ADD_WORKSPACE_MEMBER error:`, error);
       return c.json({ error: "Failed to add workspace member" }, 500);
@@ -428,10 +492,22 @@ export class WorkspaceController {
     WorkspaceController.logRequest(c, 'UPLOAD_LOGO', { slug });
 
     try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
       const workspace = await WorkspaceModel.getBySlug(slug);
       if (!workspace) {
         console.log(`[WORKSPACE CONTROLLER] UPLOAD_LOGO - workspace not found: ${slug}`);
         return c.json({ error: "Workspace not found" }, 404);
+      }
+
+      // Check if user has permission (owner or admin)
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspace.id);
+      if (!member || !["owner", "admin"].includes(member.role)) {
+        console.log(`[WORKSPACE CONTROLLER] UPLOAD_LOGO - user ${user.id} doesn't have permission for workspace: ${slug}`);
+        return c.json({ error: "You don't have permission to update this workspace" }, 403);
       }
 
       // Validate request body using Zod schema
@@ -458,10 +534,22 @@ export class WorkspaceController {
     WorkspaceController.logRequest(c, 'DELETE_LOGO', { slug });
     
     try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
       const workspace = await WorkspaceModel.getBySlug(slug);
       if (!workspace) {
         console.log(`[WORKSPACE CONTROLLER] DELETE_LOGO - workspace not found: ${slug}`);
         return c.json({ error: "Workspace not found" }, 404);
+      }
+
+      // Check if user has permission (owner or admin)
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, workspace.id);
+      if (!member || !["owner", "admin"].includes(member.role)) {
+        console.log(`[WORKSPACE CONTROLLER] DELETE_LOGO - user ${user.id} doesn't have permission for workspace: ${slug}`);
+        return c.json({ error: "You don't have permission to update this workspace" }, 403);
       }
 
       await WorkspaceModel.update(workspace.id, { logo: "" });
