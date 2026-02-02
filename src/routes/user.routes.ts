@@ -6,6 +6,7 @@ const userRouter = new Hono();
 
 // Public routes
 userRouter.get("/check-username", UserController.checkUsername);
+userRouter.get("/check-email", UserController.checkEmail);
 
 // Protected routes - /me endpoints (must be before /:id to avoid conflicts)
 userRouter.get("/me", authMiddleware, UserController.getCurrentUser);

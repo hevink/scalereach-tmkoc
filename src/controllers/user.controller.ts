@@ -1,5 +1,10 @@
 import { Context } from "hono";
+import { eq, inArray } from "drizzle-orm";
 import { UserModel } from "../models/user.model";
+import { VideoModel } from "../models/video.model";
+import { R2Service } from "../services/r2.service";
+import { db } from "../db";
+import { viralClip, videoExport } from "../db/schema";
 import { auth } from "../lib/auth";
 
 export class UserController {
@@ -126,7 +131,7 @@ export class UserController {
       }
       
       // Use better-auth to change password
-      const result = await auth.api.changePassword({
+      await auth.api.changePassword({
         body: {
           currentPassword,
           newPassword,
@@ -337,8 +342,68 @@ export class UserController {
     UserController.logRequest(c, 'DELETE_USER', { id });
     
     try {
+      // Get all videos for this user to clean up R2 storage
+      const videos = await VideoModel.getByUserId(id);
+      console.log(`[USER CONTROLLER] DELETE_USER - found ${videos.length} videos to clean up for user: ${id}`);
+      
+      // Collect all storage keys to delete
+      const storageKeysToDelete: string[] = [];
+      
+      for (const video of videos) {
+        // Add video file
+        if (video.storageKey) {
+          storageKeysToDelete.push(video.storageKey);
+        }
+        // Add audio file
+        if (video.audioStorageKey) {
+          storageKeysToDelete.push(video.audioStorageKey);
+        }
+      }
+      
+      if (videos.length > 0) {
+        const videoIds = videos.map(v => v.id);
+        
+        // Get clips storage keys
+        const clips = await db
+          .select({ storageKey: viralClip.storageKey })
+          .from(viralClip)
+          .where(inArray(viralClip.videoId, videoIds));
+        
+        for (const clip of clips) {
+          if (clip.storageKey) {
+            storageKeysToDelete.push(clip.storageKey);
+          }
+        }
+      }
+      
+      // Get exports storage keys for this user
+      const exports = await db
+        .select({ storageKey: videoExport.storageKey })
+        .from(videoExport)
+        .where(eq(videoExport.userId, id));
+      
+      for (const exp of exports) {
+        if (exp.storageKey) {
+          storageKeysToDelete.push(exp.storageKey);
+        }
+      }
+      
+      console.log(`[USER CONTROLLER] DELETE_USER - deleting ${storageKeysToDelete.length} R2 files for user: ${id}`);
+      
+      // Delete all R2 files
+      for (const key of storageKeysToDelete) {
+        try {
+          await R2Service.deleteFile(key);
+          console.log(`[USER CONTROLLER] DELETE_USER - deleted R2 file: ${key}`);
+        } catch (r2Error) {
+          // Log but don't fail the deletion if R2 cleanup fails
+          console.error(`[USER CONTROLLER] DELETE_USER - failed to delete R2 file ${key}:`, r2Error);
+        }
+      }
+      
+      // Delete user from database (cascade will delete videos, clips, exports, workspaces, etc.)
       await UserModel.delete(id);
-      console.log(`[USER CONTROLLER] DELETE_USER success - deleted user: ${id}`);
+      console.log(`[USER CONTROLLER] DELETE_USER success - deleted user: ${id}, cleaned up ${storageKeysToDelete.length} R2 files`);
       return c.json({ message: "User deleted successfully" });
     } catch (error) {
       console.error(`[USER CONTROLLER] DELETE_USER error:`, error);

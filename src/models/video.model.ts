@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { video } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
 export class VideoModel {
@@ -137,7 +137,7 @@ export class VideoModel {
         })
         .from(video)
         .where(eq(video.workspaceId, workspaceId))
-        .orderBy(video.createdAt);
+        .orderBy(desc(video.createdAt));
       const duration = performance.now() - startTime;
       console.log(
         `[VIDEO MODEL] GET_VIDEOS_BY_WORKSPACE completed in ${duration.toFixed(2)}ms, found ${result.length} videos`
