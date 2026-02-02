@@ -26,6 +26,30 @@ import {
   sentryRequestMiddleware,
 } from "./middleware/sentry.middleware";
 
+// ============================================================================
+// Environment Variable Validation
+// ============================================================================
+const requiredEnvVars = [
+  "DATABASE_URL",
+  "BETTER_AUTH_SECRET",
+  "BETTER_AUTH_URL",
+];
+
+const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
+if (missingEnvVars.length > 0) {
+  console.error(`❌ Missing required environment variables: ${missingEnvVars.join(", ")}`);
+  process.exit(1);
+}
+
+// Warn about optional but recommended env vars in production
+if (process.env.NODE_ENV === "production") {
+  const recommendedEnvVars = ["FRONTEND_URL", "SENTRY_DSN"];
+  const missingRecommended = recommendedEnvVars.filter((envVar) => !process.env[envVar]);
+  if (missingRecommended.length > 0) {
+    console.warn(`⚠️ Missing recommended environment variables for production: ${missingRecommended.join(", ")}`);
+  }
+}
+
 // Define the main app with AuthContext
 const app = new Hono<{ Variables: AuthContext }>();
 
@@ -36,13 +60,16 @@ app.use(logger());
 app.use(sentryRequestMiddleware);
 app.use(sentryMiddleware);
 
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
-  "http://localhost:5174",
-  process.env.FRONTEND_URL,
-].filter(Boolean) as string[];
+// CORS configuration - production vs development
+const allowedOrigins = process.env.NODE_ENV === "production"
+  ? [process.env.FRONTEND_URL].filter(Boolean) as string[]
+  : [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://localhost:5173",
+      "http://localhost:5174",
+      process.env.FRONTEND_URL,
+    ].filter(Boolean) as string[];
 
 app.use(
   cors({
@@ -101,6 +128,18 @@ app.get("/", (c) => {
 // Export for Bun
 const port = process.env.PORT || 3001;
 console.log(`🚀 Server running on http://localhost:${port}`);
+console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
+
+// Graceful shutdown handling
+process.on("SIGTERM", () => {
+  console.log("🛑 SIGTERM received, shutting down gracefully...");
+  process.exit(0);
+});
+
+process.on("SIGINT", () => {
+  console.log("🛑 SIGINT received, shutting down gracefully...");
+  process.exit(0);
+});
 
 export default {
   port,

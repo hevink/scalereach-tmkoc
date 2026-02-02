@@ -128,11 +128,11 @@ export const auth = betterAuth({
     },
     defaultCookieAttributes: {
       sameSite: "lax",
-      secure: false, // Must be false for localhost HTTP
+      secure: process.env.NODE_ENV === "production",
       httpOnly: true,
       path: "/",
     },
-    useSecureCookies: false, // Must be false for localhost HTTP
+    useSecureCookies: process.env.NODE_ENV === "production",
   },
 });
 
