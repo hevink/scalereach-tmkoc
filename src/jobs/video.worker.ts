@@ -11,6 +11,8 @@ import { FFmpegService } from "../services/ffmpeg.service";
 import { TIKTOK_TEMPLATE, getTemplateById } from "../data/caption-templates";
 import { VideoConfigModel } from "../models/video-config.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
+import { UserModel } from "../models/user.model";
+import { emailService } from "../services/email.service";
 import {
   createWorker,
   QUEUE_NAMES,
@@ -292,6 +294,23 @@ async function processYouTubeVideo(
 
     await job.updateProgress(100);
     console.log(`[VIDEO WORKER] Video processing complete: ${videoId}, found ${viralClips.length} viral clips (generation queued)`);
+
+    // Send email notification when video processing is done
+    try {
+      const user = await UserModel.getById(userId);
+      if (user?.email) {
+        await emailService.sendVideoProcessedNotification({
+          to: user.email,
+          userName: user.name || user.email.split("@")[0],
+          videoTitle: videoInfo.title,
+          clipCount: viralClips.length,
+          videoId: videoId,
+        });
+        console.log(`[VIDEO WORKER] Email notification sent to: ${user.email}`);
+      }
+    } catch (emailError) {
+      console.error(`[VIDEO WORKER] Failed to send email notification:`, emailError);
+    }
   } catch (error) {
     console.error(`[VIDEO WORKER] Error processing video ${videoId}:`, error);
 
@@ -557,6 +576,23 @@ async function processUploadedVideo(
     console.log(
       `[VIDEO WORKER] Uploaded video processing complete: ${videoId}, found ${viralClips.length} viral clips (generation queued)`
     );
+
+    // Send email notification when video processing is done
+    try {
+      const user = await UserModel.getById(userId);
+      if (user?.email) {
+        await emailService.sendVideoProcessedNotification({
+          to: user.email,
+          userName: user.name || user.email.split("@")[0],
+          videoTitle: videoRecord[0].title || "Your video",
+          clipCount: viralClips.length,
+          videoId: videoId,
+        });
+        console.log(`[VIDEO WORKER] Email notification sent to: ${user.email}`);
+      }
+    } catch (emailError) {
+      console.error(`[VIDEO WORKER] Failed to send email notification:`, emailError);
+    }
   } catch (error) {
     console.error(`[VIDEO WORKER] Error processing uploaded video ${videoId}:`, error);
 

@@ -69,10 +69,10 @@ export interface ValidationResult {
 }
 
 // Constants for validation
-export const MIN_DURATION_LIMIT = 10;   // Minimum allowed minDuration (seconds)
-export const MAX_DURATION_LIMIT = 90;   // Maximum allowed maxDuration (seconds)
-export const DEFAULT_MIN_DURATION = 15; // Default minimum clip duration
-export const DEFAULT_MAX_DURATION = 60; // Default maximum clip duration
+export const MIN_DURATION_LIMIT = 5;    // Minimum allowed minDuration (seconds)
+export const MAX_DURATION_LIMIT = 180;  // Maximum allowed maxDuration (seconds)
+export const DEFAULT_MIN_DURATION = 10; // Default minimum clip duration
+export const DEFAULT_MAX_DURATION = 90; // Default maximum clip duration
 export const DEFAULT_MAX_CLIPS = 10;    // Default maximum clips to detect
 
 export class ViralDetectionService {
@@ -149,6 +149,13 @@ export class ViralDetectionService {
 
 Your task is to analyze video transcripts and identify the most viral-worthy segments that would perform well as standalone clips.
 
+CRITICAL DURATION REQUIREMENTS:
+- Each clip MUST be between ${minDuration} and ${maxDuration} seconds long
+- Calculate duration as: endTime - startTime
+- If a moment is great but too short, EXTEND it to include more context
+- If a moment is great but too long, find the CORE viral moment within it
+- REJECT any clip that doesn't meet the duration requirement
+
 VIRAL CONTENT CRITERIA:
 1. **Hook Factor**: Strong opening that grabs attention in first 3 seconds
 2. **Emotional Impact**: Evokes strong emotions (humor, shock, inspiration, curiosity)
@@ -160,26 +167,30 @@ VIRAL CONTENT CRITERIA:
 8. **Visual Potential**: Moments that would be engaging to watch
 
 GUIDELINES:
-- Each clip should be ${minDuration}-${maxDuration} seconds long
 - Clips should be self-contained and make sense without context
 - Prioritize moments with high energy, emotion, or insight
-- Look for natural start and end points
-- Consider what would make someone stop scrolling`;
+- Look for natural start and end points (complete thoughts/sentences)
+- Consider what would make someone stop scrolling
+- Include enough context before and after the key moment`;
 
     const userPrompt = `Analyze this transcript from the video "${videoTitle}" and identify up to ${maxClips} viral clip opportunities.
+
+IMPORTANT: Each clip MUST have a duration between ${minDuration}-${maxDuration} seconds.
+Duration = endTime - startTime. Double-check your math before submitting each clip.
 
 TRANSCRIPT WITH TIMESTAMPS:
 ${formattedTranscript}
 
 For each viral clip, provide:
 1. A catchy title that would work as a video caption
-2. Exact start and end times (in seconds)
+2. Exact start and end times (in seconds) - MUST result in ${minDuration}-${maxDuration}s duration
 3. The transcript segment for that clip
 4. A virality score (0-100) based on viral potential
 5. A detailed reason explaining why this clip would go viral
 6. Key hooks that grab attention
 7. Primary emotions the clip evokes
 
+REMEMBER: Verify each clip is ${minDuration}-${maxDuration} seconds before including it.
 Focus on finding the absolute BEST moments that would perform well on social media.`;
 
     try {
@@ -203,14 +214,19 @@ Focus on finding the absolute BEST moments that would perform well on social med
 
       console.log(`[VIRAL DETECTION] Found ${output.clips.length} viral clips`);
 
+      // Log all clip durations for debugging
+      const allClipsWithDuration = output.clips.map((clip) => ({
+        ...clip,
+        duration: clip.endTime - clip.startTime,
+      }));
+      
+      console.log(`[VIRAL DETECTION] Raw clip durations:`, allClipsWithDuration.map(c => 
+        `"${c.title.substring(0, 30)}...": ${c.duration.toFixed(1)}s (${c.startTime}-${c.endTime})`
+      ));
+
       // Filter clips by duration constraints and sort by virality score descending
       // Validates: Requirements 5.6, 5.9
-      const sortedClips = output.clips
-        .map((clip) => ({
-          ...clip,
-          // Calculate duration
-          duration: clip.endTime - clip.startTime,
-        }))
+      const sortedClips = allClipsWithDuration
         .filter((clip) => clip.duration >= minDuration && clip.duration <= maxDuration)
         .sort((a, b) => b.viralityScore - a.viralityScore)
         .slice(0, maxClips); // Limit to maxClips (Requirement 5.2)

@@ -11,6 +11,7 @@ import {
   DEFAULT_MAX_DURATION,
   DEFAULT_MAX_CLIPS,
 } from "../services/viral-detection.service";
+import { R2Service } from "../services/r2.service";
 
 /**
  * Controller for viral detection API endpoints
@@ -188,10 +189,21 @@ export class ViralDetectionController {
       // Get clips with filters (default sorted by score descending)
       const clips = await ClipModel.getByVideoId(videoId, filters);
 
+      // Generate presigned URLs for clips that have been generated
+      const clipsWithUrls = await Promise.all(
+        clips.map(async (clip) => {
+          let downloadUrl: string | null = null;
+          if (clip.storageKey) {
+            downloadUrl = await R2Service.getSignedDownloadUrl(clip.storageKey, 3600);
+          }
+          return { ...clip, downloadUrl };
+        })
+      );
+
       return c.json({
         videoId,
-        clips,
-        count: clips.length,
+        clips: clipsWithUrls,
+        count: clipsWithUrls.length,
         filters: {
           minScore: filters.minScore,
           maxScore: filters.maxScore,
@@ -221,7 +233,16 @@ export class ViralDetectionController {
         return c.json({ error: "Clip not found" }, 404);
       }
 
-      return c.json(clip);
+      // Generate presigned URL if clip has been generated
+      let downloadUrl: string | null = null;
+      if (clip.storageKey) {
+        downloadUrl = await R2Service.getSignedDownloadUrl(clip.storageKey, 3600); // 1 hour
+      }
+
+      return c.json({
+        ...clip,
+        downloadUrl,
+      });
     } catch (error) {
       console.error(`[VIRAL DETECTION CONTROLLER] GET_CLIP_BY_ID error:`, error);
       return c.json({ error: "Failed to fetch clip" }, 500);

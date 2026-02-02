@@ -263,13 +263,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
         }
-        
-        // Also show the full line without highlight between words (for smooth transition)
-        // This fills gaps if there are pauses between words
-        const lineText = line.words.map(w => w.word).join(" ");
-        const lineStart = this.formatASSTime(line.start);
-        const lineEnd = this.formatASSTime(line.end);
-        ass += `Dialogue: -1,${lineStart},${lineEnd},Default,,0,0,0,,${lineText}\n`;
       }
     } else {
       // Simple text display without word highlighting
@@ -383,13 +376,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     quality: VideoQuality
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Map quality to yt-dlp format selector
-      // Download highest quality up to 1080p (Requirement 7.2)
-      const formatSelector = quality === "4k"
-        ? "bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/best[height<=2160][ext=mp4]/best"
-        : quality === "1080p"
-        ? "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best"
-        : "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best";
+      // Always download the highest quality available (no height limit)
+      // bestvideo + bestaudio merged, fallback to best single format
+      const formatSelector = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best";
 
       const downloadSection = formatYtDlpTimestamp(startTime, endTime);
 

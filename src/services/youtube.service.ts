@@ -98,11 +98,12 @@ export class YouTubeService {
           const info = JSON.parse(stdout);
 
           // ===============================
-          // ✅ ESTIMATE FILE SIZE
+          // ✅ ESTIMATE AUDIO FILE SIZE (not video)
           // ===============================
-          const bestMp4Format = info.formats
+          const bestAudioFormat = info.formats
             ?.filter((f: any) =>
-              f.ext === "mp4" &&
+              (f.acodec && f.acodec !== 'none') &&
+              (f.vcodec === 'none' || !f.vcodec) &&
               (f.filesize_approx || f.filesize)
             )
             ?.sort(
@@ -112,16 +113,16 @@ export class YouTubeService {
             )?.[0];
 
           const estimatedBytes =
-            bestMp4Format?.filesize_approx || bestMp4Format?.filesize;
+            bestAudioFormat?.filesize_approx || bestAudioFormat?.filesize;
 
           if (estimatedBytes) {
             const estimatedMB = (estimatedBytes / (1024 * 1024)).toFixed(1);
             console.log(
-              `[YOUTUBE SERVICE] Estimated file size: ~${estimatedMB} MB`
+              `[YOUTUBE SERVICE] Estimated audio file size: ~${estimatedMB} MB`
             );
           } else {
             console.log(
-              `[YOUTUBE SERVICE] Estimated file size: Not available`
+              `[YOUTUBE SERVICE] Estimated audio file size: Not available`
             );
           }
 
@@ -166,16 +167,24 @@ export class YouTubeService {
       "--no-warnings",
       "--no-check-certificates",
       "--prefer-free-formats",
-      "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "--extractor-retries", "3",
-      "--fragment-retries", "3",
-      "--retry-sleep", "1",
+      // Anti-bot detection measures
+      "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "--add-header", "Accept-Language:en-us,en;q=0.5",
+      "--add-header", "Sec-Fetch-Mode:navigate",
+      "--extractor-args", "youtube:player_client=android,web",
+      "--extractor-retries", "5",
+      "--fragment-retries", "5",
+      "--retry-sleep", "2",
+      "--sleep-interval", "1",
+      "--max-sleep-interval", "3",
       url,
     ];
 
     const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
     if (cookiesPath) {
       args.unshift("--cookies", cookiesPath);
+      console.log(`[YOUTUBE SERVICE] Using cookies from: ${cookiesPath}`);
     }
 
     const ytdlpProcess = spawn("yt-dlp", args);
@@ -207,9 +216,11 @@ export class YouTubeService {
         
         // Check for common errors
         if (stderr.includes("403") || stderr.includes("Forbidden")) {
-          stream.destroy(new Error(`YouTube blocked the download (403 Forbidden). Try updating yt-dlp: yt-dlp -U. If using cookies, ensure they are fresh.`));
+          stream.destroy(new Error(`YouTube blocked the download (403 Forbidden). Please update yt-dlp: yt-dlp -U. You may also need to provide YouTube cookies.`));
         } else if (stderr.includes("Video unavailable")) {
           stream.destroy(new Error(`Video is unavailable or private`));
+        } else if (stderr.includes("Sign in to confirm")) {
+          stream.destroy(new Error(`YouTube requires sign-in. Please provide YouTube cookies via YOUTUBE_COOKIES_PATH env variable.`));
         } else if (!hasReceivedData) {
           stream.destroy(new Error(`Failed to download audio: ${stderr || 'No data received'}`));
         }
