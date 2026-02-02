@@ -22,9 +22,15 @@ export const auth = betterAuth({
   },
   emailVerification: {
     sendVerificationEmail: async ({ user, url }) => {
-      await emailService.sendVerificationEmail({ to: user.email, verificationUrl: url });
+      // Extract token from backend URL and create frontend verification URL
+      const urlObj = new URL(url);
+      const token = urlObj.searchParams.get("token");
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const verificationUrl = `${frontendUrl}/verify-email?token=${token}`;
+      await emailService.sendVerificationEmail({ to: user.email, verificationUrl });
     },
     sendOnSignUp: true,
+    autoSignInAfterVerification: true,
   },
   databaseHooks: {
     user: {
