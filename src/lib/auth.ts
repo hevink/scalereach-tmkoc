@@ -26,6 +26,19 @@ export const auth = betterAuth({
     },
     sendOnSignUp: true,
   },
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          // Send welcome email after user is created
+          await emailService.sendWelcomeEmail({
+            to: user.email,
+            userName: user.name || user.email.split("@")[0],
+          });
+        },
+      },
+    },
+  },
   plugins: [
     username(),
     passkey({
@@ -37,7 +50,19 @@ export const auth = betterAuth({
       issuer: "Scalereach",
     }),
   ],
-  socialProviders: {},
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      prompt: "select_account",
+    },
+  },
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"], // Auto-link Google accounts with same email
+    },
+  },
   user: {
     additionalFields: {
       isOnboarded: {
@@ -60,6 +85,14 @@ export const auth = betterAuth({
     crossSubDomainCookies: {
       enabled: false,
     },
+    defaultCookieAttributes: {
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      path: "/",
+      domain: undefined, // Important: let browser handle domain for localhost
+    },
+    useSecureCookies: process.env.NODE_ENV === "production",
   },
 });
 
