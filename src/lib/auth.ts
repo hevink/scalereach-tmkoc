@@ -30,10 +30,12 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          // Send welcome email after user is created
-          await emailService.sendWelcomeEmail({
+          // Send welcome email after user is created (fire-and-forget to not block auth flow)
+          emailService.sendWelcomeEmail({
             to: user.email,
             userName: user.name || user.email.split("@")[0],
+          }).catch((err) => {
+            console.error("[AUTH] Failed to send welcome email:", err);
           });
         },
       },
@@ -87,12 +89,11 @@ export const auth = betterAuth({
     },
     defaultCookieAttributes: {
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Must be false for localhost HTTP
       httpOnly: true,
       path: "/",
-      domain: undefined, // Important: let browser handle domain for localhost
     },
-    useSecureCookies: process.env.NODE_ENV === "production",
+    useSecureCookies: false, // Must be false for localhost HTTP
   },
 });
 

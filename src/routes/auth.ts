@@ -19,6 +19,12 @@ authRouter.all("/*", async (c) => {
   // The basePath in auth config should match the mount point
   console.log(`[AUTH ROUTER] Handling request: ${c.req.method} ${c.req.url}`);
   
+  // Debug: Log cookies for OAuth callback debugging
+  const cookies = c.req.header("cookie");
+  if (c.req.url.includes("/callback/")) {
+    console.log(`[AUTH ROUTER] Cookies received:`, cookies || "NONE");
+  }
+  
   const response = await auth.handler(c.req.raw);
 
   console.log(`[AUTH ROUTER] Response status: ${response.status}`);

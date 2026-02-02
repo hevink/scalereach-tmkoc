@@ -105,4 +105,5 @@ console.log(`🚀 Server running on http://localhost:${port}`);
 export default {
   port,
   fetch: app.fetch,
+  idleTimeout: 60, // 60 seconds to handle slow OAuth callbacks with email sending
 };
