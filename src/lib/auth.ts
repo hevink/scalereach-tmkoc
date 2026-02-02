@@ -46,6 +46,39 @@ export const auth = betterAuth({
         },
       },
     },
+    account: {
+      create: {
+        after: async (account) => {
+          // When a social account is linked, update user's image if they don't have one
+          if (account.providerId === "google") {
+            try {
+              const { eq } = await import("drizzle-orm");
+              const user = await db.query.user.findFirst({
+                where: eq(schema.user.id, account.userId),
+              });
+              
+              // If user has no image, fetch from Google and update
+              if (user && !user.image && account.accessToken) {
+                const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+                  headers: { Authorization: `Bearer ${account.accessToken}` },
+                });
+                if (response.ok) {
+                  const googleUser = await response.json();
+                  if (googleUser.picture) {
+                    await db.update(schema.user)
+                      .set({ image: googleUser.picture })
+                      .where(eq(schema.user.id, account.userId));
+                    console.log("[AUTH] Updated user image from Google");
+                  }
+                }
+              }
+            } catch (err) {
+              console.error("[AUTH] Failed to update user image from Google:", err);
+            }
+          }
+        },
+      },
+    },
   },
   plugins: [
     username(),
