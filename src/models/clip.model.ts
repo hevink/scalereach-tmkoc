@@ -115,10 +115,12 @@ export class ClipModel {
     id: string;
     videoId: string;
     title?: string;
+    introTitle?: string;
     startTime: number;
     endTime: number;
     duration?: number;
     transcript?: string;
+    transcriptWithEmojis?: string;
     score?: number;
     viralityReason?: string;
     hooks?: string[];
@@ -153,10 +155,12 @@ export class ClipModel {
     id: string;
     videoId: string;
     title?: string;
+    introTitle?: string;
     startTime: number;
     endTime: number;
     duration?: number;
     transcript?: string;
+    transcriptWithEmojis?: string;
     score?: number;
     viralityReason?: string;
     hooks?: string[];
@@ -191,10 +195,12 @@ export class ClipModel {
     id: string,
     data: Partial<{
       title: string;
+      introTitle: string;
       startTime: number;
       endTime: number;
       duration: number;
       transcript: string;
+      transcriptWithEmojis: string;
       score: number;
       viralityReason: string;
       hooks: string[];

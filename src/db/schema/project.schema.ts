@@ -135,12 +135,14 @@ export const viralClip = pgTable(
     duration: integer("duration"), // Calculated from endTime - startTime
     // Clip metadata
     title: text("title"), // Catchy title for the clip
+    introTitle: text("intro_title"), // AI-generated intro title to burn in first 3 seconds
     score: integer("score").default(0).notNull(), // Virality score (0-100)
     reason: text("reason"), // Kept for backward compatibility
     viralityReason: text("virality_reason"), // Detailed explanation of viral potential
     hooks: jsonb("hooks").$type<string[]>(), // Array of attention-grabbing elements
     emotions: jsonb("emotions").$type<string[]>(), // Array of emotions the clip evokes
     transcript: text("transcript"),
+    transcriptWithEmojis: text("transcript_with_emojis"), // Transcript with AI-generated emojis
     // Platform recommendations - which platforms this clip is best suited for
     recommendedPlatforms: jsonb("recommended_platforms").$type<RecommendedPlatform[]>(),
     // Storage

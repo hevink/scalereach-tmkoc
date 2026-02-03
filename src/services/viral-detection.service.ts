@@ -30,9 +30,11 @@ const ViralClipSchema = z.object({
   clips: z.array(
     z.object({
       title: z.string().describe("A catchy title for this viral clip"),
+      introTitle: z.string().optional().describe("A short, punchy intro title (max 5-7 words) to display in the first 3 seconds of the video - should hook viewers immediately"),
       startTime: z.number().describe("Start time in seconds"),
       endTime: z.number().describe("End time in seconds"),
       transcript: z.string().describe("The transcript text for this clip segment"),
+      transcriptWithEmojis: z.string().optional().describe("The same transcript but with relevant emojis added naturally throughout to enhance engagement (e.g., 'This is amazing 🔥 and you won't believe 😱 what happens next')"),
       viralityScore: z
         .number()
         .min(0)
@@ -73,6 +75,9 @@ export interface ViralDetectionOptions {
   videoTitle?: string;      // Video title for context
   genre?: string;           // Content genre for better detection (Auto, Podcast, Gaming, etc.)
   customPrompt?: string;    // Custom prompt for specific moment detection
+  // Editing options
+  enableEmojis?: boolean;   // Whether to generate transcript with emojis
+  enableIntroTitle?: boolean; // Whether to generate intro titles for clips
 }
 
 /**
@@ -152,13 +157,35 @@ export class ViralDetectionService {
       minDuration = DEFAULT_MIN_DURATION,
       maxDuration = DEFAULT_MAX_DURATION,
       videoTitle = "Unknown",
+      enableEmojis = true,
+      enableIntroTitle = true,
     } = options;
 
     console.log(`[VIRAL DETECTION] Analyzing transcript for viral clips...`);
     console.log(`[VIRAL DETECTION] Transcript length: ${transcript.length} chars`);
+    console.log(`[VIRAL DETECTION] Options: enableEmojis=${enableEmojis}, enableIntroTitle=${enableIntroTitle}`);
 
     // Format transcript with timestamps for better context
     const formattedTranscript = this.formatTranscriptWithTimestamps(transcriptWords);
+
+    // Build dynamic prompt sections based on options
+    const introTitleSection = enableIntroTitle ? `
+INTRO TITLE REQUIREMENTS:
+- Create a short, punchy intro title (5-7 words max) for each clip
+- This will be displayed as text overlay in the first 3 seconds
+- Should immediately hook viewers and make them want to keep watching
+- Examples: "Wait for it... 🔥", "This changed everything", "Nobody talks about this"
+- Make it intriguing, provocative, or promise value
+` : "";
+
+    const emojiSection = enableEmojis ? `
+EMOJI ENHANCEMENT REQUIREMENTS:
+- Add relevant emojis naturally throughout the transcript
+- Place emojis at emotional peaks, key points, or transitions
+- Don't overdo it - 3-6 emojis per clip is ideal
+- Match emoji to the emotion/content (🔥 for exciting, 😱 for shocking, 💡 for insights, etc.)
+- Emojis should enhance, not distract from the message
+` : "";
 
     const systemPrompt = `You are an expert viral content analyst specializing in short-form video content for platforms like TikTok, Instagram Reels, and YouTube Shorts.
 
@@ -170,7 +197,7 @@ CRITICAL DURATION REQUIREMENTS:
 - If a moment is great but too short, EXTEND it to include more context
 - If a moment is great but too long, find the CORE viral moment within it
 - REJECT any clip that doesn't meet the duration requirement
-
+${introTitleSection}${emojiSection}
 VIRAL CONTENT CRITERIA:
 1. **Hook Factor**: Strong opening that grabs attention in first 3 seconds
 2. **Emotional Impact**: Evokes strong emotions (humor, shock, inspiration, curiosity)
@@ -199,6 +226,14 @@ GUIDELINES:
 - Consider what would make someone stop scrolling
 - Include enough context before and after the key moment`;
 
+    // Build dynamic user prompt based on options
+    const introTitleInstruction = enableIntroTitle 
+      ? "2. An intro title (5-7 words max) to display in the first 3 seconds - make it hook viewers immediately\n" 
+      : "";
+    const emojiInstruction = enableEmojis 
+      ? `${enableIntroTitle ? "5" : "4"}. The same transcript but with emojis added naturally (3-6 emojis, placed at emotional peaks)\n` 
+      : "";
+
     const userPrompt = `Analyze this transcript from the video "${videoTitle}" and identify up to ${maxClips} viral clip opportunities.
 
 IMPORTANT: Each clip MUST have a duration between ${minDuration}-${maxDuration} seconds.
@@ -209,13 +244,13 @@ ${formattedTranscript}
 
 For each viral clip, provide:
 1. A catchy title that would work as a video caption
-2. Exact start and end times (in seconds) - MUST result in ${minDuration}-${maxDuration}s duration
-3. The transcript segment for that clip
-4. A virality score (0-100) based on viral potential
-5. A detailed reason explaining why this clip would go viral
-6. Key hooks that grab attention
-7. Primary emotions the clip evokes
-8. Recommended platforms (youtube_shorts, instagram_reels, tiktok, linkedin, twitter, facebook_reels) - select ALL platforms where this clip would perform well based on content style and audience fit
+${introTitleInstruction}${enableIntroTitle ? "3" : "2"}. Exact start and end times (in seconds) - MUST result in ${minDuration}-${maxDuration}s duration
+${enableIntroTitle ? "4" : "3"}. The transcript segment for that clip
+${emojiInstruction}${enableIntroTitle && enableEmojis ? "6" : enableIntroTitle || enableEmojis ? "5" : "4"}. A virality score (0-100) based on viral potential
+${enableIntroTitle && enableEmojis ? "7" : enableIntroTitle || enableEmojis ? "6" : "5"}. A detailed reason explaining why this clip would go viral
+${enableIntroTitle && enableEmojis ? "8" : enableIntroTitle || enableEmojis ? "7" : "6"}. Key hooks that grab attention
+${enableIntroTitle && enableEmojis ? "9" : enableIntroTitle || enableEmojis ? "8" : "7"}. Primary emotions the clip evokes
+${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "9" : "8"}. Recommended platforms (youtube_shorts, instagram_reels, tiktok, linkedin, twitter, facebook_reels)
 
 REMEMBER: Verify each clip is ${minDuration}-${maxDuration} seconds before including it.
 Focus on finding the absolute BEST moments that would perform well on social media.`;

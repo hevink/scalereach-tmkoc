@@ -44,6 +44,11 @@ export const videoConfig = pgTable(
     aspectRatio: text("aspect_ratio").default("9:16"), // 9:16, 16:9, 1:1
     enableWatermark: boolean("enable_watermark").default(true),
 
+    // Editing Options
+    enableCaptions: boolean("enable_captions").default(true),
+    enableEmojis: boolean("enable_emojis").default(true),
+    enableIntroTitle: boolean("enable_intro_title").default(true),
+
     // Timestamps
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")

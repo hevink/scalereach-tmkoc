@@ -112,6 +112,7 @@ export class ExportController {
         endTime: clip.endTime,
         aspectRatio: (clip.aspectRatio as "9:16" | "1:1" | "16:9") || "9:16",
         quality: resolutionToQuality(options?.resolution || "1080p"),
+        introTitle: (clip as any).introTitle || undefined,
         captions: words.length > 0 ? {
           words,
           style: style || undefined,
@@ -234,6 +235,14 @@ export class ExportController {
           createdAt: new Date().toISOString(),
         });
 
+        // Get caption style and words for this clip
+        const style = await ExportController.getCaptionStyle(clipId);
+        const words = ExportController.extractClipWords(
+          video.transcriptWords as any[],
+          clip.startTime,
+          clip.endTime
+        );
+
         // Add job to queue
         await addClipGenerationJob({
           clipId,
@@ -248,6 +257,11 @@ export class ExportController {
           endTime: clip.endTime,
           aspectRatio: (clip.aspectRatio as "9:16" | "1:1" | "16:9") || "9:16",
           quality: resolutionToQuality(options?.resolution || "1080p"),
+          introTitle: (clip as any).introTitle || undefined,
+          captions: words.length > 0 ? {
+            words,
+            style: style || undefined,
+          } : undefined,
         });
 
         await ClipModel.update(clipId, { status: "generating" });

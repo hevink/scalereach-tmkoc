@@ -25,6 +25,7 @@ export interface ClipGenerationOptions {
   endTime: number;
   aspectRatio: AspectRatio;
   quality: VideoQuality;
+  introTitle?: string;
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;
     style?: {
@@ -122,6 +123,7 @@ export class ClipGeneratorService {
       startTime: options.startTime,
       endTime: options.endTime,
       hasCaptions: !!options.captions?.words?.length,
+      hasIntroTitle: !!options.introTitle,
     });
 
     const { width, height } = getOutputDimensions(options.aspectRatio, options.quality);
@@ -140,7 +142,8 @@ export class ClipGeneratorService {
         options.endTime,
         options.aspectRatio,
         options.quality,
-        options.captions
+        options.captions,
+        options.introTitle
       );
     } else if (options.sourceType === "upload" && options.storageKey) {
       // Extract segment from uploaded file
@@ -150,7 +153,8 @@ export class ClipGeneratorService {
         options.endTime,
         options.aspectRatio,
         options.quality,
-        options.captions
+        options.captions,
+        options.introTitle
       );
     } else {
       throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
@@ -177,12 +181,14 @@ export class ClipGeneratorService {
   /**
    * Generate ASS subtitle content from caption words
    * Supports word-by-word karaoke effect with scaling animation
+   * Optionally includes intro title overlay for first 3 seconds
    */
   private static generateASSSubtitles(
     words: Array<{ word: string; start: number; end: number }>,
     style: NonNullable<ClipGenerationOptions["captions"]>["style"] | undefined,
     width: number,
-    height: number
+    height: number,
+    introTitle?: string
   ): string {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
@@ -199,7 +205,13 @@ export class ClipGeneratorService {
     // Vertical margin based on position
     const marginV = style?.position === "center" ? 0 : 60;
 
-    // ASS header with styles for normal and highlighted text
+    // Intro title style - larger, positioned at 25% from top
+    const introFontSize = Math.round(fontSize * 1.3);
+    // To position at 25% from top: use center alignment (5) with MarginV to push up
+    // MarginV pushes text away from center, so we need (height/2 - height*0.25) = height*0.25
+    const introMarginV = Math.round(height * 0.25);
+
+    // ASS header with styles for normal, highlighted, and intro title text
     let ass = `[Script Info]
 Title: Generated Captions
 ScriptType: v4.00+
@@ -211,10 +223,17 @@ WrapStyle: 0
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
 Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,120,120,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
+Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
+
+    // Add intro title for first 3 seconds if provided
+    if (introTitle) {
+      // Fade in effect: {\fad(300,300)} - 300ms fade in, 300ms fade out
+      ass += `Dialogue: 1,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(300,300)}${introTitle}\n`;
+    }
 
     // Group words into lines (max ~5 words per line for readability)
     const lines: Array<{ words: typeof words; start: number; end: number }> = [];
@@ -309,7 +328,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     endTime: number,
     aspectRatio: AspectRatio,
     quality: VideoQuality,
-    captions?: ClipGenerationOptions["captions"]
+    captions?: ClipGenerationOptions["captions"],
+    introTitle?: string
   ): Promise<Buffer> {
     this.logOperation("DOWNLOAD_YOUTUBE_SEGMENT", {
       url,
@@ -318,6 +338,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       aspectRatio,
       quality,
       hasCaptions: !!captions?.words?.length,
+      hasIntroTitle: !!introTitle,
     });
 
     const { width, height } = getOutputDimensions(aspectRatio, quality);
@@ -331,20 +352,30 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Step 1: Download the segment using yt-dlp with --download-sections
       await this.downloadYouTubeSegmentToFile(url, startTime, endTime, tempVideoPath, quality);
 
-      // Step 2: Generate ASS subtitles if captions provided
-      if (captions?.words?.length) {
-        const assContent = this.generateASSSubtitles(captions.words, captions.style, width, height);
+      // Step 2: Generate ASS subtitles if captions provided (includes intro title if provided)
+      if (captions?.words?.length || introTitle) {
+        const assContent = this.generateASSSubtitles(
+          captions?.words || [], 
+          captions?.style, 
+          width, 
+          height,
+          introTitle
+        );
         await fs.promises.writeFile(tempSubsPath, assContent);
-        this.logOperation("GENERATED_ASS_SUBTITLES", { path: tempSubsPath, wordCount: captions.words.length });
+        this.logOperation("GENERATED_ASS_SUBTITLES", { 
+          path: tempSubsPath, 
+          wordCount: captions?.words?.length || 0,
+          hasIntroTitle: !!introTitle 
+        });
       }
 
-      // Step 3: Apply aspect ratio conversion and burn captions using FFmpeg
+      // Step 3: Apply aspect ratio conversion and burn captions/intro title using FFmpeg
       await this.convertAspectRatioFile(
         tempVideoPath,
         tempOutputPath,
         width,
         height,
-        captions?.words?.length ? tempSubsPath : undefined
+        (captions?.words?.length || introTitle) ? tempSubsPath : undefined
       );
 
       // Step 4: Read the output file
@@ -433,7 +464,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     endTime: number,
     aspectRatio: AspectRatio,
     quality: VideoQuality,
-    captions?: ClipGenerationOptions["captions"]
+    captions?: ClipGenerationOptions["captions"],
+    introTitle?: string
   ): Promise<Buffer> {
     this.logOperation("EXTRACT_SEGMENT_FROM_FILE", {
       storageKey,
@@ -442,6 +474,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       aspectRatio,
       quality,
       hasCaptions: !!captions?.words?.length,
+      hasIntroTitle: !!introTitle,
     });
 
     const { width, height } = getOutputDimensions(aspectRatio, quality);
@@ -453,13 +486,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Get signed URL for the source video
     const videoUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
 
-    // Generate ASS subtitles if captions provided
+    // Generate ASS subtitles if captions or intro title provided
     let subsPathToUse: string | undefined;
-    if (captions?.words?.length) {
-      const assContent = this.generateASSSubtitles(captions.words, captions.style, width, height);
+    if (captions?.words?.length || introTitle) {
+      const assContent = this.generateASSSubtitles(
+        captions?.words || [], 
+        captions?.style, 
+        width, 
+        height,
+        introTitle
+      );
       await fs.promises.writeFile(tempSubsPath, assContent);
       subsPathToUse = tempSubsPath;
-      this.logOperation("GENERATED_ASS_SUBTITLES", { path: tempSubsPath, wordCount: captions.words.length });
+      this.logOperation("GENERATED_ASS_SUBTITLES", { 
+        path: tempSubsPath, 
+        wordCount: captions?.words?.length || 0,
+        hasIntroTitle: !!introTitle 
+      });
     }
 
     try {

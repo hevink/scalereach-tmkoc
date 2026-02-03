@@ -146,7 +146,7 @@ export class ClipGenerationController {
         return c.json({ error: validation.error }, 400);
       }
 
-      // Add job to queue with credit info
+      // Add job to queue with credit info and intro title
       const job = await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
@@ -160,6 +160,7 @@ export class ClipGenerationController {
         aspectRatio,
         quality,
         creditCost: workspaceId ? CREDIT_COST_PER_CLIP : 0,
+        introTitle: (clip as any).introTitle || undefined,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Job queued: ${job.id}`);
@@ -326,7 +327,7 @@ export class ClipGenerationController {
         console.log(`[CLIP GENERATION CONTROLLER] Using saved captions: ${savedCaptions.words.length} words, isEdited: ${savedCaptions.isEdited}`);
       }
 
-      // Add job to queue with captions and credit info
+      // Add job to queue with captions, intro title, and credit info
       const job = await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
@@ -340,6 +341,7 @@ export class ClipGenerationController {
         aspectRatio,
         quality,
         creditCost: workspaceId ? CREDIT_COST_PER_CLIP : 0,
+        introTitle: (clip as any).introTitle || undefined,
         captions,
       });
 

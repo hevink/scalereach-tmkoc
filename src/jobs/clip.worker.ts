@@ -55,6 +55,7 @@ async function processClipGenerationJob(
     aspectRatio,
     quality,
     creditCost,
+    introTitle,
     captions,
   } = job.data;
 
@@ -62,6 +63,7 @@ async function processClipGenerationJob(
   console.log(`[CLIP WORKER] Source type: ${sourceType}, Aspect ratio: ${aspectRatio}`);
   console.log(`[CLIP WORKER] Time range: ${startTime}s - ${endTime}s`);
   console.log(`[CLIP WORKER] Captions: ${captions?.words?.length || 0} words`);
+  console.log(`[CLIP WORKER] Intro title: ${introTitle ? 'yes' : 'no'}`);
   console.log(`[CLIP WORKER] Credit cost: ${creditCost}, Workspace: ${workspaceId}`);
 
   let creditsConsumed = false;
@@ -113,7 +115,7 @@ async function processClipGenerationJob(
 
     await job.updateProgress(20);
 
-    // Generate the clip with captions
+    // Generate the clip with captions and intro title
     console.log(`[CLIP WORKER] Starting clip generation...`);
     const generatedClip = await ClipGeneratorService.generateClip({
       videoId,
@@ -125,6 +127,7 @@ async function processClipGenerationJob(
       endTime,
       aspectRatio,
       quality,
+      introTitle,
       captions,
     });
 

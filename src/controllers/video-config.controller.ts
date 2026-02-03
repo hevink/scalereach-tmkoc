@@ -90,6 +90,10 @@ export class VideoConfigController {
         captionTemplateId: body.captionTemplateId ?? "karaoke",
         aspectRatio: body.aspectRatio ?? "9:16",
         enableWatermark: body.enableWatermark ?? true,
+        // Editing Options
+        enableCaptions: body.enableCaptions ?? true,
+        enableEmojis: body.enableEmojis ?? true,
+        enableIntroTitle: body.enableIntroTitle ?? true,
       };
 
       // Save configuration
@@ -158,6 +162,10 @@ export class VideoConfigController {
       if (body.captionTemplateId !== undefined) configInput.captionTemplateId = body.captionTemplateId;
       if (body.aspectRatio !== undefined) configInput.aspectRatio = body.aspectRatio;
       if (body.enableWatermark !== undefined) configInput.enableWatermark = body.enableWatermark;
+      // Editing Options
+      if (body.enableCaptions !== undefined) configInput.enableCaptions = body.enableCaptions;
+      if (body.enableEmojis !== undefined) configInput.enableEmojis = body.enableEmojis;
+      if (body.enableIntroTitle !== undefined) configInput.enableIntroTitle = body.enableIntroTitle;
 
       const configId = nanoid();
       const config = await VideoConfigModel.upsert(videoId, configId, configInput);

@@ -53,6 +53,8 @@ export interface ClipGenerationJobData {
   aspectRatio: "9:16" | "1:1" | "16:9";
   quality: "720p" | "1080p" | "4k";
   creditCost: number; // Credits to consume for this generation
+  // Intro title to burn into video for first 3 seconds
+  introTitle?: string;
   // Caption data for burning into video
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;

@@ -194,6 +194,9 @@ async function processYouTubeVideo(
         videoTitle: videoInfo.title,
         genre: videoConfig?.genre ?? "Auto",
         customPrompt: videoConfig?.customPrompt ?? undefined,
+        // Editing options from video config
+        enableEmojis: videoConfig?.enableEmojis ?? true,
+        enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
       }
     );
 
@@ -208,10 +211,12 @@ async function processYouTubeVideo(
         id: nanoid(),
         videoId: videoId,
         title: clip.title,
+        introTitle: clip.introTitle,
         startTime: Math.round(clip.startTime), // Store as integer seconds
         endTime: Math.round(clip.endTime),     // Store as integer seconds
         duration: Math.round(clip.endTime - clip.startTime), // Calculate and store duration
         transcript: clip.transcript,
+        transcriptWithEmojis: clip.transcriptWithEmojis,
         score: clip.viralityScore,             // Map viralityScore to score column
         viralityReason: clip.viralityReason,   // Store detailed viral reason
         hooks: clip.hooks,                     // Store hooks array as JSONB
@@ -267,7 +272,7 @@ async function processYouTubeVideo(
         // Get aspect ratio from config or use default
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
-        // Queue clip generation with captions
+        // Queue clip generation with captions and intro title
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -280,13 +285,14 @@ async function processYouTubeVideo(
           endTime: clipRecord.endTime,
           aspectRatio: aspectRatio,
           quality: "1080p",
+          introTitle: clipRecord.introTitle ?? undefined,
           captions: {
             words: adjustedWords,
             style: captionStyle,
           },
         });
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}`);
       }
     }
 
@@ -474,6 +480,9 @@ async function processUploadedVideo(
         videoTitle: videoRecord[0].title || undefined,
         genre: videoConfig?.genre ?? "Auto",
         customPrompt: videoConfig?.customPrompt ?? undefined,
+        // Editing options from video config
+        enableEmojis: videoConfig?.enableEmojis ?? true,
+        enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
       }
     );
 
@@ -488,10 +497,12 @@ async function processUploadedVideo(
         id: nanoid(),
         videoId: videoId,
         title: clip.title,
+        introTitle: clip.introTitle,
         startTime: Math.round(clip.startTime), // Store as integer seconds
         endTime: Math.round(clip.endTime),     // Store as integer seconds
         duration: Math.round(clip.endTime - clip.startTime), // Calculate and store duration
         transcript: clip.transcript,
+        transcriptWithEmojis: clip.transcriptWithEmojis,
         score: clip.viralityScore,             // Map viralityScore to score column
         viralityReason: clip.viralityReason,   // Store detailed viral reason
         hooks: clip.hooks,                     // Store hooks array as JSONB
@@ -547,7 +558,7 @@ async function processUploadedVideo(
         // Get aspect ratio from config or use default
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
-        // Queue clip generation with captions
+        // Queue clip generation with captions and intro title
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -560,13 +571,14 @@ async function processUploadedVideo(
           endTime: clipRecord.endTime,
           aspectRatio: aspectRatio,
           quality: "1080p",
+          introTitle: clipRecord.introTitle ?? undefined,
           captions: {
             words: adjustedWords,
             style: captionStyle,
           },
         });
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}`);
       }
     }
 
