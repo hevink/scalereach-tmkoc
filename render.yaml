@@ -6,8 +6,8 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    region: oregon # or singapore, frankfurt, ohio
-    plan: starter # $7/month - recommended for video processing
+    region: oregon
+    plan: starter # $7/month
     healthCheckPath: /health
     envVars:
       - key: PORT
@@ -15,21 +15,23 @@ services:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false # Set manually in Render dashboard
+        sync: false
       - key: BETTER_AUTH_SECRET
         generateValue: true
       - key: BETTER_AUTH_URL
-        fromService:
-          type: web
-          name: scalereach-api
-          property: host
+        sync: false
       - key: FRONTEND_URL
-        sync: false # Set to your Vercel/frontend URL
-      - key: REDIS_URL
+        sync: false
+      - key: REDIS_HOST
         fromService:
           type: redis
           name: scalereach-redis
-          property: connectionString
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: scalereach-redis
+          property: port
       - key: R2_ACCOUNT_ID
         sync: false
       - key: R2_ACCESS_KEY_ID
@@ -42,20 +44,60 @@ services:
         sync: false
       - key: DEEPGRAM_API_KEY
         sync: false
-      - key: OPENAI_API_KEY
+      - key: GROQ_API_KEY
         sync: false
-      - key: POLAR_ACCESS_TOKEN
-        sync: false
-      - key: POLAR_WEBHOOK_SECRET
+      - key: RESEND_API_KEY
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+  # Background Worker for video/clip processing
+  - type: worker
+    name: scalereach-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile.worker
+    dockerContext: .
+    region: oregon
+    plan: starter # $7/month - needs CPU for FFmpeg
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_HOST
+        fromService:
+          type: redis
+          name: scalereach-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: redis
+          name: scalereach-redis
+          property: port
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
         sync: false
 
   # Redis for BullMQ job queue
   - type: redis
     name: scalereach-redis
     region: oregon
-    plan: free # or starter for persistence
-    ipAllowList: [] # Allow only internal connections
+    plan: starter # $7/month - persistence needed for jobs
+    ipAllowList: []
