@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { UserController } from "../controllers/user.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
+import { adminMiddleware } from "../middleware/admin.middleware";
 
 const userRouter = new Hono();
 
@@ -19,12 +20,13 @@ userRouter.put("/me/preferences", authMiddleware, UserController.updatePreferenc
 userRouter.get("/me/sessions", authMiddleware, UserController.getSessions);
 userRouter.delete("/me/sessions", authMiddleware, UserController.revokeSessions);
 
-// Protected routes - general
-userRouter.use("/*", authMiddleware);
-userRouter.get("/", UserController.getAllUsers);
-userRouter.get("/:id", UserController.getUserById);
-userRouter.post("/", UserController.createUser);
-userRouter.put("/:id", UserController.updateUser);
-userRouter.delete("/:id", UserController.deleteUser);
+// Admin-only routes - user management
+userRouter.get("/", adminMiddleware, UserController.getAllUsers);
+userRouter.post("/", adminMiddleware, UserController.createUser);
+
+// Protected routes - specific user operations (admin required for modification)
+userRouter.get("/:id", authMiddleware, UserController.getUserById);
+userRouter.put("/:id", adminMiddleware, UserController.updateUser);
+userRouter.delete("/:id", adminMiddleware, UserController.deleteUser);
 
 export default userRouter;

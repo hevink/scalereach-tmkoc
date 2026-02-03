@@ -113,6 +113,15 @@ export const video = pgTable(
   })
 );
 
+// Platform recommendation type
+export type RecommendedPlatform =
+  | "youtube_shorts"
+  | "instagram_reels"
+  | "tiktok"
+  | "linkedin"
+  | "twitter"
+  | "facebook_reels";
+
 export const viralClip = pgTable(
   "viral_clip",
   {
@@ -132,6 +141,8 @@ export const viralClip = pgTable(
     hooks: jsonb("hooks").$type<string[]>(), // Array of attention-grabbing elements
     emotions: jsonb("emotions").$type<string[]>(), // Array of emotions the clip evokes
     transcript: text("transcript"),
+    // Platform recommendations - which platforms this clip is best suited for
+    recommendedPlatforms: jsonb("recommended_platforms").$type<RecommendedPlatform[]>(),
     // Storage
     storageKey: text("storage_key"),
     storageUrl: text("storage_url"),

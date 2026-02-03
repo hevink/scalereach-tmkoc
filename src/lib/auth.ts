@@ -116,6 +116,11 @@ export const auth = betterAuth({
         defaultValue: "{}",
         required: false,
       },
+      role: {
+        type: "string",
+        defaultValue: "user",
+        required: false,
+      },
     },
   },
   trustedOrigins: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "http://localhost:5174"],

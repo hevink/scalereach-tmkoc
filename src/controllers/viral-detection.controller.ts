@@ -104,6 +104,7 @@ export class ViralDetectionController {
           viralityReason: clip.viralityReason,
           hooks: clip.hooks,
           emotions: clip.emotions,
+          recommendedPlatforms: clip.recommendedPlatforms,
           status: "detected" as const,
         }));
 

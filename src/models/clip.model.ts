@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { viralClip } from "../db/schema";
+import { viralClip, RecommendedPlatform } from "../db/schema";
 import { eq, and, gte, lte, desc, asc, SQL } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
@@ -123,6 +123,7 @@ export class ClipModel {
     viralityReason?: string;
     hooks?: string[];
     emotions?: string[];
+    recommendedPlatforms?: RecommendedPlatform[];
     status?: string;
   }) {
     this.logOperation("CREATE_CLIP", { id: data.id, videoId: data.videoId });
@@ -160,6 +161,7 @@ export class ClipModel {
     viralityReason?: string;
     hooks?: string[];
     emotions?: string[];
+    recommendedPlatforms?: RecommendedPlatform[];
     status?: string;
   }>) {
     this.logOperation("CREATE_CLIPS_BATCH", { count: clips.length });
@@ -197,6 +199,7 @@ export class ClipModel {
       viralityReason: string;
       hooks: string[];
       emotions: string[];
+      recommendedPlatforms: RecommendedPlatform[];
       storageKey: string;
       storageUrl: string;
       aspectRatio: string;

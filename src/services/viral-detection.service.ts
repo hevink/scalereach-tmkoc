@@ -14,6 +14,18 @@ const groq = createGroq({
 console.log(`[VIRAL DETECTION] Groq configured:`);
 console.log(`  - API Key: ${GROQ_API_KEY ? "***set***" : "NOT SET"}`);
 
+// Platform types for recommendations
+const PLATFORM_OPTIONS = [
+  "youtube_shorts",
+  "instagram_reels",
+  "tiktok",
+  "linkedin",
+  "twitter",
+  "facebook_reels",
+] as const;
+
+type RecommendedPlatform = (typeof PLATFORM_OPTIONS)[number];
+
 const ViralClipSchema = z.object({
   clips: z.array(
     z.object({
@@ -35,6 +47,9 @@ const ViralClipSchema = z.object({
       emotions: z
         .array(z.string())
         .describe("Primary emotions this clip evokes (e.g., humor, shock, inspiration)"),
+      recommendedPlatforms: z
+        .array(z.enum(PLATFORM_OPTIONS))
+        .describe("Best platforms for this clip based on content style, tone, and audience fit"),
     })
   ).describe("Array of viral clip opportunities"),
 });
@@ -166,6 +181,17 @@ VIRAL CONTENT CRITERIA:
 7. **Quotable Moments**: Memorable phrases or soundbites
 8. **Visual Potential**: Moments that would be engaging to watch
 
+PLATFORM RECOMMENDATION GUIDELINES:
+For each clip, recommend the best platforms based on these characteristics:
+- **youtube_shorts**: Educational content, tutorials, storytelling, broader audience appeal, longer attention spans
+- **instagram_reels**: Lifestyle, aesthetic content, trending audio, visually appealing, aspirational content
+- **tiktok**: Trendy, humorous, raw/authentic, younger audience, fast-paced, meme-worthy content
+- **linkedin**: Professional insights, business tips, career advice, thought leadership, industry knowledge
+- **twitter**: Hot takes, controversial opinions, news commentary, quick wit, conversation starters
+- **facebook_reels**: Family-friendly, relatable everyday moments, broader age demographics, shareable stories
+
+A clip can be recommended for multiple platforms if it fits well.
+
 GUIDELINES:
 - Clips should be self-contained and make sense without context
 - Prioritize moments with high energy, emotion, or insight
@@ -189,6 +215,7 @@ For each viral clip, provide:
 5. A detailed reason explaining why this clip would go viral
 6. Key hooks that grab attention
 7. Primary emotions the clip evokes
+8. Recommended platforms (youtube_shorts, instagram_reels, tiktok, linkedin, twitter, facebook_reels) - select ALL platforms where this clip would perform well based on content style and audience fit
 
 REMEMBER: Verify each clip is ${minDuration}-${maxDuration} seconds before including it.
 Focus on finding the absolute BEST moments that would perform well on social media.`;

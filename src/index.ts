@@ -18,6 +18,7 @@ import uppyUploadRouter from "./routes/uppy-upload.routes";
 import captionTemplateRouter from "./routes/caption-template.routes";
 import exportRouter from "./routes/export.routes";
 import healthRouter from "./routes/health.routes";
+import adminRouter from "./routes/admin.routes";
 import swaggerApp from "./docs/swagger-ui";
 import { openApiDocument } from "./docs/openapi";
 import type { AuthContext } from "./lib/auth";
@@ -55,6 +56,16 @@ const app = new Hono<{ Variables: AuthContext }>();
 
 // Add middleware
 app.use(logger());
+
+// Normalize trailing slashes - redirect /path/ to /path
+app.use(async (c, next) => {
+  const url = new URL(c.req.url);
+  if (url.pathname !== "/" && url.pathname.endsWith("/")) {
+    url.pathname = url.pathname.slice(0, -1);
+    return c.redirect(url.toString(), 301);
+  }
+  return next();
+});
 
 // Add Sentry middleware for error tracking
 app.use(sentryRequestMiddleware);
@@ -94,6 +105,7 @@ app.route("/api/upload", uploadRouter);
 app.route("/api/uppy", uppyUploadRouter);
 app.route("/api/caption-templates", captionTemplateRouter);
 app.route("/api/exports", exportRouter);
+app.route("/api/admin", adminRouter);
 app.route("/health", healthRouter); // Enhanced health checks
 app.route("/api-docs", swaggerApp); // Swagger UI at api-docs path
 
@@ -119,6 +131,7 @@ app.get("/", (c) => {
       upload: "/api/upload",
       exports: "/api/exports",
       captionTemplates: "/api/caption-templates",
+      admin: "/api/admin",
       docs: "/api-docs",
       health: "/health",
     },
