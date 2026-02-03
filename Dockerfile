@@ -1,5 +1,11 @@
-# Build stage
-FROM oven/bun:1 AS builder
+# Build stage with native build tools
+FROM oven/bun:1-debian AS builder
+
+# Install build dependencies for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -15,12 +21,13 @@ COPY . .
 # Production stage
 FROM oven/bun:1-debian
 
-# Install yt-dlp, ffmpeg, and python
+# Install runtime dependencies: yt-dlp, ffmpeg, python
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     ffmpeg \
     ca-certificates \
+    curl \
     && pip3 install yt-dlp --break-system-packages \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
