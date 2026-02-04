@@ -8,7 +8,7 @@ import { R2Service } from "../services/r2.service";
 import { DeepgramService } from "../services/deepgram.service";
 import { ViralDetectionService } from "../services/viral-detection.service";
 import { FFmpegService } from "../services/ffmpeg.service";
-import { TIKTOK_TEMPLATE, getTemplateById } from "../data/caption-templates";
+import { CLASSIC_TEMPLATE, getTemplateById } from "../data/caption-templates";
 import { VideoConfigModel } from "../models/video-config.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { UserModel } from "../models/user.model";
@@ -221,6 +221,7 @@ async function processYouTubeVideo(
         viralityReason: clip.viralityReason,   // Store detailed viral reason
         hooks: clip.hooks,                     // Store hooks array as JSONB
         emotions: clip.emotions,               // Store emotions array as JSONB
+        recommendedPlatforms: clip.recommendedPlatforms, // Store recommended platforms
         status: "detected" as const,           // Initial status is 'detected'
       }));
 
@@ -242,8 +243,8 @@ async function processYouTubeVideo(
         }));
 
         // Get caption template from config or use default
-        const templateId = videoConfig?.captionTemplateId ?? "tiktok";
-        const template = getTemplateById(templateId) ?? TIKTOK_TEMPLATE;
+        const templateId = videoConfig?.captionTemplateId ?? "classic";
+        const template = getTemplateById(templateId) ?? CLASSIC_TEMPLATE;
         
         const captionStyle = {
           fontFamily: template.style.fontFamily,
@@ -507,6 +508,7 @@ async function processUploadedVideo(
         viralityReason: clip.viralityReason,   // Store detailed viral reason
         hooks: clip.hooks,                     // Store hooks array as JSONB
         emotions: clip.emotions,               // Store emotions array as JSONB
+        recommendedPlatforms: clip.recommendedPlatforms, // Store recommended platforms
         status: "detected" as const,           // Initial status is 'detected'
       }));
 
@@ -528,8 +530,8 @@ async function processUploadedVideo(
         }));
 
         // Get caption template from config or use default
-        const templateId = videoConfig?.captionTemplateId ?? "tiktok";
-        const template = getTemplateById(templateId) ?? TIKTOK_TEMPLATE;
+        const templateId = videoConfig?.captionTemplateId ?? "classic";
+        const template = getTemplateById(templateId) ?? CLASSIC_TEMPLATE;
         
         const captionStyle = {
           fontFamily: template.style.fontFamily,

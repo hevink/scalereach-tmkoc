@@ -3,8 +3,6 @@
  *
  * Pre-built caption style templates for different social media platforms.
  * Each template is optimized for specific platform aesthetics and engagement patterns.
- *
- * Validates: Requirements 11.1, 11.2, 11.3, 11.4, 11.5, 11.6
  */
 
 import type { CaptionStyleConfig } from "../db/schema/project.schema";
@@ -18,476 +16,57 @@ export interface CaptionTemplate {
   description: string;
   platform: string;
   style: CaptionStyleConfig;
-  preview: string; // Preview image URL or placeholder
-  previewThumbnail?: string; // Static thumbnail for grid display
-  isNew?: boolean; // Flag for new templates
+  preview: string;
+  previewThumbnail?: string;
+  isNew?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
 /**
- * TikTok Style Template
- *
- * Bold, centered text optimized for TikTok's vertical format.
- * Features high contrast colors and word-by-word animation for maximum engagement.
- *
- * Validates: Requirement 11.2
+ * Rainbow Template
+ * Multi-color highlight with line-fill animation
  */
-export const TIKTOK_TEMPLATE: CaptionTemplate = {
-  id: "tiktok",
-  name: "TikTok",
-  description:
-    "Bold, centered text with high contrast. Perfect for TikTok's fast-paced, attention-grabbing style.",
-  platform: "TikTok",
-  style: {
-    fontFamily: "Montserrat",
-    fontSize: 48,
-    textColor: "#FFFFFF",
-    backgroundColor: "#000000",
-    backgroundOpacity: 70,
-    position: "bottom",
-    alignment: "center",
-    animation: "word-by-word",
-    highlightColor: "#FF0050",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-  },
-  preview: "/templates/tiktok-preview.png",
-  createdAt: new Date("2024-01-01"),
-  updatedAt: new Date("2024-01-01"),
-};
-
-/**
- * Instagram Reels Style Template
- *
- * Gradient background with smooth fade animation.
- * Designed for Instagram's polished, aesthetic-focused audience.
- *
- * Validates: Requirement 11.3
- */
-export const REELS_TEMPLATE: CaptionTemplate = {
-  id: "reels",
-  name: "Reels",
-  description:
-    "Gradient background with smooth animations. Ideal for Instagram Reels' polished aesthetic.",
-  platform: "Instagram Reels",
-  style: {
-    fontFamily: "Poppins",
-    fontSize: 42,
-    textColor: "#FFFFFF",
-    backgroundColor: "#833AB4", // Instagram gradient purple
-    backgroundOpacity: 80,
-    position: "bottom",
-    alignment: "center",
-    animation: "fade",
-    highlightColor: "#FD1D1D", // Instagram gradient red
-    highlightEnabled: true,
-    shadow: true,
-    outline: false,
-    outlineColor: undefined,
-  },
-  preview: "/templates/reels-preview.png",
-  createdAt: new Date("2024-01-01"),
-  updatedAt: new Date("2024-01-01"),
-};
-
-/**
- * YouTube Shorts Style Template
- *
- * Word highlighting with karaoke-style animation.
- * Optimized for YouTube's algorithm-friendly engagement patterns.
- *
- * Validates: Requirement 11.4
- */
-export const SHORTS_TEMPLATE: CaptionTemplate = {
-  id: "shorts",
-  name: "Shorts",
-  description:
-    "Karaoke-style word highlighting. Optimized for YouTube Shorts' engagement patterns.",
-  platform: "YouTube Shorts",
-  style: {
-    fontFamily: "Roboto",
-    fontSize: 44,
-    textColor: "#FFFFFF",
-    backgroundColor: "#282828",
-    backgroundOpacity: 85,
-    position: "bottom",
-    alignment: "center",
-    animation: "karaoke",
-    highlightColor: "#FF0000", // YouTube red
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-  },
-  preview: "/templates/shorts-preview.png",
-  createdAt: new Date("2024-01-01"),
-  updatedAt: new Date("2024-01-01"),
-};
-
-/**
- * Minimal Style Template
- *
- * Clean, simple text with no background.
- * Perfect for professional content or when the video itself should be the focus.
- *
- * Validates: Requirement 11.5
- */
-export const MINIMAL_TEMPLATE: CaptionTemplate = {
-  id: "minimal",
-  name: "Minimal",
-  description:
-    "Clean, simple text with subtle styling. Perfect for professional or documentary-style content.",
+export const RAINBOW_TEMPLATE: CaptionTemplate = {
+  id: "rainbow",
+  name: "Rainbow",
+  description: "Multi-color highlight effect with vibrant rainbow colors",
   platform: "Universal",
   style: {
-    fontFamily: "Inter",
-    fontSize: 36,
+    fontFamily: "Montserrat",
+    fontSize: 80,
     textColor: "#FFFFFF",
-    backgroundColor: undefined,
+    backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
     alignment: "center",
-    animation: "none",
-    highlightColor: undefined,
-    highlightEnabled: false,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-  },
-  preview: "/templates/minimal-preview.png",
-  createdAt: new Date("2024-01-01"),
-  updatedAt: new Date("2024-01-01"),
-};
-
-/**
- * Bold Style Template
- *
- * Large, impactful text with bounce animation.
- * Designed for maximum visual impact and attention-grabbing content.
- *
- * Validates: Requirement 11.6
- */
-export const BOLD_TEMPLATE: CaptionTemplate = {
-  id: "bold",
-  name: "Bold",
-  description:
-    "Large, impactful text with bounce animation. Maximum visual impact for attention-grabbing content.",
-  platform: "Universal",
-  style: {
-    fontFamily: "Oswald",
-    fontSize: 56,
-    textColor: "#FFFF00", // Bright yellow
-    backgroundColor: "#000000",
-    backgroundOpacity: 90,
-    position: "center",
-    alignment: "center",
-    animation: "bounce",
-    highlightColor: "#FF6B00", // Orange highlight
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-  },
-  preview: "/templates/bold-preview.png",
-  createdAt: new Date("2024-01-01"),
-  updatedAt: new Date("2024-01-01"),
-};
-
-// ============================================
-// Opus.pro-style Templates (New)
-// ============================================
-
-/**
- * Karaoke Template - Opus.pro style
- * Classic karaoke highlighting with yellow text
- */
-export const KARAOKE_TEMPLATE: CaptionTemplate = {
-  id: "karaoke",
-  name: "Karaoke",
-  description: "Classic karaoke-style word highlighting. Great for music and podcast content.",
-  platform: "Universal",
-  style: {
-    fontFamily: "Montserrat",
-    fontSize: 48,
-    textColor: "#FFFF00",
-    backgroundColor: "#000000",
-    backgroundOpacity: 60,
-    position: "bottom",
-    alignment: "center",
-    animation: "karaoke",
-    highlightColor: "#FFFFFF",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-  },
-  preview: "/templates/karaoke-preview.png",
-  previewThumbnail: "/templates/karaoke-thumb.png",
-  createdAt: new Date("2024-01-01"),
-  updatedAt: new Date("2024-01-01"),
-};
-
-/**
- * Deep Diver Template - Opus.pro style
- * Clean, professional look with white text on dark background
- */
-export const DEEP_DIVER_TEMPLATE: CaptionTemplate = {
-  id: "deep-diver",
-  name: "Deep Diver",
-  description: "Clean, professional captions. Perfect for educational and documentary content.",
-  platform: "Universal",
-  style: {
-    fontFamily: "Inter",
-    fontSize: 36,
-    textColor: "#FFFFFF",
-    backgroundColor: "#000000",
-    backgroundOpacity: 80,
-    position: "bottom",
-    alignment: "center",
-    animation: "fade",
-    highlightColor: "#4A90D9",
-    highlightEnabled: true,
-    shadow: false,
-    outline: false,
-    outlineColor: undefined,
-  },
-  preview: "/templates/deep-diver-preview.png",
-  previewThumbnail: "/templates/deep-diver-thumb.png",
-  createdAt: new Date("2024-01-01"),
-  updatedAt: new Date("2024-01-01"),
-};
-
-/**
- * Pod P Template - Opus.pro style
- * Podcast-optimized with magenta accents
- */
-export const POD_P_TEMPLATE: CaptionTemplate = {
-  id: "pod-p",
-  name: "Pod P",
-  description: "Podcast-optimized captions with vibrant accents. Great for interview content.",
-  platform: "Podcast",
-  style: {
-    fontFamily: "Poppins",
-    fontSize: 42,
-    textColor: "#FF00FF",
-    backgroundColor: "#1A1A2E",
-    backgroundOpacity: 75,
-    position: "bottom",
-    alignment: "center",
-    animation: "fade",
-    highlightColor: "#00FFFF",
-    highlightEnabled: true,
-    shadow: true,
-    outline: false,
-    outlineColor: undefined,
-  },
-  preview: "/templates/pod-p-preview.png",
-  previewThumbnail: "/templates/pod-p-thumb.png",
-  isNew: true,
-  createdAt: new Date("2025-01-01"),
-  updatedAt: new Date("2025-01-01"),
-};
-
-/**
- * Popline Template - Opus.pro style
- * Bold, attention-grabbing with pop animation
- */
-export const POPLINE_TEMPLATE: CaptionTemplate = {
-  id: "popline",
-  name: "Popline",
-  description: "Bold, attention-grabbing captions with pop animation. Perfect for viral content.",
-  platform: "Universal",
-  style: {
-    fontFamily: "Oswald",
-    fontSize: 44,
-    textColor: "#FFFFFF",
-    backgroundColor: "#FF4500",
-    backgroundOpacity: 85,
-    position: "center",
-    alignment: "center",
-    animation: "bounce",
-    highlightColor: "#FFD700",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-  },
-  preview: "/templates/popline-preview.png",
-  previewThumbnail: "/templates/popline-thumb.png",
-  isNew: true,
-  createdAt: new Date("2025-01-01"),
-  updatedAt: new Date("2025-01-01"),
-};
-
-/**
- * Seamless Bounce Template - Opus.pro style
- * Smooth bouncing animation with green accents
- */
-export const SEAMLESS_BOUNCE_TEMPLATE: CaptionTemplate = {
-  id: "seamless-bounce",
-  name: "Seamless Bounce",
-  description: "Smooth bouncing animation that keeps viewers engaged. Great for energetic content.",
-  platform: "Universal",
-  style: {
-    fontFamily: "Nunito",
-    fontSize: 40,
-    textColor: "#00FF00",
-    backgroundColor: "#0D0D0D",
-    backgroundOpacity: 70,
-    position: "bottom",
-    alignment: "center",
-    animation: "bounce",
-    highlightColor: "#FFFFFF",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-  },
-  preview: "/templates/seamless-bounce-preview.png",
-  previewThumbnail: "/templates/seamless-bounce-thumb.png",
-  createdAt: new Date("2024-06-01"),
-  updatedAt: new Date("2024-06-01"),
-};
-
-/**
- * Beasty Template - Opus.pro style
- * Clean, minimal style inspired by MrBeast
- */
-export const BEASTY_TEMPLATE: CaptionTemplate = {
-  id: "beasty",
-  name: "Beasty",
-  description: "Clean, minimal style inspired by top YouTubers. Professional and readable.",
-  platform: "YouTube",
-  style: {
-    fontFamily: "Roboto",
-    fontSize: 38,
-    textColor: "#FFFFFF",
-    backgroundColor: "#000000",
-    backgroundOpacity: 65,
-    position: "bottom",
-    alignment: "center",
-    animation: "none",
-    highlightColor: "#FF0000",
-    highlightEnabled: false,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-  },
-  preview: "/templates/beasty-preview.png",
-  previewThumbnail: "/templates/beasty-thumb.png",
-  createdAt: new Date("2024-01-01"),
-  updatedAt: new Date("2024-01-01"),
-};
-
-/**
- * Youshaei Template - Opus.pro style
- * Slide animation with cyan accents
- */
-export const YOUSHAEI_TEMPLATE: CaptionTemplate = {
-  id: "youshaei",
-  name: "Youshaei",
-  description: "Elegant slide animation with modern aesthetics. Perfect for lifestyle content.",
-  platform: "Universal",
-  style: {
-    fontFamily: "Raleway",
-    fontSize: 42,
-    textColor: "#00BFFF",
-    backgroundColor: "#1C1C1C",
-    backgroundOpacity: 75,
-    position: "bottom",
-    alignment: "center",
-    animation: "fade",
-    highlightColor: "#FF69B4",
-    highlightEnabled: true,
-    shadow: true,
-    outline: false,
-    outlineColor: undefined,
-  },
-  preview: "/templates/youshaei-preview.png",
-  previewThumbnail: "/templates/youshaei-thumb.png",
-  isNew: true,
-  createdAt: new Date("2025-01-01"),
-  updatedAt: new Date("2025-01-01"),
-};
-
-/**
- * Mozi Template - Opus.pro style
- * Yellow text with green highlight, karaoke style
- */
-export const MOZI_TEMPLATE: CaptionTemplate = {
-  id: "mozi",
-  name: "Mozi",
-  description: "Vibrant karaoke style with dual-color highlighting. Eye-catching and dynamic.",
-  platform: "Universal",
-  style: {
-    fontFamily: "Montserrat",
-    fontSize: 46,
-    textColor: "#FFFF00",
-    backgroundColor: "#000000",
-    backgroundOpacity: 70,
-    position: "bottom",
-    alignment: "center",
-    animation: "karaoke",
-    highlightColor: "#00FF00",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-  },
-  preview: "/templates/mozi-preview.png",
-  previewThumbnail: "/templates/mozi-thumb.png",
-  createdAt: new Date("2024-03-01"),
-  updatedAt: new Date("2024-03-01"),
-};
-
-/**
- * Glitch Infinite Template - Opus.pro style
- * Glitch effect with orange text
- */
-export const GLITCH_INFINITE_TEMPLATE: CaptionTemplate = {
-  id: "glitch-infinite",
-  name: "Glitch Infinite",
-  description: "Edgy glitch effect for tech and gaming content. Adds a cyberpunk vibe.",
-  platform: "Gaming",
-  style: {
-    fontFamily: "Oswald",
-    fontSize: 44,
-    textColor: "#FF6600",
-    backgroundColor: "#0A0A0A",
-    backgroundOpacity: 80,
-    position: "center",
-    alignment: "center",
     animation: "word-by-word",
-    highlightColor: "#00FFFF",
+    highlightColor: "#FFFF00",
     highlightEnabled: true,
     shadow: true,
     outline: true,
-    outlineColor: "#FF0000",
+    outlineColor: "#000000",
   },
-  preview: "/templates/glitch-infinite-preview.png",
-  previewThumbnail: "/templates/glitch-infinite-thumb.png",
-  isNew: true,
-  createdAt: new Date("2025-01-01"),
-  updatedAt: new Date("2025-01-01"),
+  preview: "/templates/rainbow-preview.png",
+  createdAt: new Date("2024-06-14"),
+  updatedAt: new Date("2024-06-14"),
 };
 
 /**
- * Baby Earthquake Template - Opus.pro style
- * Shake animation with green text
+ * Classic Template
+ * Spring animation with yellow highlight
  */
-export const BABY_EARTHQUAKE_TEMPLATE: CaptionTemplate = {
-  id: "baby-earthquake",
-  name: "Baby Earthquake",
-  description: "Subtle shake animation that adds energy without being distracting.",
+export const CLASSIC_TEMPLATE: CaptionTemplate = {
+  id: "classic",
+  name: "Classic",
+  description: "Classic style with spring animation and yellow highlight",
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
-    fontSize: 40,
-    textColor: "#00FF00",
+    fontSize: 64,
+    textColor: "#FFFFFF",
     backgroundColor: "#000000",
-    backgroundOpacity: 65,
+    backgroundOpacity: 0,
     position: "bottom",
     alignment: "center",
     animation: "bounce",
@@ -497,40 +76,231 @@ export const BABY_EARTHQUAKE_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#000000",
   },
-  preview: "/templates/baby-earthquake-preview.png",
-  previewThumbnail: "/templates/baby-earthquake-thumb.png",
-  createdAt: new Date("2024-06-01"),
-  updatedAt: new Date("2024-06-01"),
+  preview: "/templates/classic-preview.png",
+  createdAt: new Date("2024-04-09"),
+  updatedAt: new Date("2024-04-03"),
+};
+
+/**
+ * Sara Template
+ * Box highlight with red/orange accent
+ */
+export const SARA_TEMPLATE: CaptionTemplate = {
+  id: "sara",
+  name: "Sara",
+  description: "Elegant box highlight style with warm accent colors",
+  platform: "Universal",
+  style: {
+    fontFamily: "Lexend",
+    fontSize: 96,
+    textColor: "#fffee5",
+    backgroundColor: "#e13809",
+    backgroundOpacity: 100,
+    position: "bottom",
+    alignment: "center",
+    animation: "none",
+    highlightColor: "#e13809",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/sara-preview.png",
+  createdAt: new Date("2024-04-08"),
+  updatedAt: new Date("2024-04-03"),
+};
+
+/**
+ * Jimi Template
+ * Blue tones with green highlight
+ */
+export const JIMI_TEMPLATE: CaptionTemplate = {
+  id: "jimi",
+  name: "Jimi",
+  description: "Cool blue tones with vibrant green highlight",
+  platform: "Universal",
+  style: {
+    fontFamily: "Titan One",
+    fontSize: 128,
+    textColor: "#cddcf4",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "bounce",
+    highlightColor: "#75FA55",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#103e89",
+  },
+  preview: "/templates/jimi-preview.png",
+  createdAt: new Date("2024-04-03"),
+  updatedAt: new Date("2024-04-03"),
+};
+
+/**
+ * Basker Template
+ * Elegant serif font with subtle shadow
+ */
+export const BASKER_TEMPLATE: CaptionTemplate = {
+  id: "basker",
+  name: "Basker",
+  description: "Elegant serif style with subtle shadow effect",
+  platform: "Universal",
+  style: {
+    fontFamily: "Libre Baskerville",
+    fontSize: 64,
+    textColor: "#fffff5",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "none",
+    highlightColor: "#fff194",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/basker-preview.png",
+  createdAt: new Date("2024-04-03"),
+  updatedAt: new Date("2024-04-03"),
+};
+
+/**
+ * Bobby Template
+ * Box highlight with cyan accent
+ */
+export const BOBBY_TEMPLATE: CaptionTemplate = {
+  id: "bobby",
+  name: "Bobby",
+  description: "Clean box highlight with cyan accent color",
+  platform: "Universal",
+  style: {
+    fontFamily: "Poppins",
+    fontSize: 64,
+    textColor: "#FFFFFF",
+    backgroundColor: "#5cd3ff",
+    backgroundOpacity: 100,
+    position: "bottom",
+    alignment: "center",
+    animation: "none",
+    highlightColor: "#5cd3ff",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/bobby-preview.png",
+  createdAt: new Date("2024-04-03"),
+  updatedAt: new Date("2024-04-03"),
+};
+
+/**
+ * Beast Template
+ * Bold Bangers font with green highlight - MrBeast style
+ */
+export const BEAST_TEMPLATE: CaptionTemplate = {
+  id: "beast",
+  name: "Beast",
+  description: "Bold and energetic style inspired by top YouTubers",
+  platform: "YouTube",
+  style: {
+    fontFamily: "Bangers",
+    fontSize: 104,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "bounce",
+    highlightColor: "#50FE3C",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/beast-preview.png",
+  createdAt: new Date("2024-04-03"),
+  updatedAt: new Date("2024-04-03"),
+};
+
+/**
+ * Billy Template
+ * Lilita One font with purple highlight
+ */
+export const BILLY_TEMPLATE: CaptionTemplate = {
+  id: "billy",
+  name: "Billy",
+  description: "Fun rounded font with purple highlight",
+  platform: "Universal",
+  style: {
+    fontFamily: "Lilita One",
+    fontSize: 88,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "none",
+    highlightColor: "#dc7aff",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/billy-preview.png",
+  createdAt: new Date("2024-04-03"),
+  updatedAt: new Date("2024-04-03"),
+};
+
+/**
+ * Simple Template
+ * Clean Inter font with no highlight
+ */
+export const SIMPLE_TEMPLATE: CaptionTemplate = {
+  id: "simple",
+  name: "Simple",
+  description: "Clean and minimal style with no highlight",
+  platform: "Universal",
+  style: {
+    fontFamily: "Inter",
+    fontSize: 72,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "none",
+    highlightColor: "#FFFFFF",
+    highlightEnabled: false,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/simple-preview.png",
+  createdAt: new Date("2024-04-03"),
+  updatedAt: new Date("2024-04-03"),
 };
 
 /**
  * All built-in caption templates
- * Validates: Requirement 11.1 (at least 5 pre-built templates)
  */
 export const CAPTION_TEMPLATES: CaptionTemplate[] = [
-  // Opus.pro-style templates (featured)
-  KARAOKE_TEMPLATE,
-  DEEP_DIVER_TEMPLATE,
-  POD_P_TEMPLATE,
-  POPLINE_TEMPLATE,
-  SEAMLESS_BOUNCE_TEMPLATE,
-  BEASTY_TEMPLATE,
-  YOUSHAEI_TEMPLATE,
-  MOZI_TEMPLATE,
-  GLITCH_INFINITE_TEMPLATE,
-  BABY_EARTHQUAKE_TEMPLATE,
-  // Platform-specific templates
-  TIKTOK_TEMPLATE,
-  REELS_TEMPLATE,
-  SHORTS_TEMPLATE,
-  MINIMAL_TEMPLATE,
-  BOLD_TEMPLATE,
+  RAINBOW_TEMPLATE,
+  CLASSIC_TEMPLATE,
+  SARA_TEMPLATE,
+  JIMI_TEMPLATE,
+  BASKER_TEMPLATE,
+  BOBBY_TEMPLATE,
+  BEAST_TEMPLATE,
+  BILLY_TEMPLATE,
+  SIMPLE_TEMPLATE,
 ];
 
 /**
  * Get a caption template by ID
- * @param id - Template ID
- * @returns CaptionTemplate or undefined if not found
  */
 export function getTemplateById(id: string): CaptionTemplate | undefined {
   return CAPTION_TEMPLATES.find((template) => template.id === id);
@@ -538,7 +308,6 @@ export function getTemplateById(id: string): CaptionTemplate | undefined {
 
 /**
  * Get all caption templates
- * @returns Array of all caption templates
  */
 export function getAllTemplates(): CaptionTemplate[] {
   return CAPTION_TEMPLATES;
@@ -546,8 +315,6 @@ export function getAllTemplates(): CaptionTemplate[] {
 
 /**
  * Get templates filtered by platform
- * @param platform - Platform name to filter by
- * @returns Array of templates for the specified platform
  */
 export function getTemplatesByPlatform(platform: string): CaptionTemplate[] {
   return CAPTION_TEMPLATES.filter(
@@ -559,7 +326,6 @@ export function getTemplatesByPlatform(platform: string): CaptionTemplate[] {
 
 /**
  * Supported font families for caption styling
- * These fonts are available for use in caption templates and custom styles
  */
 export const SUPPORTED_FONTS = [
   "Inter",
@@ -572,14 +338,17 @@ export const SUPPORTED_FONTS = [
   "Raleway",
   "Nunito",
   "Playfair Display",
+  "Bangers",
+  "Lilita One",
+  "Titan One",
+  "Lexend",
+  "Libre Baskerville",
 ] as const;
 
 export type SupportedFont = (typeof SUPPORTED_FONTS)[number];
 
 /**
  * Check if a font family is supported
- * @param fontFamily - Font family name to check
- * @returns true if the font is supported
  */
 export function isSupportedFont(fontFamily: string): fontFamily is SupportedFont {
   return SUPPORTED_FONTS.includes(fontFamily as SupportedFont);

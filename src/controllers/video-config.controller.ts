@@ -87,7 +87,7 @@ export class VideoConfigController {
         enableAutoHook: body.enableAutoHook ?? true,
         customPrompt: body.customPrompt ?? "",
         topicKeywords: body.topicKeywords ?? [],
-        captionTemplateId: body.captionTemplateId ?? "karaoke",
+        captionTemplateId: body.captionTemplateId ?? "classic",
         aspectRatio: body.aspectRatio ?? "9:16",
         enableWatermark: body.enableWatermark ?? true,
         // Editing Options
