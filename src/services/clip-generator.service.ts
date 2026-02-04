@@ -192,7 +192,11 @@ export class ClipGeneratorService {
   ): string {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
-    const fontSize = style?.fontSize || 48;
+    // Scale font size based on video width - templates are designed for ~1080 width
+    // For 9:16 vertical (608 width), we need smaller fonts
+    const baseFontSize = style?.fontSize || 48;
+    const scaleFactor = Math.min(width, height) / 1080;
+    const fontSize = Math.round(baseFontSize * scaleFactor * 0.6); // 0.6 to make it more readable
     const textColor = this.hexToASSColor(style?.textColor || "#FFFFFF");
     const outlineColor = this.hexToASSColor(style?.outlineColor || "#000000");
     const highlightColor = this.hexToASSColor(style?.highlightColor || "#FFFF00");
@@ -205,8 +209,8 @@ export class ClipGeneratorService {
     // Vertical margin based on position
     const marginV = style?.position === "center" ? 0 : 60;
 
-    // Intro title style - larger, positioned at 25% from top
-    const introFontSize = Math.round(fontSize * 1.3);
+    // Intro title style - slightly larger than captions, positioned at 25% from top
+    const introFontSize = Math.round(fontSize * 1.2);
     // To position at 25% from top: use center alignment (5) with MarginV to push up
     // MarginV pushes text away from center, so we need (height/2 - height*0.25) = height*0.25
     const introMarginV = Math.round(height * 0.25);
