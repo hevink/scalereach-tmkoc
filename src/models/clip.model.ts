@@ -208,6 +208,8 @@ export class ClipModel {
       recommendedPlatforms: RecommendedPlatform[];
       storageKey: string;
       storageUrl: string;
+      thumbnailKey: string;
+      thumbnailUrl: string;
       aspectRatio: string;
       favorited: boolean;
       status: string;

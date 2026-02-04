@@ -359,6 +359,8 @@ export const viralClip = pgTable("viral_clip", {
 	transcript: text(),
 	storageKey: text("storage_key"),
 	storageUrl: text("storage_url"),
+	thumbnailKey: text("thumbnail_key"),
+	thumbnailUrl: text("thumbnail_url"),
 	status: text().default('detected').notNull(),
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),

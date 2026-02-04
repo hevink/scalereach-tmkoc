@@ -25,6 +25,8 @@ async function updateClipStatus(
   updates: Partial<{
     storageKey: string;
     storageUrl: string;
+    thumbnailKey: string;
+    thumbnailUrl: string;
     aspectRatio: string;
     errorMessage: string;
   }> = {}
@@ -131,12 +133,35 @@ async function processClipGenerationJob(
       captions,
     });
 
+    await job.updateProgress(80);
+
+    // Generate thumbnail from the clip (at 1 second)
+    console.log(`[CLIP WORKER] Generating thumbnail...`);
+    let thumbnailKey: string | undefined;
+    let thumbnailUrl: string | undefined;
+    
+    try {
+      const thumbnail = await ClipGeneratorService.generateThumbnail(
+        generatedClip.storageKey,
+        aspectRatio,
+        quality
+      );
+      thumbnailKey = thumbnail.thumbnailKey;
+      thumbnailUrl = thumbnail.thumbnailUrl;
+      console.log(`[CLIP WORKER] Thumbnail generated: ${thumbnailKey}`);
+    } catch (thumbError) {
+      // Log but don't fail the job if thumbnail generation fails
+      console.warn(`[CLIP WORKER] Thumbnail generation failed (non-fatal):`, thumbError);
+    }
+
     await job.updateProgress(90);
 
     // Update clip with storage info and set status to ready (Requirement 7.6)
     await updateClipStatus(clipId, "ready", {
       storageKey: generatedClip.storageKey,
       storageUrl: generatedClip.storageUrl,
+      thumbnailKey,
+      thumbnailUrl,
       aspectRatio,
     });
 

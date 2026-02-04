@@ -939,4 +939,83 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     return { valid: true };
   }
+
+  /**
+   * Generate a thumbnail from a clip at 1 second offset
+   * Returns the thumbnail as a buffer
+   */
+  static async generateThumbnail(
+    storageKey: string,
+    aspectRatio: AspectRatio,
+    quality: VideoQuality = "720p"
+  ): Promise<{ thumbnailKey: string; thumbnailUrl: string }> {
+    this.logOperation("GENERATE_THUMBNAIL", { storageKey, aspectRatio });
+
+    const { width, height } = getOutputDimensions(aspectRatio, quality);
+    
+    // Get signed URL for the clip
+    const clipUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
+    
+    // Generate thumbnail key (same path as clip but with .jpg extension)
+    const thumbnailKey = storageKey.replace(/\.mp4$/, "-thumb.jpg");
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-i", clipUrl,
+        "-ss", "1",           // Seek to 1 second
+        "-vframes", "1",      // Extract 1 frame
+        "-vf", `scale=${width}:${height}`,
+        "-q:v", "2",          // High quality JPEG
+        "-f", "image2pipe",
+        "-vcodec", "mjpeg",
+        "-",
+      ];
+
+      this.logOperation("FFMPEG_THUMBNAIL", { args: args.join(" ") });
+
+      const ffmpegProcess = spawn("ffmpeg", args);
+
+      const chunks: Buffer[] = [];
+      let stderr = "";
+
+      ffmpegProcess.stdout?.on("data", (data) => {
+        chunks.push(data);
+      });
+
+      ffmpegProcess.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      ffmpegProcess.on("error", (err) => {
+        reject(new Error(`Failed to spawn FFmpeg for thumbnail: ${err.message}`));
+      });
+
+      ffmpegProcess.on("close", async (code) => {
+        if (code !== 0) {
+          reject(new Error(`FFmpeg thumbnail failed with code ${code}: ${stderr}`));
+          return;
+        }
+
+        try {
+          const thumbnailBuffer = Buffer.concat(chunks);
+          
+          // Upload thumbnail to R2
+          const { url: thumbnailUrl } = await R2Service.uploadFile(
+            thumbnailKey,
+            thumbnailBuffer,
+            "image/jpeg"
+          );
+
+          this.logOperation("THUMBNAIL_GENERATED", { 
+            thumbnailKey, 
+            size: thumbnailBuffer.length 
+          });
+
+          resolve({ thumbnailKey, thumbnailUrl });
+        } catch (uploadError) {
+          reject(new Error(`Failed to upload thumbnail: ${uploadError}`));
+        }
+      });
+    });
+  }
 }

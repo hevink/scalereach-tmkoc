@@ -199,10 +199,23 @@ export class ViralDetectionController {
       const clipsWithUrls = await Promise.all(
         clips.map(async (clip) => {
           let downloadUrl: string | null = null;
+          let thumbnailDownloadUrl: string | null = null;
+          
           if (clip.storageKey) {
             downloadUrl = await R2Service.getSignedDownloadUrl(clip.storageKey, 3600);
           }
-          return { ...clip, downloadUrl };
+          
+          // Generate signed URL for thumbnail if it exists
+          if (clip.thumbnailKey) {
+            thumbnailDownloadUrl = await R2Service.getSignedDownloadUrl(clip.thumbnailKey, 3600);
+          }
+          
+          return { 
+            ...clip, 
+            downloadUrl,
+            // Use signed thumbnail URL if available, otherwise use stored public URL
+            thumbnailUrl: thumbnailDownloadUrl || clip.thumbnailUrl,
+          };
         })
       );
 
@@ -241,13 +254,22 @@ export class ViralDetectionController {
 
       // Generate presigned URL if clip has been generated
       let downloadUrl: string | null = null;
+      let thumbnailDownloadUrl: string | null = null;
+      
       if (clip.storageKey) {
         downloadUrl = await R2Service.getSignedDownloadUrl(clip.storageKey, 3600); // 1 hour
+      }
+      
+      // Generate signed URL for thumbnail if it exists
+      if (clip.thumbnailKey) {
+        thumbnailDownloadUrl = await R2Service.getSignedDownloadUrl(clip.thumbnailKey, 3600);
       }
 
       return c.json({
         ...clip,
         downloadUrl,
+        // Use signed thumbnail URL if available, otherwise use stored public URL
+        thumbnailUrl: thumbnailDownloadUrl || clip.thumbnailUrl,
       });
     } catch (error) {
       console.error(`[VIRAL DETECTION CONTROLLER] GET_CLIP_BY_ID error:`, error);

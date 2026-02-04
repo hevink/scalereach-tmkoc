@@ -148,6 +148,9 @@ export const viralClip = pgTable(
     // Storage
     storageKey: text("storage_key"),
     storageUrl: text("storage_url"),
+    // Thumbnail
+    thumbnailKey: text("thumbnail_key"),
+    thumbnailUrl: text("thumbnail_url"),
     // Clip settings
     aspectRatio: text("aspect_ratio"), // '9:16' | '1:1' | '16:9'
     favorited: boolean("favorited").default(false).notNull(), // User favorite flag
