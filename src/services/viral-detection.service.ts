@@ -51,7 +51,8 @@ const ViralClipSchema = z.object({
         .describe("Primary emotions this clip evokes (e.g., humor, shock, inspiration)"),
       recommendedPlatforms: z
         .array(z.enum(PLATFORM_OPTIONS))
-        .describe("Best platforms for this clip based on content style, tone, and audience fit"),
+        .min(1)
+        .describe("REQUIRED: Best platforms for this clip based on content style, tone, and audience fit. Must include at least 1 platform."),
     })
   ).describe("Array of viral clip opportunities"),
 });
@@ -208,8 +209,8 @@ VIRAL CONTENT CRITERIA:
 7. **Quotable Moments**: Memorable phrases or soundbites
 8. **Visual Potential**: Moments that would be engaging to watch
 
-PLATFORM RECOMMENDATION GUIDELINES:
-For each clip, recommend the best platforms based on these characteristics:
+PLATFORM RECOMMENDATION GUIDELINES (REQUIRED FOR EVERY CLIP):
+You MUST recommend at least 2-3 platforms for each clip. Choose from:
 - **youtube_shorts**: Educational content, tutorials, storytelling, broader audience appeal, longer attention spans
 - **instagram_reels**: Lifestyle, aesthetic content, trending audio, visually appealing, aspirational content
 - **tiktok**: Trendy, humorous, raw/authentic, younger audience, fast-paced, meme-worthy content
@@ -217,7 +218,7 @@ For each clip, recommend the best platforms based on these characteristics:
 - **twitter**: Hot takes, controversial opinions, news commentary, quick wit, conversation starters
 - **facebook_reels**: Family-friendly, relatable everyday moments, broader age demographics, shareable stories
 
-A clip can be recommended for multiple platforms if it fits well.
+A clip can be recommended for multiple platforms if it fits well. NEVER leave recommendedPlatforms empty.
 
 GUIDELINES:
 - Clips should be self-contained and make sense without context
@@ -284,6 +285,11 @@ Focus on finding the absolute BEST moments that would perform well on social med
       
       console.log(`[VIRAL DETECTION] Raw clip durations:`, allClipsWithDuration.map(c => 
         `"${c.title.substring(0, 30)}...": ${c.duration.toFixed(1)}s (${c.startTime}-${c.endTime})`
+      ));
+      
+      // Log recommended platforms for debugging
+      console.log(`[VIRAL DETECTION] Recommended platforms from AI:`, allClipsWithDuration.map(c => 
+        `"${c.title.substring(0, 20)}...": ${JSON.stringify(c.recommendedPlatforms)}`
       ));
 
       // Filter clips by duration constraints and sort by virality score descending
