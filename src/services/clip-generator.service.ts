@@ -507,68 +507,105 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     try {
       return await new Promise((resolve, reject) => {
-        // Build FFmpeg filter for center-crop aspect ratio conversion
-        // Validates: Requirements 8.4
-        let videoFilter = this.buildCenterCropFilter(width, height);
+        const targetAspect = width / height;
+        const isVertical = targetAspect < 1;
         
-        // Add subtitles filter if captions provided
-        if (subsPathToUse) {
-          const escapedPath = subsPathToUse
-            .replace(/\\/g, "/")
-            .replace(/:/g, "\\:");
-          videoFilter = `${videoFilter},ass=${escapedPath}`;
+        let args: string[];
+        
+        if (isVertical) {
+          // Use blur background filter for vertical videos
+          let filterComplex = this.buildBlurBackgroundFilter(width, height);
+          
+          // Add subtitles to the final output if provided
+          if (subsPathToUse) {
+            const escapedPath = subsPathToUse
+              .replace(/\\/g, "/")
+              .replace(/:/g, "\\:");
+            filterComplex = `${filterComplex},ass=${escapedPath}`;
+          }
+          
+          args = [
+            "-ss", startTime.toString(),
+            "-i", videoUrl,
+            "-t", duration.toString(),
+            "-filter_complex", filterComplex,
+            "-c:v", "libx264",
+            "-preset", "slow",
+            "-crf", "18",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-movflags", "+faststart",
+            "-f", "mp4",
+            "-",
+          ];
+        } else {
+          // Use center-crop for non-vertical videos
+          let videoFilter = `scale='max(${width},iw*${height}/ih)':'max(${height},ih*${width}/iw)',crop=${width}:${height}`;
+          
+          // Add subtitles filter if captions provided
+          if (subsPathToUse) {
+            const escapedPath = subsPathToUse
+              .replace(/\\/g, "/")
+              .replace(/:/g, "\\:");
+            videoFilter = `${videoFilter},ass=${escapedPath}`;
+          }
+
+          args = [
+            "-ss", startTime.toString(),
+            "-i", videoUrl,
+            "-t", duration.toString(),
+            "-vf", videoFilter,
+            "-c:v", "libx264",
+            "-preset", "slow",
+            "-crf", "18",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-movflags", "+faststart",
+            "-f", "mp4",
+            "-",
+          ];
         }
 
-        const args = [
-          "-ss", startTime.toString(),
-          "-i", videoUrl,
-          "-t", duration.toString(),
-          "-vf", videoFilter,
-          "-c:v", "libx264",
-        "-preset", "slow",
-        "-crf", "18",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-movflags", "+faststart",
-        "-f", "mp4",
-        "-",
-      ];
+        this.logOperation("FFMPEG_EXTRACT", { 
+          args: args.join(" "), 
+          hasSubtitles: !!subsPathToUse,
+          isVertical,
+          useBlurBackground: isVertical
+        });
 
-      this.logOperation("FFMPEG_EXTRACT", { args: args.join(" "), hasSubtitles: !!subsPathToUse });
+        const ffmpegProcess = spawn("ffmpeg", args);
 
-      const ffmpegProcess = spawn("ffmpeg", args);
+        const chunks: Buffer[] = [];
+        let stderr = "";
 
-      const chunks: Buffer[] = [];
-      let stderr = "";
+        ffmpegProcess.stdout?.on("data", (data) => {
+          chunks.push(data);
+        });
 
-      ffmpegProcess.stdout?.on("data", (data) => {
-        chunks.push(data);
+        ffmpegProcess.stderr?.on("data", (data) => {
+          stderr += data.toString();
+          // Log progress
+          const progressMatch = data.toString().match(/time=(\d{2}:\d{2}:\d{2})/);
+          if (progressMatch) {
+            this.logOperation("FFMPEG_PROGRESS", { time: progressMatch[1] });
+          }
+        });
+
+        ffmpegProcess.on("error", (err) => {
+          reject(new Error(`Failed to spawn FFmpeg: ${err.message}. Make sure FFmpeg is installed.`));
+        });
+
+        ffmpegProcess.on("close", (code) => {
+          if (code !== 0) {
+            reject(new Error(`FFmpeg failed with code ${code}: ${stderr}`));
+            return;
+          }
+
+          const buffer = Buffer.concat(chunks);
+          this.logOperation("SEGMENT_EXTRACTED", { size: buffer.length });
+          resolve(buffer);
+        });
       });
-
-      ffmpegProcess.stderr?.on("data", (data) => {
-        stderr += data.toString();
-        // Log progress
-        const progressMatch = data.toString().match(/time=(\d{2}:\d{2}:\d{2})/);
-        if (progressMatch) {
-          this.logOperation("FFMPEG_PROGRESS", { time: progressMatch[1] });
-        }
-      });
-
-      ffmpegProcess.on("error", (err) => {
-        reject(new Error(`Failed to spawn FFmpeg: ${err.message}. Make sure FFmpeg is installed.`));
-      });
-
-      ffmpegProcess.on("close", (code) => {
-        if (code !== 0) {
-          reject(new Error(`FFmpeg failed with code ${code}: ${stderr}`));
-          return;
-        }
-
-        const buffer = Buffer.concat(chunks);
-        this.logOperation("SEGMENT_EXTRACTED", { size: buffer.length });
-        resolve(buffer);
-      });
-    });
     } finally {
       // Cleanup temp subtitle file
       if (subsPathToUse) {
@@ -578,7 +615,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   }
 
   /**
-   * Convert aspect ratio of a video file using center-crop strategy
+   * Convert aspect ratio of a video file using appropriate strategy
+   * - For 9:16 vertical: blur background fill effect
+   * - For other ratios: center-crop
    * Optionally burns in subtitles from ASS file
    * Validates: Requirements 8.1, 8.2, 8.3, 8.4
    */
@@ -590,38 +629,68 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     subtitlesPath?: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const cropFilter = this.buildCenterCropFilter(targetWidth, targetHeight);
+      const targetAspect = targetWidth / targetHeight;
+      const isVertical = targetAspect < 1;
       
-      // Build video filter chain
-      // For subtitles, we need to escape the path properly for FFmpeg
-      // The ass filter uses filename=path syntax
-      let videoFilter: string;
-      if (subtitlesPath) {
-        // Escape backslashes and colons for FFmpeg filter
-        const escapedPath = subtitlesPath
-          .replace(/\\/g, "/")
-          .replace(/:/g, "\\:");
-        videoFilter = `${cropFilter},ass=${escapedPath}`;
+      let args: string[];
+      
+      if (isVertical) {
+        // Use blur background filter (complex filter graph)
+        let filterComplex = this.buildBlurBackgroundFilter(targetWidth, targetHeight);
+        
+        // Add subtitles to the final output if provided
+        if (subtitlesPath) {
+          const escapedPath = subtitlesPath
+            .replace(/\\/g, "/")
+            .replace(/:/g, "\\:");
+          filterComplex = `${filterComplex},ass=${escapedPath}`;
+        }
+        
+        args = [
+          "-i", inputPath,
+          "-filter_complex", filterComplex,
+          "-c:v", "libx264",
+          "-preset", "slow",
+          "-crf", "18",
+          "-c:a", "aac",
+          "-b:a", "192k",
+          "-movflags", "+faststart",
+          "-y",
+          outputPath,
+        ];
       } else {
-        videoFilter = cropFilter;
-      }
+        // Use simple center-crop filter
+        const cropFilter = `scale='max(${targetWidth},iw*${targetHeight}/ih)':'max(${targetHeight},ih*${targetWidth}/iw)',crop=${targetWidth}:${targetHeight}`;
+        
+        let videoFilter: string;
+        if (subtitlesPath) {
+          const escapedPath = subtitlesPath
+            .replace(/\\/g, "/")
+            .replace(/:/g, "\\:");
+          videoFilter = `${cropFilter},ass=${escapedPath}`;
+        } else {
+          videoFilter = cropFilter;
+        }
 
-      const args = [
-        "-i", inputPath,
-        "-vf", videoFilter,
-        "-c:v", "libx264",
-        "-preset", "slow",
-        "-crf", "18",
-        "-c:a", "aac",
-        "-b:a", "192k",
-        "-movflags", "+faststart",
-        "-y",
-        outputPath,
-      ];
+        args = [
+          "-i", inputPath,
+          "-vf", videoFilter,
+          "-c:v", "libx264",
+          "-preset", "slow",
+          "-crf", "18",
+          "-c:a", "aac",
+          "-b:a", "192k",
+          "-movflags", "+faststart",
+          "-y",
+          outputPath,
+        ];
+      }
 
       this.logOperation("FFMPEG_CONVERT_ASPECT", { 
         args: args.join(" "),
-        hasSubtitles: !!subtitlesPath 
+        hasSubtitles: !!subtitlesPath,
+        isVertical,
+        useBlurBackground: isVertical
       });
 
       const ffmpegProcess = spawn("ffmpeg", args);
@@ -692,36 +761,68 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   }
 
   /**
-   * Build FFmpeg filter for center-crop aspect ratio conversion
-   * Uses center-crop strategy to maintain subject visibility
+   * Build FFmpeg filter for aspect ratio conversion
+   * Uses different strategies based on source and target aspect ratios:
+   * 
+   * For 9:16 vertical from 16:9 horizontal source (portrait from landscape):
+   * - Uses BLUR BACKGROUND FILL: Original video centered with blurred/zoomed background filling top/bottom
+   * 
+   * For other conversions:
+   * - Uses CENTER-CROP: Scale to cover and crop from center
+   * 
    * Validates: Requirements 8.4
-   * 
-   * Strategy:
-   * 1. Scale the video so that it COVERS the target dimensions (may be larger)
-   * 2. Center-crop to exact target dimensions
-   * 
-   * For 9:16 vertical from 16:9 horizontal source:
-   * - Scale height to target height, width will be larger
-   * - Crop width from center
    */
   private static buildCenterCropFilter(targetWidth: number, targetHeight: number): string {
-    // Scale to cover: ensure the scaled video is at least as large as target in both dimensions
-    // If source is wider than target (source_aspect > target_aspect): scale by height, crop width
-    // If source is taller than target (source_aspect < target_aspect): scale by width, crop height
-    // 
-    // Using iw/ih (input width/height) to calculate source aspect ratio at runtime
-    // scale2ref or complex expressions needed, but simpler approach:
-    // Scale to cover by making the smaller dimension match, then crop
-    //
-    // Formula: 
-    // - If source_aspect > target_aspect: scale height to target, width will overflow -> crop width
-    // - If source_aspect < target_aspect: scale width to target, height will overflow -> crop height
-    //
-    // FFmpeg filter: scale to cover, then crop from center
-    // scale='max(target_w,iw*target_h/ih)':'max(target_h,ih*target_w/iw)'
-    // This ensures both dimensions are at least the target size
+    const targetAspect = targetWidth / targetHeight;
     
+    // For 9:16 vertical output (targetAspect < 1), use blur background fill
+    // This creates the effect where the original video is centered and 
+    // blurred/zoomed version fills the top and bottom
+    if (targetAspect < 1) {
+      return this.buildBlurBackgroundFilter(targetWidth, targetHeight);
+    }
+    
+    // For other aspect ratios (1:1, 16:9), use center-crop
+    // Scale to cover: ensure the scaled video is at least as large as target in both dimensions
     return `scale='max(${targetWidth},iw*${targetHeight}/ih)':'max(${targetHeight},ih*${targetWidth}/iw)',crop=${targetWidth}:${targetHeight}`;
+  }
+
+  /**
+   * Build FFmpeg filter for blur background fill effect
+   * Creates a vertical video with:
+   * 1. Blurred, zoomed background that fills the entire frame
+   * 2. Original video scaled to fit width, centered vertically
+   * 
+   * This is the popular TikTok/Reels style for horizontal videos
+   */
+  private static buildBlurBackgroundFilter(targetWidth: number, targetHeight: number): string {
+    // Filter explanation:
+    // [0:v]split=2[bg][fg] - Split input into two streams: background and foreground
+    // 
+    // Background stream [bg]:
+    // - scale to cover the target (fill entire frame)
+    // - crop to exact target size
+    // - apply gaussian blur (sigma=20 for nice blur effect)
+    // - slightly darken to make foreground pop (colorlevels)
+    // 
+    // Foreground stream [fg]:
+    // - scale to fit width while maintaining aspect ratio
+    // - the height will be less than target height for landscape videos
+    // 
+    // Overlay:
+    // - overlay foreground centered on blurred background
+    // - (W-w)/2 centers horizontally, (H-h)/2 centers vertically
+    
+    return `[0:v]split=2[bg][fg];` +
+      // Background: scale to cover, crop, blur, and slightly darken
+      `[bg]scale='max(${targetWidth},iw*${targetHeight}/ih)':'max(${targetHeight},ih*${targetWidth}/iw)',` +
+      `crop=${targetWidth}:${targetHeight},` +
+      `gblur=sigma=25,` +
+      `colorlevels=rimax=0.9:gimax=0.9:bimax=0.9[bg_blur];` +
+      // Foreground: scale to fit width, maintain aspect ratio
+      `[fg]scale=${targetWidth}:-2[fg_scaled];` +
+      // Overlay foreground centered on blurred background
+      `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2`;
   }
 
   /**
