@@ -192,11 +192,7 @@ export class ClipGeneratorService {
   ): string {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
-    // Scale font size based on video width - templates are designed for ~1080 width
-    // For 9:16 vertical (608 width), we need smaller fonts
-    const baseFontSize = style?.fontSize || 48;
-    const scaleFactor = Math.min(width, height) / 1080;
-    const fontSize = Math.round(baseFontSize * scaleFactor * 0.6); // 0.6 to make it more readable
+    const fontSize = style?.fontSize || 32;
     const textColor = this.hexToASSColor(style?.textColor || "#FFFFFF");
     const outlineColor = this.hexToASSColor(style?.outlineColor || "#000000");
     const highlightColor = this.hexToASSColor(style?.highlightColor || "#FFFF00");
@@ -573,7 +569,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const escapedPath = subsPathToUse
               .replace(/\\/g, "/")
               .replace(/:/g, "\\:");
-            filterComplex = `${filterComplex},ass=${escapedPath}`;
+            filterComplex = `${filterComplex},ass=${escapedPath},format=yuv420p[outv]`;
+          } else {
+            filterComplex = `${filterComplex},format=yuv420p[outv]`;
           }
           
           args = [
@@ -581,9 +579,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-i", videoUrl,
             "-t", duration.toString(),
             "-filter_complex", filterComplex,
+            "-map", "[outv]",
+            "-map", "0:a?",
             "-c:v", "libx264",
-            "-preset", "slow",
-            "-crf", "18",
+            "-preset", "medium",
+            "-crf", "23",
+            "-profile:v", "high",
+            "-level", "4.0",
             "-c:a", "aac",
             "-b:a", "192k",
             "-movflags", "frag_keyframe+empty_moov",
@@ -695,15 +697,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const escapedPath = subtitlesPath
             .replace(/\\/g, "/")
             .replace(/:/g, "\\:");
-          filterComplex = `${filterComplex},ass=${escapedPath}`;
+          filterComplex = `${filterComplex},ass=${escapedPath},format=yuv420p[outv]`;
+        } else {
+          filterComplex = `${filterComplex},format=yuv420p[outv]`;
         }
         
         args = [
           "-i", inputPath,
           "-filter_complex", filterComplex,
+          "-map", "[outv]",
+          "-map", "0:a?",
           "-c:v", "libx264",
-          "-preset", "slow",
-          "-crf", "18",
+          "-preset", "medium",
+          "-crf", "23",
+          "-profile:v", "high",
+          "-level", "4.0",
           "-c:a", "aac",
           "-b:a", "192k",
           "-movflags", "+faststart",
@@ -712,7 +720,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         ];
       } else {
         // Use simple center-crop filter
-        const cropFilter = `scale='max(${targetWidth},iw*${targetHeight}/ih)':'max(${targetHeight},ih*${targetWidth}/iw)',crop=${targetWidth}:${targetHeight}`;
+        const cropFilter = `scale='max(${targetWidth},iw*${targetHeight}/ih)':'max(${targetHeight},ih*${targetWidth}/iw)',crop=${targetWidth}:${targetHeight},format=yuv420p`;
         
         let videoFilter: string;
         if (subtitlesPath) {
@@ -728,8 +736,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           "-i", inputPath,
           "-vf", videoFilter,
           "-c:v", "libx264",
-          "-preset", "slow",
-          "-crf", "18",
+          "-preset", "medium",
+          "-crf", "23",
+          "-profile:v", "high",
+          "-level", "4.0",
           "-c:a", "aac",
           "-b:a", "192k",
           "-movflags", "+faststart",
@@ -854,25 +864,24 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Background stream [bg]:
     // - scale to cover the target (fill entire frame)
     // - crop to exact target size
-    // - apply gaussian blur (sigma=20 for nice blur effect)
-    // - slightly darken to make foreground pop (colorlevels)
+    // - apply gaussian blur
+    // - slightly darken to make foreground pop
     // 
     // Foreground stream [fg]:
     // - scale to fit width while maintaining aspect ratio
-    // - the height will be less than target height for landscape videos
+    // - use -2 for height to ensure even dimensions
     // 
     // Overlay:
     // - overlay foreground centered on blurred background
-    // - (W-w)/2 centers horizontally, (H-h)/2 centers vertically
     
     return `[0:v]split=2[bg][fg];` +
       // Background: scale to cover, crop, blur, and slightly darken
-      `[bg]scale='max(${targetWidth},iw*${targetHeight}/ih)':'max(${targetHeight},ih*${targetWidth}/iw)',` +
+      `[bg]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,` +
       `crop=${targetWidth}:${targetHeight},` +
-      `gblur=sigma=25,` +
-      `colorlevels=rimax=0.9:gimax=0.9:bimax=0.9[bg_blur];` +
-      // Foreground: scale to fit width, maintain aspect ratio
-      `[fg]scale=${targetWidth}:-2[fg_scaled];` +
+      `gblur=sigma=20,` +
+      `eq=brightness=-0.1[bg_blur];` +
+      // Foreground: scale to fit width, -2 ensures even height
+      `[fg]scale=${targetWidth}:-2,setsar=1[fg_scaled];` +
       // Overlay foreground centered on blurred background
       `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2`;
   }

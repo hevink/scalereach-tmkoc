@@ -34,7 +34,7 @@ export const RAINBOW_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Montserrat",
-    fontSize: 80,
+    fontSize: 36,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -63,7 +63,7 @@ export const CLASSIC_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
-    fontSize: 64,
+    fontSize: 32,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -92,7 +92,7 @@ export const SARA_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Lexend",
-    fontSize: 96,
+    fontSize: 40,
     textColor: "#fffee5",
     backgroundColor: "#e13809",
     backgroundOpacity: 100,
@@ -121,7 +121,7 @@ export const JIMI_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Titan One",
-    fontSize: 128,
+    fontSize: 44,
     textColor: "#cddcf4",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -150,7 +150,7 @@ export const BASKER_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Libre Baskerville",
-    fontSize: 64,
+    fontSize: 32,
     textColor: "#fffff5",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -179,7 +179,7 @@ export const BOBBY_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
-    fontSize: 64,
+    fontSize: 32,
     textColor: "#FFFFFF",
     backgroundColor: "#5cd3ff",
     backgroundOpacity: 100,
@@ -208,7 +208,7 @@ export const BEAST_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Bangers",
-    fontSize: 104,
+    fontSize: 42,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -237,7 +237,7 @@ export const BILLY_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Lilita One",
-    fontSize: 88,
+    fontSize: 38,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -266,7 +266,7 @@ export const SIMPLE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Inter",
-    fontSize: 72,
+    fontSize: 32,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
