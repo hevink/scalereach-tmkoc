@@ -4,14 +4,20 @@ import IORedis from "ioredis";
 const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379");
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || undefined;
+const REDIS_TLS = process.env.REDIS_TLS === "true" || REDIS_HOST.includes("upstash.io");
 
 // Create Redis connection config for BullMQ
-const redisConfig = {
+const redisConfig: any = {
   host: REDIS_HOST,
   port: REDIS_PORT,
   password: REDIS_PASSWORD,
   maxRetriesPerRequest: null,
 };
+
+// Enable TLS for Upstash and other cloud Redis providers
+if (REDIS_TLS) {
+  redisConfig.tls = {};
+}
 
 export const redisConnection = new IORedis(redisConfig);
 

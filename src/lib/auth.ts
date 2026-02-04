@@ -123,7 +123,13 @@ export const auth = betterAuth({
       },
     },
   },
-  trustedOrigins: ["http://localhost:3000", "http://localhost:3001", "http://localhost:5173", "http://localhost:5174"],
+  trustedOrigins: [
+    "http://localhost:3000", 
+    "http://localhost:3001", 
+    "http://localhost:5173", 
+    "http://localhost:5174",
+    process.env.FRONTEND_URL,
+  ].filter(Boolean) as string[],
   secret: process.env.BETTER_AUTH_SECRET || "default_secret_for_development",
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3001",
   advanced: {
@@ -132,12 +138,14 @@ export const auth = betterAuth({
       enabled: false,
     },
     defaultCookieAttributes: {
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      // Use 'none' in development to allow cross-origin cookies, 'lax' in production
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
+      // Must be secure when sameSite is 'none'
+      secure: process.env.NODE_ENV === "production" || true,
       httpOnly: true,
       path: "/",
     },
-    useSecureCookies: process.env.NODE_ENV === "production",
+    useSecureCookies: true,
   },
 });
 

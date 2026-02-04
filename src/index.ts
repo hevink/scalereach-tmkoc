@@ -71,16 +71,14 @@ app.use(async (c, next) => {
 app.use(sentryRequestMiddleware);
 app.use(sentryMiddleware);
 
-// CORS configuration - production vs development
-const allowedOrigins = process.env.NODE_ENV === "production"
-  ? [process.env.FRONTEND_URL].filter(Boolean) as string[]
-  : [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      "http://localhost:5173",
-      "http://localhost:5174",
-      process.env.FRONTEND_URL,
-    ].filter(Boolean) as string[];
+// CORS configuration - allow localhost for development even in production
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  "http://localhost:5174",
+  process.env.FRONTEND_URL,
+].filter(Boolean) as string[];
 
 app.use(
   cors({
