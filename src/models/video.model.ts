@@ -119,13 +119,15 @@ export class VideoModel {
 
   /**
    * Get videos by workspace ID with only essential fields for grid display
+   * Supports optional status filtering
    */
-  static async getByWorkspaceId(workspaceId: string) {
-    this.logOperation("GET_VIDEOS_BY_WORKSPACE", { workspaceId });
+  static async getByWorkspaceId(workspaceId: string, statusFilter?: string) {
+    this.logOperation("GET_VIDEOS_BY_WORKSPACE", { workspaceId, statusFilter });
     const startTime = performance.now();
 
     try {
-      const result = await db
+      // Build base query
+      let query = db
         .select({
           id: video.id,
           title: video.title,
@@ -138,6 +140,21 @@ export class VideoModel {
         .from(video)
         .where(eq(video.workspaceId, workspaceId))
         .orderBy(desc(video.createdAt));
+
+      let result = await query;
+
+      // Apply status filter if provided
+      if (statusFilter) {
+        // "processing" filter includes all non-terminal states
+        if (statusFilter === "processing") {
+          result = result.filter(v => 
+            v.status !== "completed" && v.status !== "failed"
+          );
+        } else if (statusFilter === "completed" || statusFilter === "failed") {
+          result = result.filter(v => v.status === statusFilter);
+        }
+      }
+
       const duration = performance.now() - startTime;
       console.log(
         `[VIDEO MODEL] GET_VIDEOS_BY_WORKSPACE completed in ${duration.toFixed(2)}ms, found ${result.length} videos`
