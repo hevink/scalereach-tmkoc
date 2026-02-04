@@ -250,12 +250,45 @@ export class WorkspaceController {
 
   static async deleteWorkspace(c: Context) {
     const id = c.req.param("id");
-    WorkspaceController.logRequest(c, 'DELETE_WORKSPACE', { id });
+    const forceDelete = c.req.query("force") === "true";
+    WorkspaceController.logRequest(c, 'DELETE_WORKSPACE', { id, forceDelete });
     
     try {
+      const user = c.get("user");
+      if (!user) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+
+      const workspace = await WorkspaceModel.getById(id);
+      if (!workspace) {
+        console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE - workspace not found: ${id}`);
+        return c.json({ error: "Workspace not found" }, 404);
+      }
+
+      // Only owner can delete workspace
+      const members = await WorkspaceModel.getMembers(id);
+      const currentMember = members.find((m) => m.userId === user.id);
+      if (!currentMember || currentMember.role !== "owner") {
+        return c.json({ error: "Only the workspace owner can delete this workspace" }, 403);
+      }
+
+      // Check if workspace has credits - warn user they will lose them
+      const { CreditModel } = await import("../models/credit.model");
+      const credits = await CreditModel.getBalance(id);
+      
+      if (credits.balance > 0 && !forceDelete) {
+        console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE - workspace has ${credits.balance} credits, requires confirmation`);
+        return c.json({ 
+          error: "Workspace has credits",
+          message: `This workspace has ${credits.balance} credits that will be permanently lost. Add ?force=true to confirm deletion.`,
+          credits: credits.balance,
+          requiresConfirmation: true
+        }, 400);
+      }
+
       await WorkspaceModel.delete(id);
-      console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE success - deleted workspace: ${id}`);
-      return c.json({ message: "Workspace deleted successfully" });
+      console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE success - deleted workspace: ${id}${credits.balance > 0 ? ` (lost ${credits.balance} credits)` : ''}`);
+      return c.json({ message: "Workspace deleted successfully", creditsLost: credits.balance });
     } catch (error) {
       console.error(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE error:`, error);
       return c.json({ error: "Failed to delete workspace" }, 500);
@@ -456,7 +489,8 @@ export class WorkspaceController {
   // Delete workspace by slug
   static async deleteWorkspaceBySlug(c: Context) {
     const slug = c.req.param("slug");
-    WorkspaceController.logRequest(c, 'DELETE_WORKSPACE_BY_SLUG', { slug });
+    const forceDelete = c.req.query("force") === "true";
+    WorkspaceController.logRequest(c, 'DELETE_WORKSPACE_BY_SLUG', { slug, forceDelete });
     
     try {
       const user = c.get("user");
@@ -477,9 +511,23 @@ export class WorkspaceController {
         return c.json({ error: "Only the workspace owner can delete this workspace" }, 403);
       }
 
+      // Check if workspace has credits - warn user they will lose them
+      const { CreditModel } = await import("../models/credit.model");
+      const credits = await CreditModel.getBalance(workspace.id);
+      
+      if (credits.balance > 0 && !forceDelete) {
+        console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG - workspace has ${credits.balance} credits, requires confirmation`);
+        return c.json({ 
+          error: "Workspace has credits",
+          message: `This workspace has ${credits.balance} credits that will be permanently lost. Add ?force=true to confirm deletion.`,
+          credits: credits.balance,
+          requiresConfirmation: true
+        }, 400);
+      }
+
       await WorkspaceModel.delete(workspace.id);
-      console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG success - deleted workspace: ${slug}`);
-      return c.json({ message: "Workspace deleted successfully" });
+      console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG success - deleted workspace: ${slug}${credits.balance > 0 ? ` (lost ${credits.balance} credits)` : ''}`);
+      return c.json({ message: "Workspace deleted successfully", creditsLost: credits.balance });
     } catch (error) {
       console.error(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG error:`, error);
       return c.json({ error: "Failed to delete workspace" }, 500);
