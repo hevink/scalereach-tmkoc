@@ -2,11 +2,8 @@ import { Context } from "hono";
 import { nanoid } from "nanoid";
 import { R2Service } from "../services/r2.service";
 import { VideoModel } from "../models/video.model";
-import { addVideoProcessingJob } from "../jobs/queue";
 import {
   UploadValidationService,
-  ALLOWED_VIDEO_FORMATS,
-  MAX_FILE_SIZE_BYTES,
 } from "../services/upload-validation.service";
 
 /**
@@ -180,7 +177,6 @@ export class UppyUploadController {
     try {
       const body = await c.req.json();
       const { parts, videoId } = body;
-      const user = c.get("user") as { id: string };
 
       if (!key) {
         return c.json({ error: "key query parameter is required" }, 400);
@@ -201,27 +197,16 @@ export class UppyUploadController {
       );
 
       // Update video record if videoId provided
+      // Set status to pending_config - user needs to configure before processing starts
       if (videoId) {
         await VideoModel.update(videoId, {
           storageKey: key,
           storageUrl: url,
-          status: "transcribing",
-        });
-
-        // Get video to get projectId
-        const video = await VideoModel.getById(videoId);
-
-        // Add to processing queue
-        await addVideoProcessingJob({
-          videoId,
-          projectId: video?.projectId || null,
-          userId: user.id,
-          sourceType: "upload",
-          sourceUrl: url,
+          status: "pending_config",
         });
       }
 
-      console.log(`[UPPY UPLOAD] Completed multipart upload: ${uploadId}`);
+      console.log(`[UPPY UPLOAD] Completed multipart upload: ${uploadId}, videoId: ${videoId}`);
 
       return c.json({ location: url });
     } catch (error) {

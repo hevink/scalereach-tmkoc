@@ -582,7 +582,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-crf", "18",
             "-c:a", "aac",
             "-b:a", "192k",
-            "-movflags", "+faststart",
+            "-movflags", "frag_keyframe+empty_moov",
             "-f", "mp4",
             "-",
           ];
@@ -608,7 +608,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-crf", "18",
             "-c:a", "aac",
             "-b:a", "192k",
-            "-movflags", "+faststart",
+            "-movflags", "frag_keyframe+empty_moov",
             "-f", "mp4",
             "-",
           ];

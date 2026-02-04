@@ -90,7 +90,7 @@ async function processYouTubeVideo(
 
     await updateVideoStatus(videoId, "uploading", {
       title: videoInfo.title,
-      duration: videoInfo.duration,
+      duration: Math.round(videoInfo.duration),
       mimeType: mimeType,
       metadata: {
         youtubeId: videoInfo.id,
@@ -417,7 +417,7 @@ async function processUploadedVideo(
     await updateVideoStatus(videoId, "transcribing", {
       audioStorageKey: audioResult.audioStorageKey,
       audioStorageUrl: audioResult.audioStorageUrl,
-      duration: videoMetadata?.duration,
+      duration: videoMetadata?.duration ? Math.round(videoMetadata.duration) : undefined,
     });
 
     // Get signed URL for Deepgram
