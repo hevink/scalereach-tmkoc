@@ -264,13 +264,13 @@ export class VideoController {
 
     try {
       if (!url) {
-        return c.json({ error: "URL is required" }, 400);
+        return c.json({ valid: false, error: "URL is required" }, 400);
       }
 
       const isValid = YouTubeService.isValidYouTubeUrl(url);
 
       if (!isValid) {
-        return c.json({ valid: false, error: "Invalid YouTube URL" });
+        return c.json({ valid: false, error: "Invalid YouTube URL format" });
       }
 
       const videoInfo = await YouTubeService.getVideoInfo(url);
@@ -289,11 +289,43 @@ export class VideoController {
         valid: true,
         videoInfo,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[VIDEO CONTROLLER] VALIDATE_YOUTUBE_URL error:`, error);
+      
+      // Provide more specific error messages
+      const errorMessage = error?.message || "Unknown error";
+      
+      if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
+        return c.json({
+          valid: false,
+          error: "YouTube blocked the request. The video may be restricted or yt-dlp needs updating.",
+        });
+      }
+      
+      if (errorMessage.includes("Video unavailable") || errorMessage.includes("Private video")) {
+        return c.json({
+          valid: false,
+          error: "This video is unavailable or private.",
+        });
+      }
+      
+      if (errorMessage.includes("Sign in") || errorMessage.includes("age-restricted")) {
+        return c.json({
+          valid: false,
+          error: "This video requires sign-in or is age-restricted.",
+        });
+      }
+      
+      if (errorMessage.includes("yt-dlp") || errorMessage.includes("spawn")) {
+        return c.json({
+          valid: false,
+          error: "Video processing service is unavailable. Please try again later.",
+        });
+      }
+      
       return c.json({
         valid: false,
-        error: "Failed to validate YouTube URL",
+        error: `Failed to fetch video info: ${errorMessage}`,
       });
     }
   }

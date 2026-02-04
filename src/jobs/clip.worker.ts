@@ -182,8 +182,12 @@ async function processClipGenerationJob(
 /**
  * Start the clip generation worker
  * Validates: Requirements 7.5, 7.6, 7.7
+ * 
+ * Note: Concurrency is kept low (default 1) to avoid FFmpeg exit code 202 errors
+ * that occur when multiple yt-dlp processes with --force-keyframes-at-cuts run concurrently.
+ * This is a known issue with FFmpeg resource contention.
  */
-export function startClipWorker(concurrency: number = 2) {
+export function startClipWorker(concurrency: number = 1) {
   console.log(`[CLIP WORKER] Starting worker with concurrency: ${concurrency}`);
 
   const worker = createWorker<ClipGenerationJobData>(

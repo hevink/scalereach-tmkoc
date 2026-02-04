@@ -3,8 +3,10 @@ import { startClipWorker } from "./jobs/clip.worker";
 import { redisConnection, videoProcessingQueue, clipGenerationQueue } from "./jobs/queue";
 
 // Worker concurrency configuration via environment variables
+// Note: CLIP_WORKER_CONCURRENCY is kept low (1-2) to avoid FFmpeg conflicts
+// when multiple yt-dlp processes with --force-keyframes-at-cuts run concurrently
 const VIDEO_WORKER_CONCURRENCY = parseInt(process.env.VIDEO_WORKER_CONCURRENCY || "2", 10);
-const CLIP_WORKER_CONCURRENCY = parseInt(process.env.CLIP_WORKER_CONCURRENCY || "4", 10);
+const CLIP_WORKER_CONCURRENCY = parseInt(process.env.CLIP_WORKER_CONCURRENCY || "1", 10);
 const WORKER_HEALTH_PORT = parseInt(process.env.WORKER_HEALTH_PORT || "3002", 10);
 
 const startTime = Date.now();

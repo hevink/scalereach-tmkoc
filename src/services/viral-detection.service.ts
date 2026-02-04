@@ -30,11 +30,11 @@ const ViralClipSchema = z.object({
   clips: z.array(
     z.object({
       title: z.string().describe("A catchy title for this viral clip"),
-      introTitle: z.string().optional().describe("A short, punchy intro title (max 5-7 words) to display in the first 3 seconds of the video - should hook viewers immediately"),
+      introTitle: z.string().describe("A short, punchy intro title (max 5-7 words) to display in the first 3 seconds of the video - should hook viewers immediately. Use empty string if not needed."),
       startTime: z.number().describe("Start time in seconds"),
       endTime: z.number().describe("End time in seconds"),
       transcript: z.string().describe("The transcript text for this clip segment"),
-      transcriptWithEmojis: z.string().optional().describe("The same transcript but with relevant emojis added naturally throughout to enhance engagement (e.g., 'This is amazing 🔥 and you won't believe 😱 what happens next')"),
+      transcriptWithEmojis: z.string().describe("The same transcript but with relevant emojis added naturally throughout to enhance engagement (e.g., 'This is amazing 🔥 and you won't believe 😱 what happens next'). Use empty string if emojis not needed."),
       viralityScore: z
         .number()
         .min(0)
@@ -91,7 +91,7 @@ export interface ValidationResult {
 // Constants for validation
 export const MIN_DURATION_LIMIT = 5;    // Minimum allowed minDuration (seconds)
 export const MAX_DURATION_LIMIT = 180;  // Maximum allowed maxDuration (seconds)
-export const DEFAULT_MIN_DURATION = 10; // Default minimum clip duration
+export const DEFAULT_MIN_DURATION = 30; // Default minimum clip duration
 export const DEFAULT_MAX_DURATION = 90; // Default maximum clip duration
 export const DEFAULT_MAX_CLIPS = 10;    // Default maximum clips to detect
 

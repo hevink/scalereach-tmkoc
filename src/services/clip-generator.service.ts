@@ -397,6 +397,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
   /**
    * Download YouTube segment to a file using yt-dlp --download-sections
+   * Includes retry logic to handle FFmpeg exit code 202 errors that can occur
+   * due to resource contention when multiple downloads run concurrently.
    * Validates: Requirements 7.1, 7.2
    */
   private static async downloadYouTubeSegmentToFile(
@@ -404,7 +406,52 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     startTime: number,
     endTime: number,
     outputPath: string,
-    quality: VideoQuality
+    quality: VideoQuality,
+    maxRetries: number = 3
+  ): Promise<void> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await this.executeYtDlpDownload(url, startTime, endTime, outputPath);
+        return; // Success
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        const isRetryableError = lastError.message.includes("ffmpeg exited with code 202") ||
+                                  lastError.message.includes("ffmpeg exited with code 1");
+        
+        if (isRetryableError && attempt < maxRetries) {
+          // Wait before retry with exponential backoff (2s, 4s, 8s)
+          const delayMs = Math.pow(2, attempt) * 1000;
+          this.logOperation("YT_DLP_RETRY", { 
+            attempt, 
+            maxRetries, 
+            delayMs, 
+            error: lastError.message 
+          });
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+          
+          // Clean up partial file if it exists
+          await this.cleanupTempFile(outputPath);
+        } else if (!isRetryableError) {
+          // Non-retryable error, throw immediately
+          throw lastError;
+        }
+      }
+    }
+    
+    // All retries exhausted
+    throw lastError || new Error("yt-dlp download failed after all retries");
+  }
+
+  /**
+   * Execute the actual yt-dlp download command
+   */
+  private static async executeYtDlpDownload(
+    url: string,
+    startTime: number,
+    endTime: number,
+    outputPath: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       // Always download the highest quality available (no height limit)
@@ -421,6 +468,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "--no-playlist",
         "--quiet",
         "--no-warnings",
+        "--no-post-overwrites", // Prevent conflicts with concurrent processes
         url,
       ];
 
