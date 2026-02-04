@@ -12,6 +12,8 @@ export interface VideoConfigInput {
   clipDurationMax?: number;
   timeframeStart?: number;
   timeframeEnd?: number | null;
+  // Language Settings
+  language?: string | null; // null = auto-detect, or ISO code like 'en', 'es', 'hi', etc.
   enableAutoHook?: boolean;
   customPrompt?: string;
   topicKeywords?: string[];

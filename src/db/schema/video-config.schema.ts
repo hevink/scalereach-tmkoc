@@ -34,6 +34,9 @@ export const videoConfig = pgTable(
     timeframeStart: integer("timeframe_start").default(0),
     timeframeEnd: integer("timeframe_end"), // null = full video
 
+    // Language Settings
+    language: text("language"), // null = auto-detect, or ISO code like 'en', 'es', 'hi', etc.
+
     // AI Settings
     enableAutoHook: boolean("enable_auto_hook").default(true),
     customPrompt: text("custom_prompt"),

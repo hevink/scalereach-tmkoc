@@ -142,8 +142,14 @@ async function processYouTubeVideo(
     const signedUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
 
     // Transcribe audio using Deepgram
-    console.log(`[VIDEO WORKER] Starting transcription...`);
-    const transcriptResult = await DeepgramService.transcribeFromUrl(signedUrl);
+    // Pass language from config if specified (null or 'auto' = auto-detect)
+    const transcriptionLanguage = videoConfig?.language && videoConfig.language !== 'auto' 
+      ? videoConfig.language as any 
+      : undefined;
+    console.log(`[VIDEO WORKER] Starting transcription... (language: ${transcriptionLanguage || 'auto-detect'})`);
+    const transcriptResult = await DeepgramService.transcribeFromUrl(signedUrl, {
+      language: transcriptionLanguage,
+    });
 
     await job.updateProgress(70);
 
@@ -428,8 +434,14 @@ async function processUploadedVideo(
     );
 
     // Transcribe audio using Deepgram
-    console.log(`[VIDEO WORKER] Starting transcription...`);
-    const transcriptResult = await DeepgramService.transcribeFromUrl(signedAudioUrl);
+    // Pass language from config if specified (null or 'auto' = auto-detect)
+    const transcriptionLanguage = videoConfig?.language && videoConfig.language !== 'auto' 
+      ? videoConfig.language as any 
+      : undefined;
+    console.log(`[VIDEO WORKER] Starting transcription... (language: ${transcriptionLanguage || 'auto-detect'})`);
+    const transcriptResult = await DeepgramService.transcribeFromUrl(signedAudioUrl, {
+      language: transcriptionLanguage,
+    });
 
     await job.updateProgress(70);
 
