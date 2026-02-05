@@ -3,6 +3,7 @@
  *
  * Pre-built caption style templates for different social media platforms.
  * Each template is optimized for specific platform aesthetics and engagement patterns.
+ * Based on viral video caption styles from top creators.
  */
 
 import type { CaptionStyleConfig } from "../db/schema/project.schema";
@@ -25,7 +26,7 @@ export interface CaptionTemplate {
 
 /**
  * Rainbow Template
- * Multi-color highlight with line-fill animation - Enhanced for viral impact
+ * Multi-color highlight with line-fill animation - Montserrat 900
  */
 export const RAINBOW_TEMPLATE: CaptionTemplate = {
   id: "rainbow",
@@ -34,20 +35,22 @@ export const RAINBOW_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Montserrat",
-    fontSize: 46,
+    fontSize: 40,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
     alignment: "center",
     animation: "karaoke",
-    highlightColor: "#FFD700",
+    highlightColor: "#FFFF00",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
-    outlineWidth: 4,
-    highlightScale: 130,
+    outlineWidth: 5,
+    highlightScale: 125,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
   },
   preview: "/templates/rainbow-preview.png",
   createdAt: new Date("2024-06-14"),
@@ -56,16 +59,16 @@ export const RAINBOW_TEMPLATE: CaptionTemplate = {
 
 /**
  * Classic Template
- * Spring animation with yellow highlight - Enhanced with bolder text
+ * Spring animation with yellow highlight - Poppins 900
  */
 export const CLASSIC_TEMPLATE: CaptionTemplate = {
   id: "classic",
   name: "Classic",
-  description: "Classic viral style with bounce animation and yellow highlight",
+  description: "Classic viral style with spring animation and yellow highlight",
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
-    fontSize: 44,
+    fontSize: 32,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -77,8 +80,10 @@ export const CLASSIC_TEMPLATE: CaptionTemplate = {
     shadow: true,
     outline: true,
     outlineColor: "#000000",
-    outlineWidth: 4,
+    outlineWidth: 5,
     highlightScale: 125,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
   },
   preview: "/templates/classic-preview.png",
   createdAt: new Date("2024-04-09"),
@@ -87,7 +92,7 @@ export const CLASSIC_TEMPLATE: CaptionTemplate = {
 
 /**
  * Sara Template
- * Box highlight with red/orange accent - Enhanced with karaoke animation
+ * Box highlight with red/orange accent - Lexend 900
  */
 export const SARA_TEMPLATE: CaptionTemplate = {
   id: "sara",
@@ -97,19 +102,21 @@ export const SARA_TEMPLATE: CaptionTemplate = {
   style: {
     fontFamily: "Lexend",
     fontSize: 48,
-    textColor: "#FFFFFF",
+    textColor: "#fffee5",
     backgroundColor: "#e13809",
     backgroundOpacity: 100,
     position: "bottom",
     alignment: "center",
     animation: "karaoke",
-    highlightColor: "#FFFF00",
+    highlightColor: "#e13809",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
-    outlineWidth: 3,
+    outlineWidth: 5,
     highlightScale: 120,
+    textTransform: "none",
+    wordsPerLine: 3,
   },
   preview: "/templates/sara-preview.png",
   createdAt: new Date("2024-04-08"),
@@ -118,7 +125,7 @@ export const SARA_TEMPLATE: CaptionTemplate = {
 
 /**
  * Jimi Template
- * Blue tones with green highlight - Enhanced with larger text
+ * Blue tones with green highlight - Titan One 900
  */
 export const JIMI_TEMPLATE: CaptionTemplate = {
   id: "jimi",
@@ -127,8 +134,8 @@ export const JIMI_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Titan One",
-    fontSize: 50,
-    textColor: "#FFFFFF",
+    fontSize: 64,
+    textColor: "#cddcf4",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
@@ -138,11 +145,11 @@ export const JIMI_TEMPLATE: CaptionTemplate = {
     highlightEnabled: true,
     shadow: true,
     outline: true,
-    outlineColor: "#000000",
-    outlineWidth: 4,
-    highlightScale: 130,
-    glowEnabled: true,
-    glowIntensity: 2,
+    outlineColor: "#103e89",
+    outlineWidth: 5,
+    highlightScale: 125,
+    textTransform: "none",
+    wordsPerLine: 3,
   },
   preview: "/templates/jimi-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -151,7 +158,7 @@ export const JIMI_TEMPLATE: CaptionTemplate = {
 
 /**
  * Basker Template
- * Elegant serif font with subtle shadow - Enhanced with fade animation
+ * Elegant serif font with subtle shadow - Libre Baskerville 900
  */
 export const BASKER_TEMPLATE: CaptionTemplate = {
   id: "basker",
@@ -160,19 +167,22 @@ export const BASKER_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Libre Baskerville",
-    fontSize: 42,
-    textColor: "#FFFFFF",
+    fontSize: 32,
+    textColor: "#fffff5",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
     alignment: "center",
     animation: "fade",
-    highlightColor: "#FFD700",
+    highlightColor: "#fff194",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
     outlineWidth: 3,
+    highlightScale: 120,
+    textTransform: "none",
+    wordsPerLine: 3,
   },
   preview: "/templates/basker-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -181,7 +191,7 @@ export const BASKER_TEMPLATE: CaptionTemplate = {
 
 /**
  * Bobby Template
- * Box highlight with cyan accent - Enhanced with karaoke animation
+ * Box highlight with cyan accent - Poppins 700
  */
 export const BOBBY_TEMPLATE: CaptionTemplate = {
   id: "bobby",
@@ -190,20 +200,22 @@ export const BOBBY_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
-    fontSize: 44,
+    fontSize: 32,
     textColor: "#FFFFFF",
     backgroundColor: "#5cd3ff",
     backgroundOpacity: 100,
     position: "bottom",
     alignment: "center",
     animation: "karaoke",
-    highlightColor: "#FFFF00",
+    highlightColor: "#5cd3ff",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
-    outlineWidth: 3,
+    outlineWidth: 4,
     highlightScale: 120,
+    textTransform: "none",
+    wordsPerLine: 3,
   },
   preview: "/templates/bobby-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -212,7 +224,7 @@ export const BOBBY_TEMPLATE: CaptionTemplate = {
 
 /**
  * Beast Template
- * Bold Bangers font with green highlight - MrBeast style - Enhanced
+ * Bold Bangers font with green highlight - MrBeast style
  */
 export const BEAST_TEMPLATE: CaptionTemplate = {
   id: "beast",
@@ -221,7 +233,7 @@ export const BEAST_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Bangers",
-    fontSize: 54,
+    fontSize: 52,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -235,8 +247,8 @@ export const BEAST_TEMPLATE: CaptionTemplate = {
     outlineColor: "#000000",
     outlineWidth: 5,
     highlightScale: 130,
-    glowEnabled: true,
-    glowIntensity: 2,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
   },
   preview: "/templates/beast-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -245,7 +257,7 @@ export const BEAST_TEMPLATE: CaptionTemplate = {
 
 /**
  * Billy Template
- * Lilita One font with purple highlight - Enhanced with bounce animation
+ * Lilita One font with purple highlight
  */
 export const BILLY_TEMPLATE: CaptionTemplate = {
   id: "billy",
@@ -254,23 +266,22 @@ export const BILLY_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Lilita One",
-    fontSize: 48,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
     alignment: "center",
-    animation: "bounce",
+    animation: "karaoke",
     highlightColor: "#dc7aff",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
-    outlineWidth: 4,
+    outlineWidth: 5,
     highlightScale: 125,
-    glowEnabled: true,
-    glowColor: "#dc7aff",
-    glowIntensity: 2,
+    textTransform: "uppercase",
+    wordsPerLine: 1,
   },
   preview: "/templates/billy-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -279,7 +290,7 @@ export const BILLY_TEMPLATE: CaptionTemplate = {
 
 /**
  * Simple Template
- * Clean Inter font with no highlight - Enhanced with larger text
+ * Clean Inter font with no highlight
  */
 export const SIMPLE_TEMPLATE: CaptionTemplate = {
   id: "simple",
@@ -288,7 +299,7 @@ export const SIMPLE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Inter",
-    fontSize: 40,
+    fontSize: 36,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -300,7 +311,9 @@ export const SIMPLE_TEMPLATE: CaptionTemplate = {
     shadow: true,
     outline: true,
     outlineColor: "#000000",
-    outlineWidth: 3,
+    outlineWidth: 5,
+    textTransform: "none",
+    wordsPerLine: 3,
   },
   preview: "/templates/simple-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -318,7 +331,7 @@ export const HORMOZI_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Anton",
-    fontSize: 52,
+    fontSize: 48,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -330,6 +343,10 @@ export const HORMOZI_TEMPLATE: CaptionTemplate = {
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 5,
+    highlightScale: 125,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
   },
   preview: "/templates/hormozi-preview.png",
   isNew: true,
@@ -360,6 +377,10 @@ export const MRBEAST_PRO_TEMPLATE: CaptionTemplate = {
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 6,
+    highlightScale: 130,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
   },
   preview: "/templates/mrbeast-pro-preview.png",
   isNew: true,
@@ -378,7 +399,7 @@ export const CLEAN_CREATOR_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Montserrat",
-    fontSize: 40,
+    fontSize: 36,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -387,9 +408,13 @@ export const CLEAN_CREATOR_TEMPLATE: CaptionTemplate = {
     animation: "fade",
     highlightColor: "#00D4FF",
     highlightEnabled: true,
-    shadow: false,
+    shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 4,
+    highlightScale: 120,
+    textTransform: "none",
+    wordsPerLine: 4,
   },
   preview: "/templates/clean-creator-preview.png",
   isNew: true,
@@ -408,7 +433,7 @@ export const GARYVEE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Bebas Neue",
-    fontSize: 58,
+    fontSize: 48,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -420,6 +445,10 @@ export const GARYVEE_TEMPLATE: CaptionTemplate = {
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 5,
+    highlightScale: 125,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
   },
   preview: "/templates/garyvee-preview.png",
   isNew: true,
@@ -450,6 +479,10 @@ export const TIKTOK_NATIVE_TEMPLATE: CaptionTemplate = {
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 5,
+    highlightScale: 125,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
   },
   preview: "/templates/tiktok-native-preview.png",
   isNew: true,
@@ -480,6 +513,12 @@ export const NEON_POP_TEMPLATE: CaptionTemplate = {
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 5,
+    highlightScale: 125,
+    glowEnabled: true,
+    glowIntensity: 3,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
   },
   preview: "/templates/neon-pop-preview.png",
   isNew: true,

@@ -51,7 +51,7 @@ describe("Caption Templates", () => {
     });
 
     it("should have bold font size", () => {
-      expect(RAINBOW_TEMPLATE.style.fontSize).toBeGreaterThanOrEqual(46);
+      expect(RAINBOW_TEMPLATE.style.fontSize).toBeGreaterThanOrEqual(32);
     });
   });
 
@@ -101,7 +101,7 @@ describe("Caption Templates", () => {
     });
 
     it("should have larger font size for readability", () => {
-      expect(SIMPLE_TEMPLATE.style.fontSize).toBeGreaterThanOrEqual(40);
+      expect(SIMPLE_TEMPLATE.style.fontSize).toBeGreaterThanOrEqual(32);
     });
   });
 
@@ -231,7 +231,7 @@ describe("Caption Templates", () => {
       expect(style.fontFamily).toBeDefined();
       expect(typeof style.fontFamily).toBe("string");
       expect(style.fontSize).toBeGreaterThanOrEqual(12);
-      expect(style.fontSize).toBeLessThanOrEqual(72);
+      expect(style.fontSize).toBeLessThanOrEqual(150);
 
       // Color properties
       expect(style.textColor).toMatch(/^#[0-9A-Fa-f]{6}$/);
