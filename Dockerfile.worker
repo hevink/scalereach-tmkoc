@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM base AS deps
 WORKDIR /app
 COPY package.json bun.lock ./
-RUN bun install --production
+RUN bun install --no-save
 
 # Final stage
 FROM base AS runner
