@@ -8,7 +8,11 @@
 import { Job } from "bullmq";
 import { ClipModel } from "../models/clip.model";
 import { CreditModel } from "../models/credit.model";
+import { UserModel } from "../models/user.model";
+import { VideoModel } from "../models/video.model";
+import { WorkspaceModel } from "../models/workspace.model";
 import { ClipGeneratorService } from "../services/clip-generator.service";
+import { emailService } from "../services/email.service";
 import {
   createWorker,
   QUEUE_NAMES,
@@ -37,6 +41,76 @@ async function updateClipStatus(
     status,
     ...updates,
   });
+}
+
+/**
+ * Check if all clips for a video are ready and send email notification
+ */
+async function checkAndNotifyAllClipsReady(
+  videoId: string,
+  userId: string,
+  workspaceId?: string
+): Promise<void> {
+  try {
+    // Get all clips for this video
+    const allClips = await ClipModel.getByVideoId(videoId);
+
+    if (!allClips || allClips.length === 0) {
+      return;
+    }
+
+    // Check if all clips are ready (or exported)
+    const allReady = allClips.every(
+      (clip) => clip.status === "ready" || clip.status === "exported"
+    );
+
+    if (!allReady) {
+      const pendingCount = allClips.filter(
+        (clip) => clip.status !== "ready" && clip.status !== "exported"
+      ).length;
+      console.log(`[CLIP WORKER] ${pendingCount} clips still pending for video ${videoId}`);
+      return;
+    }
+
+    console.log(`[CLIP WORKER] All ${allClips.length} clips ready for video ${videoId}, sending notification...`);
+
+    // Get user and video info for email
+    const [user, video] = await Promise.all([
+      UserModel.getById(userId),
+      VideoModel.getById(videoId),
+    ]);
+
+    if (!user?.email) {
+      console.warn(`[CLIP WORKER] No email found for user ${userId}, skipping notification`);
+      return;
+    }
+
+    // Get workspace slug if available
+    let workspaceSlug: string | undefined;
+    if (workspaceId) {
+      try {
+        const workspace = await WorkspaceModel.getById(workspaceId);
+        workspaceSlug = workspace?.slug;
+      } catch (err) {
+        console.warn(`[CLIP WORKER] Could not fetch workspace ${workspaceId}:`, err);
+      }
+    }
+
+    // Send email notification
+    await emailService.sendAllClipsReadyNotification({
+      to: user.email,
+      userName: user.name || user.email.split("@")[0],
+      videoTitle: video?.title || "Untitled Video",
+      clipCount: allClips.length,
+      videoId,
+      workspaceSlug,
+    });
+
+    console.log(`[CLIP WORKER] All clips ready notification sent to ${user.email}`);
+  } catch (error) {
+    // Don't fail the job if email notification fails
+    console.error(`[CLIP WORKER] Failed to send all clips ready notification:`, error);
+  }
 }
 
 /**
@@ -174,6 +248,9 @@ async function processClipGenerationJob(
     console.log(`[CLIP WORKER] Clip generation complete: ${clipId}`);
     console.log(`[CLIP WORKER] Storage URL: ${generatedClip.storageUrl}`);
     console.log(`[CLIP WORKER] File size: ${(generatedClip.fileSize / 1024 / 1024).toFixed(2)} MB`);
+
+    // Check if all clips for this video are ready and send email notification
+    await checkAndNotifyAllClipsReady(videoId, userId, workspaceId);
   } catch (error) {
     console.error(`[CLIP WORKER] Error generating clip ${clipId}:`, error);
 

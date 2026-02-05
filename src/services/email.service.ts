@@ -406,6 +406,87 @@ class EmailService {
 
     return this.sendEmail({ to, subject, html });
   }
+
+  /**
+   * Send notification when all clips for a video have finished generating
+   */
+  async sendAllClipsReadyNotification(params: {
+    to: string;
+    userName: string;
+    videoTitle: string;
+    clipCount: number;
+    videoId: string;
+    workspaceSlug?: string;
+  }): Promise<boolean> {
+    const { to, userName, videoTitle, clipCount, videoId, workspaceSlug } = params;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    const viewUrl = workspaceSlug
+      ? `${frontendUrl}/${workspaceSlug}/videos/${videoId}/clips`
+      : `${frontendUrl}/videos/${videoId}/clips`;
+
+    console.log("\n╔══════════════════════════════════════════════════════════════╗");
+    console.log("║              ALL CLIPS READY NOTIFICATION                    ║");
+    console.log("╠══════════════════════════════════════════════════════════════╣");
+    console.log(`║ To: ${to}`);
+    console.log(`║ Video: ${videoTitle}`);
+    console.log(`║ Clips ready: ${clipCount}`);
+    console.log("╚══════════════════════════════════════════════════════════════╝\n");
+
+    const subject = `🎬 All ${clipCount} clips are ready for "${videoTitle}"!`;
+
+    const content = `
+      <!-- Success icon -->
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div style="display: inline-block; width: 64px; height: 64px; background-color: #dcfce7; border-radius: 50%; line-height: 64px;">
+          <span style="font-size: 28px;">🎬</span>
+        </div>
+      </div>
+
+      <!-- Heading -->
+      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textDark}; font-family: ${FONT_STACK}; text-align: center;">
+        Your Clips Are Ready!
+      </h1>
+      <p style="margin: 0 0 8px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textGray}; text-align: center;">
+        Hey ${userName}, all your clips have finished generating and are ready to download!
+      </p>
+      <p style="margin: 0 0 24px; font-size: 18px; font-weight: 600; color: ${BRAND_COLORS.textDark}; text-align: center;">
+        "${videoTitle}"
+      </p>
+
+      <!-- Stats -->
+      <div style="background-color: #dcfce7; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: center;">
+        <p style="margin: 0; font-size: 32px; font-weight: 700; color: #16a34a;">
+          ${clipCount}
+        </p>
+        <p style="margin: 4px 0 0; font-size: 14px; color: #166534;">
+          clips ready to download
+        </p>
+      </div>
+
+      <!-- CTA Button -->
+      <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td align="center" style="padding-bottom: 16px;">
+            ${primaryButton('Download Your Clips', viewUrl)}
+          </td>
+        </tr>
+      </table>
+
+      ${divider()}
+
+      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textLight}; text-align: center;">
+        Your clips include captions and are optimized for social media. Start sharing!
+      </p>
+    `;
+
+    const html = baseTemplate({
+      preheaderText: `All ${clipCount} clips are ready for "${videoTitle}"`,
+      content,
+      footerText: `You're receiving this because you uploaded a video to ScaleReach.`,
+    });
+
+    return this.sendEmail({ to, subject, html });
+  }
 }
 
 
