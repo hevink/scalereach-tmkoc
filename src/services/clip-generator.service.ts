@@ -309,12 +309,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const wordEnd = this.formatASSTime(word.end);
           
           // Build the line text with current word highlighted (scaled + colored)
+          // Add extra spacing around highlighted word to prevent overlap when scaled 1.2x
           let text = "";
           for (let j = 0; j < line.words.length; j++) {
             const w = line.words[j];
             if (j === i) {
-              // Current word: scale 1.2x and highlight color
-              text += `{\\fscx120\\fscy120\\c${highlightColor}}${w.word}{\\fscx100\\fscy100\\c${textColor}} `;
+              // Current word: add padding space before, scale 1.2x, highlight color, add padding space after
+              // The \\h is a hard space in ASS that adds consistent spacing
+              text += `\\h{\\fscx120\\fscy120\\c${highlightColor}}${w.word}{\\fscx100\\fscy100\\c${textColor}}\\h `;
             } else {
               text += `${w.word} `;
             }
