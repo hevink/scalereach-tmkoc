@@ -10,7 +10,6 @@ import {
   CAPTION_TEMPLATES,
   RAINBOW_TEMPLATE,
   CLASSIC_TEMPLATE,
-  BEAST_TEMPLATE,
   SIMPLE_TEMPLATE,
   HORMOZI_TEMPLATE,
   MRBEAST_PRO_TEMPLATE,
@@ -32,8 +31,8 @@ describe("Caption Templates", () => {
       expect(CAPTION_TEMPLATES.length).toBeGreaterThanOrEqual(5);
     });
 
-    it("should have 15 templates including new viral templates", () => {
-      expect(CAPTION_TEMPLATES.length).toBe(15);
+    it("should have 14 templates including new viral templates", () => {
+      expect(CAPTION_TEMPLATES.length).toBe(14);
     });
   });
 
@@ -62,24 +61,6 @@ describe("Caption Templates", () => {
 
     it("should have bounce animation", () => {
       expect(CLASSIC_TEMPLATE.style.animation).toBe("bounce");
-    });
-  });
-
-  describe("Beast Template (MrBeast style)", () => {
-    it("should have correct ID", () => {
-      expect(BEAST_TEMPLATE.id).toBe("beast");
-    });
-
-    it("should have Bangers font for bold impact", () => {
-      expect(BEAST_TEMPLATE.style.fontFamily).toBe("Bangers");
-    });
-
-    it("should have bounce animation", () => {
-      expect(BEAST_TEMPLATE.style.animation).toBe("bounce");
-    });
-
-    it("should have green highlight color", () => {
-      expect(BEAST_TEMPLATE.style.highlightColor).toBe("#50FE3C");
     });
   });
 

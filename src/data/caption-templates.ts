@@ -223,39 +223,6 @@ export const BOBBY_TEMPLATE: CaptionTemplate = {
 };
 
 /**
- * Beast Template
- * Bold Bangers font with green highlight - MrBeast style
- */
-export const BEAST_TEMPLATE: CaptionTemplate = {
-  id: "beast",
-  name: "Beast",
-  description: "Bold and energetic style inspired by top YouTubers",
-  platform: "YouTube",
-  style: {
-    fontFamily: "Bangers",
-    fontSize: 52,
-    textColor: "#FFFFFF",
-    backgroundColor: "#000000",
-    backgroundOpacity: 0,
-    position: "bottom",
-    alignment: "center",
-    animation: "bounce",
-    highlightColor: "#50FE3C",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-    outlineWidth: 5,
-    highlightScale: 130,
-    textTransform: "uppercase",
-    wordsPerLine: 3,
-  },
-  preview: "/templates/beast-preview.png",
-  createdAt: new Date("2024-04-03"),
-  updatedAt: new Date("2024-04-03"),
-};
-
-/**
  * Billy Template
  * Lilita One font with purple highlight
  */
@@ -536,7 +503,6 @@ export const CAPTION_TEMPLATES: CaptionTemplate[] = [
   JIMI_TEMPLATE,
   BASKER_TEMPLATE,
   BOBBY_TEMPLATE,
-  BEAST_TEMPLATE,
   BILLY_TEMPLATE,
   SIMPLE_TEMPLATE,
   HORMOZI_TEMPLATE,
