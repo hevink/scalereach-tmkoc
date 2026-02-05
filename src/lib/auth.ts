@@ -128,6 +128,8 @@ export const auth = betterAuth({
     "http://localhost:3001", 
     "http://localhost:5173", 
     "http://localhost:5174",
+    "https://app.scalereach.ai",
+    "https://scalereach-f1.vercel.app",
     process.env.FRONTEND_URL,
   ].filter(Boolean) as string[],
   secret: process.env.BETTER_AUTH_SECRET || "default_secret_for_development",
