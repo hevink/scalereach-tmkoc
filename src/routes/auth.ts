@@ -11,6 +11,8 @@ const ALLOWED_ORIGINS = [
   "http://localhost:3001",
   "http://localhost:5173",
   "http://localhost:5174",
+  "https://app.scalereach.ai",
+  "https://scalereach-f1.vercel.app"
 ];
 
 // Mount all Better Auth endpoints - Better Auth handles /sign-up/email, /sign-in/email, etc.
