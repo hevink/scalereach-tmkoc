@@ -242,8 +242,9 @@ export class ClipGeneratorService {
     // Position: bottom = 2, center = 5, top = 8
     const alignment = style?.position === "top" ? 8 : style?.position === "center" ? 5 : 2;
     
-    // Vertical margin based on position
-    const marginV = style?.position === "center" ? 0 : 60;
+    // Vertical margin based on position - higher value pushes captions further from edge
+    // For bottom position, use larger margin to position captions higher up
+    const marginV = style?.position === "center" ? 0 : style?.position === "top" ? 60 : 120;
 
     // Intro title style - slightly larger than captions, positioned at 25% from top
     const introFontSize = Math.round(fontSize * 1.2);
