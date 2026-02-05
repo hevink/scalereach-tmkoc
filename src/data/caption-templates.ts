@@ -25,7 +25,7 @@ export interface CaptionTemplate {
 
 /**
  * Rainbow Template
- * Multi-color highlight with line-fill animation
+ * Multi-color highlight with line-fill animation - Enhanced for viral impact
  */
 export const RAINBOW_TEMPLATE: CaptionTemplate = {
   id: "rainbow",
@@ -34,18 +34,20 @@ export const RAINBOW_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Montserrat",
-    fontSize: 36,
+    fontSize: 46,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
     alignment: "center",
-    animation: "word-by-word",
-    highlightColor: "#FFFF00",
+    animation: "karaoke",
+    highlightColor: "#FFD700",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 4,
+    highlightScale: 130,
   },
   preview: "/templates/rainbow-preview.png",
   createdAt: new Date("2024-06-14"),
@@ -54,16 +56,16 @@ export const RAINBOW_TEMPLATE: CaptionTemplate = {
 
 /**
  * Classic Template
- * Spring animation with yellow highlight
+ * Spring animation with yellow highlight - Enhanced with bolder text
  */
 export const CLASSIC_TEMPLATE: CaptionTemplate = {
   id: "classic",
   name: "Classic",
-  description: "Classic style with spring animation and yellow highlight",
+  description: "Classic viral style with bounce animation and yellow highlight",
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
-    fontSize: 32,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -75,6 +77,8 @@ export const CLASSIC_TEMPLATE: CaptionTemplate = {
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 4,
+    highlightScale: 125,
   },
   preview: "/templates/classic-preview.png",
   createdAt: new Date("2024-04-09"),
@@ -83,27 +87,29 @@ export const CLASSIC_TEMPLATE: CaptionTemplate = {
 
 /**
  * Sara Template
- * Box highlight with red/orange accent
+ * Box highlight with red/orange accent - Enhanced with karaoke animation
  */
 export const SARA_TEMPLATE: CaptionTemplate = {
   id: "sara",
   name: "Sara",
-  description: "Elegant box highlight style with warm accent colors",
+  description: "Bold box highlight style with warm accent colors",
   platform: "Universal",
   style: {
     fontFamily: "Lexend",
-    fontSize: 40,
-    textColor: "#fffee5",
+    fontSize: 48,
+    textColor: "#FFFFFF",
     backgroundColor: "#e13809",
     backgroundOpacity: 100,
     position: "bottom",
     alignment: "center",
-    animation: "none",
-    highlightColor: "#e13809",
+    animation: "karaoke",
+    highlightColor: "#FFFF00",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 3,
+    highlightScale: 120,
   },
   preview: "/templates/sara-preview.png",
   createdAt: new Date("2024-04-08"),
@@ -112,17 +118,17 @@ export const SARA_TEMPLATE: CaptionTemplate = {
 
 /**
  * Jimi Template
- * Blue tones with green highlight
+ * Blue tones with green highlight - Enhanced with larger text
  */
 export const JIMI_TEMPLATE: CaptionTemplate = {
   id: "jimi",
   name: "Jimi",
-  description: "Cool blue tones with vibrant green highlight",
+  description: "Cool blue tones with vibrant neon green highlight",
   platform: "Universal",
   style: {
     fontFamily: "Titan One",
-    fontSize: 44,
-    textColor: "#cddcf4",
+    fontSize: 50,
+    textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
@@ -132,7 +138,11 @@ export const JIMI_TEMPLATE: CaptionTemplate = {
     highlightEnabled: true,
     shadow: true,
     outline: true,
-    outlineColor: "#103e89",
+    outlineColor: "#000000",
+    outlineWidth: 4,
+    highlightScale: 130,
+    glowEnabled: true,
+    glowIntensity: 2,
   },
   preview: "/templates/jimi-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -141,27 +151,28 @@ export const JIMI_TEMPLATE: CaptionTemplate = {
 
 /**
  * Basker Template
- * Elegant serif font with subtle shadow
+ * Elegant serif font with subtle shadow - Enhanced with fade animation
  */
 export const BASKER_TEMPLATE: CaptionTemplate = {
   id: "basker",
   name: "Basker",
-  description: "Elegant serif style with subtle shadow effect",
+  description: "Elegant serif style with golden highlights for premium content",
   platform: "Universal",
   style: {
     fontFamily: "Libre Baskerville",
-    fontSize: 32,
-    textColor: "#fffff5",
+    fontSize: 42,
+    textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
     alignment: "center",
-    animation: "none",
-    highlightColor: "#fff194",
+    animation: "fade",
+    highlightColor: "#FFD700",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 3,
   },
   preview: "/templates/basker-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -170,27 +181,29 @@ export const BASKER_TEMPLATE: CaptionTemplate = {
 
 /**
  * Bobby Template
- * Box highlight with cyan accent
+ * Box highlight with cyan accent - Enhanced with karaoke animation
  */
 export const BOBBY_TEMPLATE: CaptionTemplate = {
   id: "bobby",
   name: "Bobby",
-  description: "Clean box highlight with cyan accent color",
+  description: "Bold box highlight with vibrant cyan accent",
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
-    fontSize: 32,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#5cd3ff",
     backgroundOpacity: 100,
     position: "bottom",
     alignment: "center",
-    animation: "none",
-    highlightColor: "#5cd3ff",
+    animation: "karaoke",
+    highlightColor: "#FFFF00",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 3,
+    highlightScale: 120,
   },
   preview: "/templates/bobby-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -199,7 +212,7 @@ export const BOBBY_TEMPLATE: CaptionTemplate = {
 
 /**
  * Beast Template
- * Bold Bangers font with green highlight - MrBeast style
+ * Bold Bangers font with green highlight - MrBeast style - Enhanced
  */
 export const BEAST_TEMPLATE: CaptionTemplate = {
   id: "beast",
@@ -208,7 +221,7 @@ export const BEAST_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Bangers",
-    fontSize: 42,
+    fontSize: 54,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -220,6 +233,10 @@ export const BEAST_TEMPLATE: CaptionTemplate = {
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 5,
+    highlightScale: 130,
+    glowEnabled: true,
+    glowIntensity: 2,
   },
   preview: "/templates/beast-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -228,27 +245,32 @@ export const BEAST_TEMPLATE: CaptionTemplate = {
 
 /**
  * Billy Template
- * Lilita One font with purple highlight
+ * Lilita One font with purple highlight - Enhanced with bounce animation
  */
 export const BILLY_TEMPLATE: CaptionTemplate = {
   id: "billy",
   name: "Billy",
-  description: "Fun rounded font with purple highlight",
+  description: "Fun rounded font with vibrant purple highlight",
   platform: "Universal",
   style: {
     fontFamily: "Lilita One",
-    fontSize: 38,
+    fontSize: 48,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
     alignment: "center",
-    animation: "none",
+    animation: "bounce",
     highlightColor: "#dc7aff",
     highlightEnabled: true,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 4,
+    highlightScale: 125,
+    glowEnabled: true,
+    glowColor: "#dc7aff",
+    glowIntensity: 2,
   },
   preview: "/templates/billy-preview.png",
   createdAt: new Date("2024-04-03"),
@@ -257,31 +279,212 @@ export const BILLY_TEMPLATE: CaptionTemplate = {
 
 /**
  * Simple Template
- * Clean Inter font with no highlight
+ * Clean Inter font with no highlight - Enhanced with larger text
  */
 export const SIMPLE_TEMPLATE: CaptionTemplate = {
   id: "simple",
   name: "Simple",
-  description: "Clean and minimal style with no highlight",
+  description: "Clean and minimal style - perfect for professional content",
   platform: "Universal",
   style: {
     fontFamily: "Inter",
-    fontSize: 32,
+    fontSize: 40,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     position: "bottom",
     alignment: "center",
-    animation: "none",
+    animation: "fade",
     highlightColor: "#FFFFFF",
     highlightEnabled: false,
     shadow: true,
     outline: true,
     outlineColor: "#000000",
+    outlineWidth: 3,
   },
   preview: "/templates/simple-preview.png",
   createdAt: new Date("2024-04-03"),
   updatedAt: new Date("2024-04-03"),
+};
+
+/**
+ * Hormozi Template
+ * Alex Hormozi style - bold Anton font with gold highlight
+ */
+export const HORMOZI_TEMPLATE: CaptionTemplate = {
+  id: "hormozi",
+  name: "Hormozi",
+  description: "Bold entrepreneurial style with gold highlights - inspired by Alex Hormozi",
+  platform: "YouTube",
+  style: {
+    fontFamily: "Anton",
+    fontSize: 52,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "karaoke",
+    highlightColor: "#FFD700",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/hormozi-preview.png",
+  isNew: true,
+  createdAt: new Date("2024-06-14"),
+  updatedAt: new Date("2024-06-14"),
+};
+
+/**
+ * MrBeast Pro Template
+ * Enhanced MrBeast style with bright green highlight and bounce animation
+ */
+export const MRBEAST_PRO_TEMPLATE: CaptionTemplate = {
+  id: "mrbeast-pro",
+  name: "MrBeast Pro",
+  description: "High-energy style with bright green highlights and bounce animation",
+  platform: "YouTube",
+  style: {
+    fontFamily: "Bangers",
+    fontSize: 56,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "bounce",
+    highlightColor: "#00FF00",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/mrbeast-pro-preview.png",
+  isNew: true,
+  createdAt: new Date("2024-06-14"),
+  updatedAt: new Date("2024-06-14"),
+};
+
+/**
+ * Clean Creator Template
+ * Modern creator style - Iman Gadzhi inspired with cyan accent
+ */
+export const CLEAN_CREATOR_TEMPLATE: CaptionTemplate = {
+  id: "clean-creator",
+  name: "Clean Creator",
+  description: "Modern minimalist style with cyan accents - perfect for educational content",
+  platform: "YouTube",
+  style: {
+    fontFamily: "Montserrat",
+    fontSize: 40,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "fade",
+    highlightColor: "#00D4FF",
+    highlightEnabled: true,
+    shadow: false,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/clean-creator-preview.png",
+  isNew: true,
+  createdAt: new Date("2024-06-14"),
+  updatedAt: new Date("2024-06-14"),
+};
+
+/**
+ * GaryVee Template
+ * High energy style with red highlights - Gary Vaynerchuk inspired
+ */
+export const GARYVEE_TEMPLATE: CaptionTemplate = {
+  id: "garyvee",
+  name: "GaryVee",
+  description: "High-energy motivational style with bold red highlights",
+  platform: "Universal",
+  style: {
+    fontFamily: "Bebas Neue",
+    fontSize: 58,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "word-by-word",
+    highlightColor: "#FF0000",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/garyvee-preview.png",
+  isNew: true,
+  createdAt: new Date("2024-06-14"),
+  updatedAt: new Date("2024-06-14"),
+};
+
+/**
+ * TikTok Native Template
+ * Native TikTok caption look with pink highlight
+ */
+export const TIKTOK_NATIVE_TEMPLATE: CaptionTemplate = {
+  id: "tiktok-native",
+  name: "TikTok Native",
+  description: "Native TikTok style captions with signature pink highlights",
+  platform: "TikTok",
+  style: {
+    fontFamily: "Poppins",
+    fontSize: 36,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "karaoke",
+    highlightColor: "#FE2C55",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/tiktok-native-preview.png",
+  isNew: true,
+  createdAt: new Date("2024-06-14"),
+  updatedAt: new Date("2024-06-14"),
+};
+
+/**
+ * Neon Pop Template
+ * Eye-catching neon style with cyan text and magenta highlight
+ */
+export const NEON_POP_TEMPLATE: CaptionTemplate = {
+  id: "neon-pop",
+  name: "Neon Pop",
+  description: "Eye-catching neon style with vibrant cyan and magenta colors",
+  platform: "Universal",
+  style: {
+    fontFamily: "Permanent Marker",
+    fontSize: 44,
+    textColor: "#00FFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    position: "bottom",
+    alignment: "center",
+    animation: "karaoke",
+    highlightColor: "#FF00FF",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+  },
+  preview: "/templates/neon-pop-preview.png",
+  isNew: true,
+  createdAt: new Date("2024-06-14"),
+  updatedAt: new Date("2024-06-14"),
 };
 
 /**
@@ -297,6 +500,12 @@ export const CAPTION_TEMPLATES: CaptionTemplate[] = [
   BEAST_TEMPLATE,
   BILLY_TEMPLATE,
   SIMPLE_TEMPLATE,
+  HORMOZI_TEMPLATE,
+  MRBEAST_PRO_TEMPLATE,
+  CLEAN_CREATOR_TEMPLATE,
+  GARYVEE_TEMPLATE,
+  TIKTOK_NATIVE_TEMPLATE,
+  NEON_POP_TEMPLATE,
 ];
 
 /**
@@ -343,6 +552,9 @@ export const SUPPORTED_FONTS = [
   "Titan One",
   "Lexend",
   "Libre Baskerville",
+  "Anton",
+  "Bebas Neue",
+  "Permanent Marker",
 ] as const;
 
 export type SupportedFont = (typeof SUPPORTED_FONTS)[number];

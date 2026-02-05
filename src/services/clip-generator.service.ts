@@ -42,6 +42,14 @@ export interface ClipGenerationOptions {
       shadow?: boolean;
       outline?: boolean;
       outlineColor?: string;
+      // Enhanced options for viral caption rendering
+      outlineWidth?: number;        // 1-8, default 3
+      glowEnabled?: boolean;        // Add glow effect
+      glowColor?: string;           // Glow color
+      glowIntensity?: number;       // 1-5 blur strength
+      highlightScale?: number;      // 100-150, default 125
+      textTransform?: "none" | "uppercase";
+      wordsPerLine?: number;        // 3-7, default 5
     };
   };
 }
@@ -237,11 +245,26 @@ export class ClipGeneratorService {
     const outlineColor = this.hexToASSColor(style?.outlineColor || "#000000");
     const highlightColor = this.hexToASSColor(style?.highlightColor || "#FFFF00");
     const shadow = style?.shadow ? 2 : 0;
-    const outline = style?.outline ? 3 : 2;
-    
+    // Use custom outline width if provided, otherwise default based on outline toggle
+    const outline = style?.outlineWidth ?? (style?.outline ? 3 : 2);
+
+    // Enhanced style options
+    const glowEnabled = style?.glowEnabled ?? false;
+    const glowColor = style?.glowColor ? this.hexToASSColor(style.glowColor) : highlightColor;
+    const glowIntensity = style?.glowIntensity ?? 2;
+    const highlightScale = style?.highlightScale ?? 125;
+    const textTransform = style?.textTransform ?? "none";
+    const maxWordsPerLine = style?.wordsPerLine ?? 5;
+
+    // Helper to apply text transform
+    const transformWord = (word: string) => {
+      if (textTransform === "uppercase") return word.toUpperCase();
+      return word;
+    };
+
     // Position: bottom = 2, center = 5, top = 8
     const alignment = style?.position === "top" ? 8 : style?.position === "center" ? 5 : 2;
-    
+
     // Vertical margin based on position - higher value pushes captions further from edge
     // For bottom position, use larger margin to position captions higher up
     const marginV = style?.position === "center" ? 0 : style?.position === "top" ? 60 : 120;
@@ -263,7 +286,7 @@ WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
-Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,120,120,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
+Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
 Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
 
 [Events]
@@ -273,16 +296,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Add intro title for first 3 seconds if provided
     if (introTitle) {
       // Fade in effect: {\fad(300,300)} - 300ms fade in, 300ms fade out
-      ass += `Dialogue: 1,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(300,300)}${introTitle}\n`;
+      ass += `Dialogue: 1,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(300,300)}${transformWord(introTitle)}\n`;
     }
 
-    // Group words into lines (max ~5 words per line for readability)
+    // Group words into lines based on wordsPerLine setting
     const lines: Array<{ words: typeof words; start: number; end: number }> = [];
     let currentLine: typeof words = [];
-    
+
     for (const word of words) {
       currentLine.push(word);
-      if (currentLine.length >= 5 || word.word.endsWith('.') || word.word.endsWith('?') || word.word.endsWith('!')) {
+      if (currentLine.length >= maxWordsPerLine || word.word.endsWith('.') || word.word.endsWith('?') || word.word.endsWith('!')) {
         lines.push({
           words: currentLine,
           start: currentLine[0].start,
@@ -299,30 +322,115 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       });
     }
 
-    // Generate dialogue lines
-    if (style?.highlightEnabled) {
-      // Word-by-word karaoke with scale effect
+    // Generate dialogue lines based on animation type
+    const animation = style?.animation || "none";
+
+    // Glow blur value for enhanced highlight effect
+    const glowBlur = glowEnabled ? glowIntensity : 1;
+
+    if (style?.highlightEnabled && animation === "karaoke") {
+      // Karaoke style: word-by-word with enhanced glow effect
       // Each word gets its own dialogue line that shows highlighted during its time
       for (const line of lines) {
         for (let i = 0; i < line.words.length; i++) {
           const word = line.words[i];
           const wordStart = this.formatASSTime(word.start);
           const wordEnd = this.formatASSTime(word.end);
-          
-          // Build the line text with current word highlighted (scaled + colored)
-          // Add extra spacing around highlighted word to prevent overlap when scaled 1.2x
+
+          // Build the line text with current word highlighted (scaled + colored + glow)
           let text = "";
           for (let j = 0; j < line.words.length; j++) {
             const w = line.words[j];
+            const transformedWord = transformWord(w.word);
             if (j === i) {
-              // Current word: add padding space before, scale 1.2x, highlight color, add padding space after
-              // The \\h is a hard space in ASS that adds consistent spacing
-              text += `\\h{\\fscx120\\fscy120\\c${highlightColor}}${w.word}{\\fscx100\\fscy100\\c${textColor}}\\h `;
+              // Enhanced highlight: custom scale, highlight color, thicker outline, glow effect
+              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\bord${outline + 1}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\bord${outline}\\blur0} `;
             } else {
-              text += `${w.word} `;
+              text += `${transformedWord} `;
             }
           }
-          
+
+          ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+        }
+      }
+    } else if (style?.highlightEnabled && animation === "word-by-word") {
+      // Word-by-word: fade in each word sequentially with highlight on current
+      for (const line of lines) {
+        for (let i = 0; i < line.words.length; i++) {
+          const word = line.words[i];
+          const wordStart = this.formatASSTime(word.start);
+          const wordEnd = this.formatASSTime(word.end);
+
+          // Show all words up to current, with current word highlighted
+          let text = "";
+          for (let j = 0; j <= i; j++) {
+            const w = line.words[j];
+            const transformedWord = transformWord(w.word);
+            if (j === i) {
+              // Current word: highlighted with scale and color
+              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\bord${outline + 1}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\bord${outline}\\blur0} `;
+            } else {
+              text += `${transformedWord} `;
+            }
+          }
+
+          ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+        }
+      }
+    } else if (animation === "bounce") {
+      // Bounce: scale animation on each word as it appears
+      for (const line of lines) {
+        for (let i = 0; i < line.words.length; i++) {
+          const word = line.words[i];
+          const wordStart = this.formatASSTime(word.start);
+          const wordEnd = this.formatASSTime(word.end);
+
+          // Build line with bounce effect on current word using \t transform
+          let text = "";
+          for (let j = 0; j <= i; j++) {
+            const w = line.words[j];
+            const transformedWord = transformWord(w.word);
+            if (j === i) {
+              // Bounce: scale up then back down using transform
+              const bounceColor = style?.highlightEnabled ? highlightColor : textColor;
+              const bounceScale = Math.round(highlightScale * 0.92); // Slightly less than highlight scale
+              text += `{\\fscx100\\fscy100\\t(0,80,\\fscx${bounceScale}\\fscy${bounceScale})\\t(80,160,\\fscx100\\fscy100)\\c${bounceColor}}${transformedWord}{\\c${textColor}} `;
+            } else {
+              text += `${transformedWord} `;
+            }
+          }
+
+          ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+        }
+      }
+    } else if (animation === "fade") {
+      // Fade: each line fades in
+      for (const line of lines) {
+        const startTime = this.formatASSTime(line.start);
+        const endTime = this.formatASSTime(line.end);
+        const text = line.words.map(w => transformWord(w.word)).join(" ");
+        // Fade in over 200ms, no fade out
+        ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,{\\fad(200,0)}${text}\n`;
+      }
+    } else if (style?.highlightEnabled) {
+      // Default highlight without specific animation (legacy karaoke behavior)
+      for (const line of lines) {
+        for (let i = 0; i < line.words.length; i++) {
+          const word = line.words[i];
+          const wordStart = this.formatASSTime(word.start);
+          const wordEnd = this.formatASSTime(word.end);
+
+          let text = "";
+          for (let j = 0; j < line.words.length; j++) {
+            const w = line.words[j];
+            const transformedWord = transformWord(w.word);
+            if (j === i) {
+              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\bord${outline + 1}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\bord${outline}\\blur0} `;
+            } else {
+              text += `${transformedWord} `;
+            }
+          }
+
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
         }
       }
@@ -331,7 +439,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       for (const line of lines) {
         const startTime = this.formatASSTime(line.start);
         const endTime = this.formatASSTime(line.end);
-        const text = line.words.map(w => w.word).join(" ");
+        const text = line.words.map(w => transformWord(w.word)).join(" ");
         ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${text}\n`;
       }
     }

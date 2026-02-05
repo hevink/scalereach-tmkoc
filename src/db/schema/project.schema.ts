@@ -38,6 +38,14 @@ export interface CaptionStyleConfig {
   shadow: boolean;
   outline: boolean;
   outlineColor?: string;
+  // Enhanced options for viral caption rendering
+  outlineWidth?: number;        // 1-8, default 3
+  glowEnabled?: boolean;        // Add glow effect
+  glowColor?: string;           // Glow color
+  glowIntensity?: number;       // 1-5 blur strength
+  highlightScale?: number;      // 100-150, default 120
+  textTransform?: "none" | "uppercase";
+  wordsPerLine?: number;        // 3-7, default 5
 }
 
 export const project = pgTable(

@@ -8,11 +8,16 @@
 import { describe, expect, it } from "bun:test";
 import {
   CAPTION_TEMPLATES,
-  TIKTOK_TEMPLATE,
-  REELS_TEMPLATE,
-  SHORTS_TEMPLATE,
-  MINIMAL_TEMPLATE,
-  BOLD_TEMPLATE,
+  RAINBOW_TEMPLATE,
+  CLASSIC_TEMPLATE,
+  BEAST_TEMPLATE,
+  SIMPLE_TEMPLATE,
+  HORMOZI_TEMPLATE,
+  MRBEAST_PRO_TEMPLATE,
+  CLEAN_CREATOR_TEMPLATE,
+  GARYVEE_TEMPLATE,
+  TIKTOK_NATIVE_TEMPLATE,
+  NEON_POP_TEMPLATE,
   getTemplateById,
   getAllTemplates,
   getTemplatesByPlatform,
@@ -27,89 +32,194 @@ describe("Caption Templates", () => {
       expect(CAPTION_TEMPLATES.length).toBeGreaterThanOrEqual(5);
     });
 
-    it("should have exactly 5 templates", () => {
-      expect(CAPTION_TEMPLATES.length).toBe(5);
+    it("should have 15 templates including new viral templates", () => {
+      expect(CAPTION_TEMPLATES.length).toBe(15);
     });
   });
 
-  describe("TikTok Template (Requirement 11.2)", () => {
+  describe("Rainbow Template", () => {
     it("should have correct ID", () => {
-      expect(TIKTOK_TEMPLATE.id).toBe("tiktok");
+      expect(RAINBOW_TEMPLATE.id).toBe("rainbow");
     });
 
-    it("should have bold, centered text", () => {
-      expect(TIKTOK_TEMPLATE.style.alignment).toBe("center");
-      expect(TIKTOK_TEMPLATE.style.fontSize).toBeGreaterThanOrEqual(40);
-    });
-
-    it("should have word-by-word animation", () => {
-      expect(TIKTOK_TEMPLATE.style.animation).toBe("word-by-word");
+    it("should have karaoke animation", () => {
+      expect(RAINBOW_TEMPLATE.style.animation).toBe("karaoke");
     });
 
     it("should have highlighting enabled", () => {
-      expect(TIKTOK_TEMPLATE.style.highlightEnabled).toBe(true);
+      expect(RAINBOW_TEMPLATE.style.highlightEnabled).toBe(true);
+    });
+
+    it("should have bold font size", () => {
+      expect(RAINBOW_TEMPLATE.style.fontSize).toBeGreaterThanOrEqual(46);
     });
   });
 
-  describe("Reels Template (Requirement 11.3)", () => {
+  describe("Classic Template", () => {
     it("should have correct ID", () => {
-      expect(REELS_TEMPLATE.id).toBe("reels");
-    });
-
-    it("should have gradient-style background", () => {
-      expect(REELS_TEMPLATE.style.backgroundColor).toBeDefined();
-      expect(REELS_TEMPLATE.style.backgroundOpacity).toBeGreaterThan(0);
-    });
-
-    it("should have fade animation", () => {
-      expect(REELS_TEMPLATE.style.animation).toBe("fade");
-    });
-  });
-
-  describe("Shorts Template (Requirement 11.4)", () => {
-    it("should have correct ID", () => {
-      expect(SHORTS_TEMPLATE.id).toBe("shorts");
-    });
-
-    it("should have word highlighting (karaoke style)", () => {
-      expect(SHORTS_TEMPLATE.style.animation).toBe("karaoke");
-      expect(SHORTS_TEMPLATE.style.highlightEnabled).toBe(true);
-    });
-  });
-
-  describe("Minimal Template (Requirement 11.5)", () => {
-    it("should have correct ID", () => {
-      expect(MINIMAL_TEMPLATE.id).toBe("minimal");
-    });
-
-    it("should have clean, simple text with no background", () => {
-      expect(MINIMAL_TEMPLATE.style.backgroundOpacity).toBe(0);
-    });
-
-    it("should have no animation", () => {
-      expect(MINIMAL_TEMPLATE.style.animation).toBe("none");
-    });
-
-    it("should have highlighting disabled", () => {
-      expect(MINIMAL_TEMPLATE.style.highlightEnabled).toBe(false);
-    });
-  });
-
-  describe("Bold Template (Requirement 11.6)", () => {
-    it("should have correct ID", () => {
-      expect(BOLD_TEMPLATE.id).toBe("bold");
-    });
-
-    it("should have large, impactful text", () => {
-      expect(BOLD_TEMPLATE.style.fontSize).toBeGreaterThanOrEqual(50);
+      expect(CLASSIC_TEMPLATE.id).toBe("classic");
     });
 
     it("should have bounce animation", () => {
-      expect(BOLD_TEMPLATE.style.animation).toBe("bounce");
+      expect(CLASSIC_TEMPLATE.style.animation).toBe("bounce");
+    });
+  });
+
+  describe("Beast Template (MrBeast style)", () => {
+    it("should have correct ID", () => {
+      expect(BEAST_TEMPLATE.id).toBe("beast");
     });
 
-    it("should be positioned in center for maximum impact", () => {
-      expect(BOLD_TEMPLATE.style.position).toBe("center");
+    it("should have Bangers font for bold impact", () => {
+      expect(BEAST_TEMPLATE.style.fontFamily).toBe("Bangers");
+    });
+
+    it("should have bounce animation", () => {
+      expect(BEAST_TEMPLATE.style.animation).toBe("bounce");
+    });
+
+    it("should have green highlight color", () => {
+      expect(BEAST_TEMPLATE.style.highlightColor).toBe("#50FE3C");
+    });
+  });
+
+  describe("Simple Template (Minimal style)", () => {
+    it("should have correct ID", () => {
+      expect(SIMPLE_TEMPLATE.id).toBe("simple");
+    });
+
+    it("should have no background", () => {
+      expect(SIMPLE_TEMPLATE.style.backgroundOpacity).toBe(0);
+    });
+
+    it("should have fade animation for smooth appearance", () => {
+      expect(SIMPLE_TEMPLATE.style.animation).toBe("fade");
+    });
+
+    it("should have highlighting disabled", () => {
+      expect(SIMPLE_TEMPLATE.style.highlightEnabled).toBe(false);
+    });
+
+    it("should have larger font size for readability", () => {
+      expect(SIMPLE_TEMPLATE.style.fontSize).toBeGreaterThanOrEqual(40);
+    });
+  });
+
+  describe("New Viral Templates", () => {
+    describe("Hormozi Template", () => {
+      it("should have correct ID", () => {
+        expect(HORMOZI_TEMPLATE.id).toBe("hormozi");
+      });
+
+      it("should have Anton font", () => {
+        expect(HORMOZI_TEMPLATE.style.fontFamily).toBe("Anton");
+      });
+
+      it("should have gold highlight color", () => {
+        expect(HORMOZI_TEMPLATE.style.highlightColor).toBe("#FFD700");
+      });
+
+      it("should have karaoke animation", () => {
+        expect(HORMOZI_TEMPLATE.style.animation).toBe("karaoke");
+      });
+
+      it("should be marked as new", () => {
+        expect(HORMOZI_TEMPLATE.isNew).toBe(true);
+      });
+    });
+
+    describe("MrBeast Pro Template", () => {
+      it("should have correct ID", () => {
+        expect(MRBEAST_PRO_TEMPLATE.id).toBe("mrbeast-pro");
+      });
+
+      it("should have Bangers font", () => {
+        expect(MRBEAST_PRO_TEMPLATE.style.fontFamily).toBe("Bangers");
+      });
+
+      it("should have bright green highlight", () => {
+        expect(MRBEAST_PRO_TEMPLATE.style.highlightColor).toBe("#00FF00");
+      });
+
+      it("should have bounce animation", () => {
+        expect(MRBEAST_PRO_TEMPLATE.style.animation).toBe("bounce");
+      });
+    });
+
+    describe("Clean Creator Template", () => {
+      it("should have correct ID", () => {
+        expect(CLEAN_CREATOR_TEMPLATE.id).toBe("clean-creator");
+      });
+
+      it("should have Montserrat font", () => {
+        expect(CLEAN_CREATOR_TEMPLATE.style.fontFamily).toBe("Montserrat");
+      });
+
+      it("should have fade animation", () => {
+        expect(CLEAN_CREATOR_TEMPLATE.style.animation).toBe("fade");
+      });
+
+      it("should have cyan highlight", () => {
+        expect(CLEAN_CREATOR_TEMPLATE.style.highlightColor).toBe("#00D4FF");
+      });
+    });
+
+    describe("GaryVee Template", () => {
+      it("should have correct ID", () => {
+        expect(GARYVEE_TEMPLATE.id).toBe("garyvee");
+      });
+
+      it("should have Bebas Neue font", () => {
+        expect(GARYVEE_TEMPLATE.style.fontFamily).toBe("Bebas Neue");
+      });
+
+      it("should have word-by-word animation", () => {
+        expect(GARYVEE_TEMPLATE.style.animation).toBe("word-by-word");
+      });
+
+      it("should have red highlight", () => {
+        expect(GARYVEE_TEMPLATE.style.highlightColor).toBe("#FF0000");
+      });
+    });
+
+    describe("TikTok Native Template", () => {
+      it("should have correct ID", () => {
+        expect(TIKTOK_NATIVE_TEMPLATE.id).toBe("tiktok-native");
+      });
+
+      it("should have Poppins font", () => {
+        expect(TIKTOK_NATIVE_TEMPLATE.style.fontFamily).toBe("Poppins");
+      });
+
+      it("should have karaoke animation", () => {
+        expect(TIKTOK_NATIVE_TEMPLATE.style.animation).toBe("karaoke");
+      });
+
+      it("should have TikTok pink highlight", () => {
+        expect(TIKTOK_NATIVE_TEMPLATE.style.highlightColor).toBe("#FE2C55");
+      });
+
+      it("should be for TikTok platform", () => {
+        expect(TIKTOK_NATIVE_TEMPLATE.platform).toBe("TikTok");
+      });
+    });
+
+    describe("Neon Pop Template", () => {
+      it("should have correct ID", () => {
+        expect(NEON_POP_TEMPLATE.id).toBe("neon-pop");
+      });
+
+      it("should have Permanent Marker font", () => {
+        expect(NEON_POP_TEMPLATE.style.fontFamily).toBe("Permanent Marker");
+      });
+
+      it("should have cyan text color", () => {
+        expect(NEON_POP_TEMPLATE.style.textColor).toBe("#00FFFF");
+      });
+
+      it("should have magenta highlight", () => {
+        expect(NEON_POP_TEMPLATE.style.highlightColor).toBe("#FF00FF");
+      });
     });
   });
 
@@ -145,57 +255,36 @@ describe("Caption Templates", () => {
       expect(typeof style.outline).toBe("boolean");
     };
 
-    it("TikTok template should have valid style properties", () => {
-      validateTemplateStyle(TIKTOK_TEMPLATE);
-    });
-
-    it("Reels template should have valid style properties", () => {
-      validateTemplateStyle(REELS_TEMPLATE);
-    });
-
-    it("Shorts template should have valid style properties", () => {
-      validateTemplateStyle(SHORTS_TEMPLATE);
-    });
-
-    it("Minimal template should have valid style properties", () => {
-      validateTemplateStyle(MINIMAL_TEMPLATE);
-    });
-
-    it("Bold template should have valid style properties", () => {
-      validateTemplateStyle(BOLD_TEMPLATE);
+    it("all templates should have valid style properties", () => {
+      for (const template of CAPTION_TEMPLATES) {
+        validateTemplateStyle(template);
+      }
     });
   });
 
   describe("getTemplateById", () => {
-    it("should return TikTok template for 'tiktok' ID", () => {
-      const template = getTemplateById("tiktok");
+    it("should return Rainbow template for 'rainbow' ID", () => {
+      const template = getTemplateById("rainbow");
       expect(template).toBeDefined();
-      expect(template?.id).toBe("tiktok");
-      expect(template?.name).toBe("TikTok");
+      expect(template?.id).toBe("rainbow");
     });
 
-    it("should return Reels template for 'reels' ID", () => {
-      const template = getTemplateById("reels");
+    it("should return Beast template for 'beast' ID", () => {
+      const template = getTemplateById("beast");
       expect(template).toBeDefined();
-      expect(template?.id).toBe("reels");
+      expect(template?.id).toBe("beast");
     });
 
-    it("should return Shorts template for 'shorts' ID", () => {
-      const template = getTemplateById("shorts");
+    it("should return Hormozi template for 'hormozi' ID", () => {
+      const template = getTemplateById("hormozi");
       expect(template).toBeDefined();
-      expect(template?.id).toBe("shorts");
+      expect(template?.id).toBe("hormozi");
     });
 
-    it("should return Minimal template for 'minimal' ID", () => {
-      const template = getTemplateById("minimal");
+    it("should return TikTok Native template for 'tiktok-native' ID", () => {
+      const template = getTemplateById("tiktok-native");
       expect(template).toBeDefined();
-      expect(template?.id).toBe("minimal");
-    });
-
-    it("should return Bold template for 'bold' ID", () => {
-      const template = getTemplateById("bold");
-      expect(template).toBeDefined();
-      expect(template?.id).toBe("bold");
+      expect(template?.id).toBe("tiktok-native");
     });
 
     it("should return undefined for non-existent ID", () => {
@@ -212,7 +301,7 @@ describe("Caption Templates", () => {
   describe("getAllTemplates", () => {
     it("should return all templates", () => {
       const templates = getAllTemplates();
-      expect(templates.length).toBe(5);
+      expect(templates.length).toBe(15);
     });
 
     it("should return templates with unique IDs", () => {
@@ -224,19 +313,15 @@ describe("Caption Templates", () => {
   });
 
   describe("getTemplatesByPlatform", () => {
-    it("should return TikTok template for 'TikTok' platform", () => {
+    it("should return TikTok Native template for 'TikTok' platform", () => {
       const templates = getTemplatesByPlatform("TikTok");
-      expect(templates.some((t) => t.id === "tiktok")).toBe(true);
+      expect(templates.some((t) => t.id === "tiktok-native")).toBe(true);
     });
 
-    it("should return Reels template for 'Instagram Reels' platform", () => {
-      const templates = getTemplatesByPlatform("Instagram Reels");
-      expect(templates.some((t) => t.id === "reels")).toBe(true);
-    });
-
-    it("should return Shorts template for 'YouTube Shorts' platform", () => {
-      const templates = getTemplatesByPlatform("YouTube Shorts");
-      expect(templates.some((t) => t.id === "shorts")).toBe(true);
+    it("should return YouTube templates for 'YouTube' platform", () => {
+      const templates = getTemplatesByPlatform("YouTube");
+      expect(templates.some((t) => t.id === "hormozi")).toBe(true);
+      expect(templates.some((t) => t.id === "mrbeast-pro")).toBe(true);
     });
 
     it("should include Universal templates for any platform", () => {
@@ -255,8 +340,8 @@ describe("Caption Templates", () => {
   });
 
   describe("Supported Fonts", () => {
-    it("should have at least 5 supported fonts", () => {
-      expect(SUPPORTED_FONTS.length).toBeGreaterThanOrEqual(5);
+    it("should have at least 15 supported fonts", () => {
+      expect(SUPPORTED_FONTS.length).toBeGreaterThanOrEqual(15);
     });
 
     it("should include common web fonts", () => {
@@ -265,9 +350,16 @@ describe("Caption Templates", () => {
       expect(SUPPORTED_FONTS).toContain("Montserrat");
     });
 
+    it("should include new viral template fonts", () => {
+      expect(SUPPORTED_FONTS).toContain("Anton");
+      expect(SUPPORTED_FONTS).toContain("Bebas Neue");
+      expect(SUPPORTED_FONTS).toContain("Permanent Marker");
+    });
+
     it("isSupportedFont should return true for supported fonts", () => {
       expect(isSupportedFont("Inter")).toBe(true);
       expect(isSupportedFont("Roboto")).toBe(true);
+      expect(isSupportedFont("Anton")).toBe(true);
     });
 
     it("isSupportedFont should return false for unsupported fonts", () => {
@@ -294,6 +386,15 @@ describe("Caption Templates", () => {
       for (const template of CAPTION_TEMPLATES) {
         expect(template.description.length).toBeGreaterThan(0);
       }
+    });
+
+    it("new viral templates should be marked as new", () => {
+      expect(HORMOZI_TEMPLATE.isNew).toBe(true);
+      expect(MRBEAST_PRO_TEMPLATE.isNew).toBe(true);
+      expect(CLEAN_CREATOR_TEMPLATE.isNew).toBe(true);
+      expect(GARYVEE_TEMPLATE.isNew).toBe(true);
+      expect(TIKTOK_NATIVE_TEMPLATE.isNew).toBe(true);
+      expect(NEON_POP_TEMPLATE.isNew).toBe(true);
     });
   });
 });
