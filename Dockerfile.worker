@@ -1,37 +1,39 @@
-# Base image with system deps (cached layer)
-FROM oven/bun:1-debian AS base
+# Build stage with native build tools
+FROM oven/bun:1-debian AS builder
 
-# Install all system dependencies in one layer (this gets cached)
+# Install build dependencies for native modules (better-sqlite3)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --no-save
+
+# Production stage
+FROM oven/bun:1-debian AS runner
+
+# Install runtime dependencies only (no build tools needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     ffmpeg \
     ca-certificates \
     curl \
-    build-essential \
     && pip3 install yt-dlp --break-system-packages \
-    && apt-get purge -y build-essential \
-    && apt-get autoremove -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /root/.cache
 
-# Dependencies stage (cached when package.json unchanged)
-FROM base AS deps
-WORKDIR /app
-COPY package.json bun.lock ./
-RUN bun install --no-save
-
-# Final stage
-FROM base AS runner
 WORKDIR /app
 
 # Create non-root user
 RUN useradd -m -u 1001 appuser
 
-# Copy deps from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy node_modules from builder (includes compiled native modules)
+COPY --from=builder /app/node_modules ./node_modules
 
-# Copy source (this layer changes most often, so it's last)
+# Copy source
 COPY package.json ./
 COPY src ./src
 COPY drizzle ./drizzle
