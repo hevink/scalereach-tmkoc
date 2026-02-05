@@ -78,6 +78,9 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   process.env.FRONTEND_URL,
+  "https://app.scalereach.ai",
+  "https://www.scalereach.ai",
+  "https://scalereach.ai",
 ].filter(Boolean) as string[];
 
 app.use(
