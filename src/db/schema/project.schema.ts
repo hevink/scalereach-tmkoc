@@ -30,7 +30,10 @@ export interface CaptionStyleConfig {
   textColor: string;
   backgroundColor?: string;
   backgroundOpacity: number;
-  position: "top" | "center" | "bottom";
+  position?: "top" | "center" | "bottom"; // Deprecated - use x, y instead
+  // X/Y positioning (0-100 percentage of video dimensions)
+  x?: number; // Horizontal position (0 = left, 50 = center, 100 = right)
+  y?: number; // Vertical position (0 = top, 50 = center, 100 = bottom)
   alignment: "left" | "center" | "right";
   animation: "none" | "word-by-word" | "karaoke" | "bounce" | "fade";
   highlightColor?: string;
