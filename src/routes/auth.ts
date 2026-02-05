@@ -1,19 +1,11 @@
 import { Hono } from "hono";
 import { auth } from "../lib/auth";
 import type { AuthContext } from "../lib/auth";
+import { ALLOWED_ORIGINS } from "../lib/constants";
 
 const authRouter = new Hono<{
   Variables: AuthContext;
 }>();
-
-const ALLOWED_ORIGINS = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "https://app.scalereach.ai",
-  "https://scalereach-f1.vercel.app"
-];
 
 // Mount all Better Auth endpoints - Better Auth handles /sign-up/email, /sign-in/email, etc.
 authRouter.all("/*", async (c) => {

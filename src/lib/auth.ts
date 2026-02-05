@@ -6,6 +6,7 @@ import { passkey } from "@better-auth/passkey";
 import { db } from "../db";
 import * as schema from "../db/schema";
 import { emailService } from "../services/email.service";
+import { ALLOWED_ORIGINS } from "./constants";
 
 export const auth = betterAuth({
   basePath: "/api/auth",
@@ -123,15 +124,7 @@ export const auth = betterAuth({
       },
     },
   },
-  trustedOrigins: [
-    "http://localhost:3000", 
-    "http://localhost:3001", 
-    "http://localhost:5173", 
-    "http://localhost:5174",
-    "https://app.scalereach.ai",
-    "https://scalereach-f1.vercel.app",
-    process.env.FRONTEND_URL,
-  ].filter(Boolean) as string[],
+  trustedOrigins: ALLOWED_ORIGINS,
   secret: process.env.BETTER_AUTH_SECRET || "default_secret_for_development",
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:3001",
   advanced: {

@@ -71,21 +71,11 @@ app.use(async (c, next) => {
 app.use(sentryRequestMiddleware);
 app.use(sentryMiddleware);
 
-// CORS configuration - allow localhost for development even in production
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
-  "http://localhost:5174",
-  process.env.FRONTEND_URL,
-  "https://app.scalereach.ai",
-  "https://www.scalereach.ai",
-  "https://scalereach.ai",
-].filter(Boolean) as string[];
+import { ALLOWED_ORIGINS } from "./lib/constants";
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: ALLOWED_ORIGINS,
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
