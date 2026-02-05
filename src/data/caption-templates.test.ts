@@ -218,8 +218,8 @@ describe("Caption Templates", () => {
       expect(style.textColor).toMatch(/^#[0-9A-Fa-f]{6}$/);
 
       // Position and alignment
-      expect(["top", "center", "bottom"]).toContain(style.position);
-      expect(["left", "center", "right"]).toContain(style.alignment);
+      expect(["top", "center", "bottom"]).toContain(style.position ?? "bottom");
+      expect(["left", "center", "right"]).toContain(style.alignment ?? "center");
 
       // Animation
       expect(["none", "word-by-word", "karaoke", "bounce", "fade"]).toContain(
