@@ -2,10 +2,8 @@ import { Context } from "hono";
 import { nanoid } from "nanoid";
 import { ClipModel } from "../models/clip.model";
 import { VideoModel } from "../models/video.model";
+import { ClipCaptionModel } from "../models/clip-caption.model";
 import { addClipGenerationJob } from "../jobs/queue";
-import { db } from "../db";
-import { captionStyle } from "../db/schema";
-import { eq } from "drizzle-orm";
 
 export class ExportController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -18,15 +16,21 @@ export class ExportController {
   }
 
   /**
-   * Get caption style for a clip
+   * Get caption data (words and style) for a clip from clip_caption table
+   * This includes any user edits to captions
    */
-  private static async getCaptionStyle(clipId: string) {
-    const result = await db.select().from(captionStyle).where(eq(captionStyle.clipId, clipId));
-    return result[0]?.config;
+  private static async getClipCaptionData(clipId: string) {
+    const caption = await ClipCaptionModel.getByClipId(clipId);
+    if (!caption) return null;
+    return {
+      words: caption.words || [],
+      style: caption.styleConfig,
+      isEdited: caption.isEdited,
+    };
   }
 
   /**
-   * Extract words for clip time range from video transcript
+   * Extract words for clip time range from video transcript (fallback)
    */
   private static extractClipWords(
     transcriptWords: any[],
@@ -49,6 +53,7 @@ export class ExportController {
   /**
    * POST /api/clips/:id/export
    * Initiate export for a single clip
+   * Uses edited captions from clip_caption table if available
    */
   static async initiateExport(c: Context) {
     const clipId = c.req.param("id");
@@ -76,13 +81,31 @@ export class ExportController {
         return "1080p";
       };
 
-      // Get caption style and words for this clip
-      const style = await ExportController.getCaptionStyle(clipId);
-      const words = ExportController.extractClipWords(
-        video.transcriptWords as any[],
-        clip.startTime,
-        clip.endTime
-      );
+      // Get caption data from clip_caption table (includes user edits)
+      // Falls back to extracting from video transcript if no clip caption exists
+      const captionData = await ExportController.getClipCaptionData(clipId);
+      let words: Array<{ word: string; start: number; end: number }>;
+      let style: any;
+
+      if (captionData && captionData.words.length > 0) {
+        // Use edited captions from clip_caption table
+        words = captionData.words.map((w: any) => ({
+          word: w.word,
+          start: w.start,
+          end: w.end,
+        }));
+        style = captionData.style;
+        console.log(`[EXPORT CONTROLLER] Using edited captions: ${words.length} words, edited: ${captionData.isEdited}`);
+      } else {
+        // Fallback to extracting from video transcript
+        words = ExportController.extractClipWords(
+          video.transcriptWords as any[],
+          clip.startTime,
+          clip.endTime
+        );
+        style = undefined;
+        console.log(`[EXPORT CONTROLLER] Using original transcript: ${words.length} words`);
+      }
 
       console.log(`[EXPORT CONTROLLER] Caption data: ${words.length} words, style: ${style ? 'yes' : 'no'}`);
 
@@ -195,6 +218,7 @@ export class ExportController {
   /**
    * POST /api/exports/batch
    * Initiate batch export for multiple clips
+   * Uses edited captions from clip_caption table if available
    */
   static async initiateBatchExport(c: Context) {
     ExportController.logRequest(c, "INITIATE_BATCH_EXPORT");
@@ -235,13 +259,26 @@ export class ExportController {
           createdAt: new Date().toISOString(),
         });
 
-        // Get caption style and words for this clip
-        const style = await ExportController.getCaptionStyle(clipId);
-        const words = ExportController.extractClipWords(
-          video.transcriptWords as any[],
-          clip.startTime,
-          clip.endTime
-        );
+        // Get caption data from clip_caption table (includes user edits)
+        const captionData = await ExportController.getClipCaptionData(clipId);
+        let words: Array<{ word: string; start: number; end: number }>;
+        let style: any;
+
+        if (captionData && captionData.words.length > 0) {
+          words = captionData.words.map((w: any) => ({
+            word: w.word,
+            start: w.start,
+            end: w.end,
+          }));
+          style = captionData.style;
+        } else {
+          words = ExportController.extractClipWords(
+            video.transcriptWords as any[],
+            clip.startTime,
+            clip.endTime
+          );
+          style = undefined;
+        }
 
         // Add job to queue
         await addClipGenerationJob({

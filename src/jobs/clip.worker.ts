@@ -25,6 +25,8 @@ async function updateClipStatus(
   updates: Partial<{
     storageKey: string;
     storageUrl: string;
+    rawStorageKey: string;
+    rawStorageUrl: string;
     thumbnailKey: string;
     thumbnailUrl: string;
     aspectRatio: string;
@@ -160,6 +162,8 @@ async function processClipGenerationJob(
     await updateClipStatus(clipId, "ready", {
       storageKey: generatedClip.storageKey,
       storageUrl: generatedClip.storageUrl,
+      rawStorageKey: generatedClip.rawStorageKey,
+      rawStorageUrl: generatedClip.rawStorageUrl,
       thumbnailKey,
       thumbnailUrl,
       aspectRatio,

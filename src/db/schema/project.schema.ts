@@ -145,9 +145,12 @@ export const viralClip = pgTable(
     transcriptWithEmojis: text("transcript_with_emojis"), // Transcript with AI-generated emojis
     // Platform recommendations - which platforms this clip is best suited for
     recommendedPlatforms: jsonb("recommended_platforms").$type<RecommendedPlatform[]>(),
-    // Storage
+    // Storage - clip WITH captions (for download/share)
     storageKey: text("storage_key"),
     storageUrl: text("storage_url"),
+    // Raw storage - clip WITHOUT captions (for editing)
+    rawStorageKey: text("raw_storage_key"),
+    rawStorageUrl: text("raw_storage_url"),
     // Thumbnail
     thumbnailKey: text("thumbnail_key"),
     thumbnailUrl: text("thumbnail_url"),

@@ -49,6 +49,9 @@ export interface ClipGenerationOptions {
 export interface GeneratedClip {
   storageKey: string;
   storageUrl: string;
+  // Raw clip without captions (for editing)
+  rawStorageKey?: string;
+  rawStorageUrl?: string;
   duration: number;
   width: number;
   height: number;
@@ -112,6 +115,9 @@ export class ClipGeneratorService {
 
   /**
    * Generate a clip from a video source
+   * Creates TWO versions:
+   * 1. storageUrl - clip WITH captions (for download/share)
+   * 2. rawStorageUrl - clip WITHOUT captions (for editing)
    * Validates: Requirements 7.1, 7.3
    */
   static async generateClip(options: ClipGenerationOptions): Promise<GeneratedClip> {
@@ -129,14 +135,16 @@ export class ClipGeneratorService {
     const { width, height } = getOutputDimensions(options.aspectRatio, options.quality);
     const duration = options.endTime - options.startTime;
 
-    // Generate storage key for the clip
+    // Generate storage keys for both versions
     const storageKey = `clips/${options.videoId}/${options.clipId}-${options.aspectRatio.replace(":", "x")}.mp4`;
+    const rawStorageKey = `clips/${options.videoId}/${options.clipId}-${options.aspectRatio.replace(":", "x")}-raw.mp4`;
 
-    let clipBuffer: Buffer;
+    let clipWithCaptionsBuffer: Buffer;
+    let clipWithoutCaptionsBuffer: Buffer;
 
     if (options.sourceType === "youtube" && options.sourceUrl) {
-      // Download segment from YouTube using yt-dlp
-      clipBuffer = await this.downloadYouTubeSegment(
+      // Generate clip WITH captions
+      clipWithCaptionsBuffer = await this.downloadYouTubeSegment(
         options.sourceUrl,
         options.startTime,
         options.endTime,
@@ -145,9 +153,20 @@ export class ClipGeneratorService {
         options.captions,
         options.introTitle
       );
+      
+      // Generate clip WITHOUT captions (raw version for editing)
+      clipWithoutCaptionsBuffer = await this.downloadYouTubeSegment(
+        options.sourceUrl,
+        options.startTime,
+        options.endTime,
+        options.aspectRatio,
+        options.quality,
+        undefined, // No captions
+        undefined  // No intro title
+      );
     } else if (options.sourceType === "upload" && options.storageKey) {
-      // Extract segment from uploaded file
-      clipBuffer = await this.extractSegmentFromFile(
+      // Generate clip WITH captions
+      clipWithCaptionsBuffer = await this.extractSegmentFromFile(
         options.storageKey,
         options.startTime,
         options.endTime,
@@ -156,25 +175,46 @@ export class ClipGeneratorService {
         options.captions,
         options.introTitle
       );
+      
+      // Generate clip WITHOUT captions (raw version for editing)
+      clipWithoutCaptionsBuffer = await this.extractSegmentFromFile(
+        options.storageKey,
+        options.startTime,
+        options.endTime,
+        options.aspectRatio,
+        options.quality,
+        undefined, // No captions
+        undefined  // No intro title
+      );
     } else {
       throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
     }
 
-    // Upload to R2
-    this.logOperation("UPLOADING_CLIP", { storageKey, size: clipBuffer.length });
+    // Upload clip WITH captions to R2
+    this.logOperation("UPLOADING_CLIP_WITH_CAPTIONS", { storageKey, size: clipWithCaptionsBuffer.length });
     const { url: storageUrl } = await R2Service.uploadFile(
       storageKey,
-      clipBuffer,
+      clipWithCaptionsBuffer,
+      "video/mp4"
+    );
+
+    // Upload clip WITHOUT captions (raw) to R2
+    this.logOperation("UPLOADING_RAW_CLIP", { rawStorageKey, size: clipWithoutCaptionsBuffer.length });
+    const { url: rawStorageUrl } = await R2Service.uploadFile(
+      rawStorageKey,
+      clipWithoutCaptionsBuffer,
       "video/mp4"
     );
 
     return {
       storageKey,
       storageUrl,
+      rawStorageKey,
+      rawStorageUrl,
       duration,
       width,
       height,
-      fileSize: clipBuffer.length,
+      fileSize: clipWithCaptionsBuffer.length,
     };
   }
 
