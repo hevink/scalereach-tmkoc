@@ -91,6 +91,9 @@ export class VideoController {
           recommendedPlan: canUpgrade && uploadValidation.reason === "VIDEO_TOO_LONG" ? recommendedPlan : undefined,
           currentLimit: uploadValidation.reason === "VIDEO_TOO_LONG" ? formatDuration(planConfig.limits.videoLength) : undefined,
           attemptedValue: uploadValidation.reason === "VIDEO_TOO_LONG" ? formatDuration(videoInfo.duration) : undefined,
+          // Add minutes info for insufficient minutes errors
+          minutesRemaining: uploadValidation.reason === "INSUFFICIENT_MINUTES" ? minutesBalance.minutesRemaining : undefined,
+          minutesNeeded: uploadValidation.reason === "INSUFFICIENT_MINUTES" ? uploadValidation.minutesWillBeDeducted : undefined,
         }, uploadValidation.reason === "INSUFFICIENT_MINUTES" ? 402 : 400);
       }
 
