@@ -623,7 +623,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         tempOutputPath,
         width,
         height,
-        (captions?.words?.length || introTitle) ? tempSubsPath : undefined,
+        (captions?.words?.length || introTitle || emojis) ? tempSubsPath : undefined,
         watermark
       );
 

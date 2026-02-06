@@ -5,6 +5,7 @@ import { VideoModel } from "../models/video.model";
 import {
   UploadValidationService,
 } from "../services/upload-validation.service";
+import { getPlanConfig, formatBytes } from "../config/plan-config";
 
 /**
  * Uppy-compatible upload controller
@@ -49,6 +50,12 @@ export class UppyUploadController {
         return c.json({ error: "You don't have access to this workspace" }, 403);
       }
 
+      // Get workspace and plan config for validation
+      const workspace = await WorkspaceModel.getById(workspaceId);
+      const planConfig = getPlanConfig(workspace?.plan || "free");
+      
+      console.log(`[UPPY UPLOAD] Workspace plan: ${workspace?.plan || "free"}, max upload size: ${formatBytes(planConfig.limits.uploadSize)}`);
+
       // Validate file format (MP4, MOV, WebM only)
       const formatValidation = UploadValidationService.validateFileFormat(type, filename);
       if (!formatValidation.valid) {
@@ -58,13 +65,17 @@ export class UppyUploadController {
         }, 400);
       }
 
-      // Validate file size if provided in metadata (2GB maximum)
+      // Validate file size if provided in metadata (plan-based limit)
       if (metadata?.fileSize) {
-        const sizeValidation = UploadValidationService.validateFileSize(metadata.fileSize);
+        const sizeValidation = UploadValidationService.validateFileSize(metadata.fileSize, planConfig);
         if (!sizeValidation.valid) {
           return c.json({ 
             error: sizeValidation.error,
-            maxFileSize: UploadValidationService.getMaxFileSizeString(),
+            upgradeRequired: sizeValidation.upgradeRequired,
+            recommendedPlan: sizeValidation.recommendedPlan,
+            currentLimit: sizeValidation.currentLimit,
+            attemptedValue: sizeValidation.attemptedValue,
+            maxFileSize: formatBytes(planConfig.limits.uploadSize),
           }, 400);
         }
       }

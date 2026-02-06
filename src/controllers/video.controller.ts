@@ -5,7 +5,7 @@ import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
 import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
 import { addVideoProcessingJob, getJobStatus } from "../jobs/queue";
-import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
+import { getPlanConfig, calculateMinuteConsumption, formatDuration } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
 
 export class VideoController {
@@ -78,10 +78,19 @@ export class VideoController {
 
       if (!uploadValidation.allowed) {
         console.log(`[VIDEO CONTROLLER] Upload validation failed: ${uploadValidation.reason}`);
+        
+        // Determine if upgrade is available and recommended plan
+        const canUpgrade = plan === "free" || plan === "starter";
+        const recommendedPlan = plan === "free" ? "starter" : "pro";
+        
         return c.json({
           error: uploadValidation.message,
           reason: uploadValidation.reason,
           upgrade: uploadValidation.upgrade,
+          upgradeRequired: canUpgrade && uploadValidation.reason === "VIDEO_TOO_LONG",
+          recommendedPlan: canUpgrade && uploadValidation.reason === "VIDEO_TOO_LONG" ? recommendedPlan : undefined,
+          currentLimit: uploadValidation.reason === "VIDEO_TOO_LONG" ? formatDuration(planConfig.limits.videoLength) : undefined,
+          attemptedValue: uploadValidation.reason === "VIDEO_TOO_LONG" ? formatDuration(videoInfo.duration) : undefined,
         }, uploadValidation.reason === "INSUFFICIENT_MINUTES" ? 402 : 400);
       }
 

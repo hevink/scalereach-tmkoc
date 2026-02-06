@@ -3,9 +3,16 @@
  * Handles validation for file uploads including format and size checks
  */
 
+import type { PlanConfig } from "../config/plan-config";
+import { formatBytes } from "../config/plan-config";
+
 export interface ValidationResult {
   valid: boolean;
   error?: string;
+  upgradeRequired?: boolean;
+  recommendedPlan?: string;
+  currentLimit?: string;
+  attemptedValue?: string;
 }
 
 // Allowed video file formats (MIME types)
@@ -17,9 +24,6 @@ export const ALLOWED_VIDEO_FORMATS = [
 
 // Allowed file extensions
 export const ALLOWED_VIDEO_EXTENSIONS = [".mp4", ".mov", ".webm"] as const;
-
-// Maximum file size: 2GB in bytes
-export const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024 * 1024; // 2GB
 
 // Human-readable format names for error messages
 const FORMAT_NAMES: Record<string, string> = {
@@ -67,11 +71,12 @@ export class UploadValidationService {
   }
 
   /**
-   * Validates file size against maximum allowed size (2GB)
+   * Validates file size against plan-based maximum allowed size
    * @param fileSize File size in bytes
+   * @param planConfig Plan configuration with limits
    * @returns ValidationResult indicating if size is valid
    */
-  static validateFileSize(fileSize: number): ValidationResult {
+  static validateFileSize(fileSize: number, planConfig: PlanConfig): ValidationResult {
     if (fileSize <= 0) {
       return {
         valid: false,
@@ -79,12 +84,20 @@ export class UploadValidationService {
       };
     }
 
-    if (fileSize > MAX_FILE_SIZE_BYTES) {
-      const maxSizeGB = MAX_FILE_SIZE_BYTES / (1024 * 1024 * 1024);
-      const fileSizeGB = (fileSize / (1024 * 1024 * 1024)).toFixed(2);
+    const maxSize = planConfig.limits.uploadSize;
+    
+    if (fileSize > maxSize) {
+      const canUpgrade = planConfig.plan === "free" || planConfig.plan === "starter";
+      const nextPlan = planConfig.plan === "free" ? "starter" : "pro";
+      const planName = planConfig.plan.charAt(0).toUpperCase() + planConfig.plan.slice(1);
+      
       return {
         valid: false,
-        error: `File size (${fileSizeGB} GB) exceeds maximum allowed size of ${maxSizeGB} GB`,
+        error: `File size (${formatBytes(fileSize)}) exceeds ${formatBytes(maxSize)} limit for ${planName} plan${canUpgrade ? `. Upgrade to ${nextPlan.charAt(0).toUpperCase() + nextPlan.slice(1)} for ${formatBytes(planConfig.plan === "free" ? 4 * 1024 * 1024 * 1024 : 4 * 1024 * 1024 * 1024)} uploads` : ""}`,
+        upgradeRequired: canUpgrade,
+        recommendedPlan: canUpgrade ? nextPlan : undefined,
+        currentLimit: formatBytes(maxSize),
+        attemptedValue: formatBytes(fileSize),
       };
     }
 
@@ -95,12 +108,14 @@ export class UploadValidationService {
    * Validates both file format and size
    * @param mimeType The MIME type of the file
    * @param fileSize File size in bytes
+   * @param planConfig Plan configuration with limits
    * @param filename Optional filename to check extension
    * @returns ValidationResult indicating if file is valid
    */
   static validateUpload(
     mimeType: string,
     fileSize: number,
+    planConfig: PlanConfig,
     filename?: string
   ): ValidationResult {
     // Validate format first
@@ -110,7 +125,7 @@ export class UploadValidationService {
     }
 
     // Then validate size
-    const sizeValidation = this.validateFileSize(fileSize);
+    const sizeValidation = this.validateFileSize(fileSize, planConfig);
     if (!sizeValidation.valid) {
       return sizeValidation;
     }
@@ -138,10 +153,11 @@ export class UploadValidationService {
   }
 
   /**
-   * Gets the maximum file size as human-readable string
-   * @returns Human-readable max file size (e.g., "2 GB")
+   * Gets the maximum file size as human-readable string for a plan
+   * @param planConfig Plan configuration with limits
+   * @returns Human-readable max file size (e.g., "2GB")
    */
-  static getMaxFileSizeString(): string {
-    return `${MAX_FILE_SIZE_BYTES / (1024 * 1024 * 1024)} GB`;
+  static getMaxFileSizeString(planConfig: PlanConfig): string {
+    return formatBytes(planConfig.limits.uploadSize);
   }
 }
