@@ -1,5 +1,6 @@
 import { Context } from "hono";
 import { CreditModel } from "../models/credit.model";
+import { MinutesModel } from "../models/minutes.model";
 import { WorkspaceModel } from "../models/workspace.model";
 import { DodoService, DodoWebhookPayload } from "../services/dodo.service";
 
@@ -348,7 +349,9 @@ export class CreditController {
       const plan = PRODUCT_TO_PLAN[productId];
       if (plan && workspaceId) {
         await WorkspaceModel.update(workspaceId, { plan });
-        console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan}`);
+        // Initialize or update minutes allocation for the new plan
+        await MinutesModel.updatePlanAllocation(workspaceId, plan);
+        console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan}, minutes allocated`);
       }
 
       console.log(`[CREDIT CONTROLLER] Credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
@@ -412,7 +415,9 @@ export class CreditController {
           subscriptionStatus: "active",
           subscriptionCancelledAt: undefined,
         });
-        console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan}, subscription tracked: ${subscriptionId}`);
+        // Initialize minutes allocation for the new plan
+        await MinutesModel.updatePlanAllocation(workspaceId, plan);
+        console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan}, subscription tracked: ${subscriptionId}, minutes allocated`);
       }
 
       console.log(`[CREDIT CONTROLLER] Subscription credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
@@ -469,6 +474,14 @@ export class CreditController {
           renewalDate: renewalDate,
         },
       });
+
+      // Reset monthly minutes on renewal
+      const productId = metadata?.packageId || data?.product_id;
+      const plan = PRODUCT_TO_PLAN[productId];
+      if (plan) {
+        await MinutesModel.resetMonthlyMinutes(workspaceId, plan);
+        console.log(`[CREDIT CONTROLLER] Monthly minutes reset for workspace: ${workspaceId}, plan: ${plan}`);
+      }
 
       console.log(`[CREDIT CONTROLLER] Renewal credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
     }

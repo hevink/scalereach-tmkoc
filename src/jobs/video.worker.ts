@@ -12,7 +12,10 @@ import { CLASSIC_TEMPLATE, getTemplateById } from "../data/caption-templates";
 import { VideoConfigModel } from "../models/video-config.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { UserModel } from "../models/user.model";
+import { MinutesModel } from "../models/minutes.model";
 import { emailService } from "../services/email.service";
+import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
+import { canUploadVideo } from "../services/minutes-validation.service";
 import {
   createWorker,
   QUEUE_NAMES,
@@ -58,7 +61,16 @@ async function processYouTubeVideo(
   console.log(`[VIDEO WORKER] Processing YouTube video: ${videoId}`);
   console.log(`[VIDEO WORKER] Source URL: ${sourceUrl}`);
 
+  // Track minutes for refund on failure
+  let minutesDeducted = 0;
+  let workspaceId: string | undefined;
+
   try {
+    // Get workspace ID from video record for potential refund
+    const videoRecord = await db.select().from(video).where(eq(video.id, videoId));
+    workspaceId = videoRecord[0]?.workspaceId || undefined;
+    minutesDeducted = videoRecord[0]?.minutesConsumed || 0;
+
     // Fetch video configuration
     const videoConfig = await VideoConfigModel.getByVideoId(videoId);
     console.log(`[VIDEO WORKER] Video config loaded:`, videoConfig ? {
@@ -285,7 +297,7 @@ async function processYouTubeVideo(
           videoId: videoId,
           workspaceId: "", // Will be populated from video record
           userId: userId,
-          creditCost: 1, // Default credit cost per clip
+          creditCost: 0, // Minutes already deducted at video level
           sourceType: "youtube",
           sourceUrl: sourceUrl,
           startTime: clipRecord.startTime,
@@ -328,6 +340,23 @@ async function processYouTubeVideo(
     console.error(`[VIDEO WORKER] Error processing video ${videoId}:`, error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    // Refund minutes if they were deducted (YouTube minutes are deducted in controller)
+    if (minutesDeducted > 0 && workspaceId) {
+      try {
+        await MinutesModel.refundMinutes({
+          workspaceId,
+          userId,
+          videoId,
+          amount: minutesDeducted,
+          reason: `Refund for failed YouTube video processing - ${errorMessage}`,
+        });
+        console.log(`[VIDEO WORKER] Refunded ${minutesDeducted} minutes for workspace ${workspaceId}`);
+      } catch (refundError) {
+        console.error(`[VIDEO WORKER] Failed to refund minutes:`, refundError);
+      }
+    }
+
     await updateVideoStatus(videoId, "failed", { errorMessage });
 
     throw error;
@@ -359,6 +388,9 @@ async function processUploadedVideo(
   console.log(`[VIDEO WORKER] Processing uploaded video: ${videoId}`);
   console.log(`[VIDEO WORKER] Source URL: ${sourceUrl}`);
 
+  let minutesDeducted = 0;
+  let workspaceId: string | undefined;
+
   try {
     // Fetch video configuration
     const videoConfig = await VideoConfigModel.getByVideoId(videoId);
@@ -383,6 +415,8 @@ async function processUploadedVideo(
       throw new Error(`Video storage key not found for: ${videoId}`);
     }
 
+    workspaceId = videoRecord[0].workspaceId || undefined;
+
     await updateVideoStatus(videoId, "uploading");
     await job.updateProgress(10);
 
@@ -395,16 +429,47 @@ async function processUploadedVideo(
       videoMetadata = await FFmpegService.getVideoMetadata(signedVideoUrl);
       console.log(`[VIDEO WORKER] Video duration: ${videoMetadata.duration} seconds`);
 
-      // Validate video duration (max 4 hours)
-      if (videoMetadata.duration > MAX_VIDEO_DURATION_SECONDS) {
-        const maxHours = MAX_VIDEO_DURATION_SECONDS / 3600;
-        const videoHours = (videoMetadata.duration / 3600).toFixed(2);
-        throw new Error(
-          `Video duration (${videoHours} hours) exceeds maximum allowed duration of ${maxHours} hours`
+      // Validate video duration and minutes against plan limits
+      if (workspaceId) {
+        const { WorkspaceModel } = await import("../models/workspace.model");
+        const ws = await WorkspaceModel.getById(workspaceId);
+        const plan = ws?.plan || "free";
+        const planConfig = getPlanConfig(plan);
+        const minutesBalance = await MinutesModel.getBalance(workspaceId);
+
+        const uploadValidation = canUploadVideo(
+          planConfig,
+          videoMetadata.duration,
+          0,
+          minutesBalance.minutesRemaining
         );
+
+        if (!uploadValidation.allowed) {
+          throw new Error(uploadValidation.message || `Upload validation failed: ${uploadValidation.reason}`);
+        }
+
+        // Deduct minutes
+        const minutesToDeduct = calculateMinuteConsumption(videoMetadata.duration);
+        await MinutesModel.deductMinutes({
+          workspaceId,
+          userId,
+          videoId,
+          amount: minutesToDeduct,
+          type: "upload",
+        });
+        minutesDeducted = minutesToDeduct;
+        console.log(`[VIDEO WORKER] Deducted ${minutesToDeduct} minutes for uploaded video ${videoId}`);
       }
     } catch (metadataError) {
       console.warn(`[VIDEO WORKER] Could not get video metadata: ${metadataError}`);
+      // If it's a validation error, re-throw to fail the job
+      if (metadataError instanceof Error && (
+        metadataError.message.includes("VIDEO_TOO_LONG") ||
+        metadataError.message.includes("INSUFFICIENT_MINUTES") ||
+        metadataError.message.includes("Upload validation failed")
+      )) {
+        throw metadataError;
+      }
       // Continue without metadata - we'll try to process anyway
     }
 
@@ -578,7 +643,7 @@ async function processUploadedVideo(
           videoId: videoId,
           workspaceId: "", // Will be populated from video record
           userId: userId,
-          creditCost: 1, // Default credit cost per clip
+          creditCost: 0, // Minutes already deducted at video level
           sourceType: "upload",
           storageKey: storageKey,
           startTime: clipRecord.startTime,
@@ -623,6 +688,23 @@ async function processUploadedVideo(
     console.error(`[VIDEO WORKER] Error processing uploaded video ${videoId}:`, error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    // Refund minutes if they were deducted
+    if (minutesDeducted > 0 && workspaceId) {
+      try {
+        await MinutesModel.refundMinutes({
+          workspaceId,
+          userId,
+          videoId,
+          amount: minutesDeducted,
+          reason: `Refund for failed video processing - ${errorMessage}`,
+        });
+        console.log(`[VIDEO WORKER] Refunded ${minutesDeducted} minutes for workspace ${workspaceId}`);
+      } catch (refundError) {
+        console.error(`[VIDEO WORKER] Failed to refund minutes:`, refundError);
+      }
+    }
+
     await updateVideoStatus(videoId, "failed", { errorMessage });
 
     throw error;

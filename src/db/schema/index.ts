@@ -5,3 +5,4 @@ export * from "./invitation.schema";
 export * from "./credit.schema";
 export * from "./video-config.schema";
 export * from "./clip-caption.schema";
+export * from "./minutes.schema";

@@ -6,6 +6,8 @@ import { addVideoProcessingJob } from "../jobs/queue";
 import {
   UploadValidationService,
 } from "../services/upload-validation.service";
+import { getPlanConfig } from "../config/plan-config";
+import { validateFileSize } from "../services/minutes-validation.service";
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB - minimum for S3/R2 multipart
 
@@ -51,18 +53,21 @@ export class UploadController {
       // Validate file format (MP4, MOV, WebM only)
       const formatValidation = UploadValidationService.validateFileFormat(contentType, filename);
       if (!formatValidation.valid) {
-        return c.json({ 
+        return c.json({
           error: formatValidation.error,
           allowedFormats: UploadValidationService.getAllowedFormatsString(),
         }, 400);
       }
 
-      // Validate file size (2GB maximum)
-      const sizeValidation = UploadValidationService.validateFileSize(fileSize);
-      if (!sizeValidation.valid) {
-        return c.json({ 
-          error: sizeValidation.error,
-          maxFileSize: UploadValidationService.getMaxFileSizeString(),
+      // Validate file size against plan limits
+      const ws = await WorkspaceModel.getById(workspaceId);
+      const planConfig = getPlanConfig(ws?.plan || "free");
+      const sizeValidation = validateFileSize(planConfig, fileSize);
+      if (!sizeValidation.allowed) {
+        return c.json({
+          error: sizeValidation.message,
+          reason: sizeValidation.reason,
+          upgrade: sizeValidation.upgrade,
         }, 400);
       }
 

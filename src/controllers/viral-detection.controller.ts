@@ -2,8 +2,9 @@ import { Context } from "hono";
 import { nanoid } from "nanoid";
 import { VideoModel } from "../models/video.model";
 import { ClipModel, ClipFilters } from "../models/clip.model";
-import { 
-  ViralDetectionService, 
+import { MinutesModel } from "../models/minutes.model";
+import {
+  ViralDetectionService,
   ViralDetectionOptions,
   MIN_DURATION_LIMIT,
   MAX_DURATION_LIMIT,
@@ -12,6 +13,8 @@ import {
   DEFAULT_MAX_CLIPS,
 } from "../services/viral-detection.service";
 import { R2Service } from "../services/r2.service";
+import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
+import { canRegenerateVideo } from "../services/minutes-validation.service";
 
 /**
  * Controller for viral detection API endpoints
@@ -45,9 +48,45 @@ export class ViralDetectionController {
 
       // Check if video has transcript
       if (!video.transcript || !video.transcriptWords) {
-        return c.json({ 
-          error: "Video must be transcribed before viral detection can be performed" 
+        return c.json({
+          error: "Video must be transcribed before viral detection can be performed"
         }, 400);
+      }
+
+      // Validate regeneration limits and minutes
+      if (video.workspaceId && video.duration) {
+        const { WorkspaceModel } = await import("../models/workspace.model");
+        const ws = await WorkspaceModel.getById(video.workspaceId);
+        const plan = ws?.plan || "free";
+        const planConfig = getPlanConfig(plan);
+        const minutesBalance = await MinutesModel.getBalance(video.workspaceId);
+        const regenerationCount = await MinutesModel.getRegenerationCount(videoId);
+
+        const regenValidation = canRegenerateVideo(
+          planConfig,
+          video.duration,
+          regenerationCount,
+          minutesBalance.minutesRemaining
+        );
+
+        if (!regenValidation.allowed) {
+          return c.json({
+            error: regenValidation.message,
+            reason: regenValidation.reason,
+            upgrade: regenValidation.upgrade,
+          }, regenValidation.reason === "INSUFFICIENT_MINUTES" ? 402 : 400);
+        }
+
+        // Deduct minutes and increment regeneration count
+        const minutesToDeduct = calculateMinuteConsumption(video.duration);
+        await MinutesModel.deductMinutes({
+          workspaceId: video.workspaceId,
+          videoId,
+          amount: minutesToDeduct,
+          type: "regenerate",
+        });
+        await MinutesModel.incrementRegenerationCount(videoId);
+        console.log(`[VIRAL DETECTION CONTROLLER] Deducted ${minutesToDeduct} minutes for re-analysis of video ${videoId}`);
       }
 
       // Parse request body for options

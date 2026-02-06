@@ -105,6 +105,8 @@ export const video = pgTable(
     transcriptConfidence: real("transcript_confidence"),
     // Usage tracking
     creditsUsed: integer("credits_used").default(0).notNull(),
+    regenerationCount: integer("regeneration_count").default(0).notNull(),
+    minutesConsumed: integer("minutes_consumed").default(0).notNull(),
     status: text("status").default("pending").notNull(), // 'pending' | 'downloading' | 'uploading' | 'transcribing' | 'analyzing' | 'completed' | 'failed'
     errorMessage: text("error_message"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

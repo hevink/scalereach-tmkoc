@@ -2,8 +2,11 @@ import { Context } from "hono";
 import { nanoid } from "nanoid";
 import { VideoModel } from "../models/video.model";
 import { ProjectModel } from "../models/project.model";
+import { MinutesModel } from "../models/minutes.model";
 import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
 import { addVideoProcessingJob, getJobStatus } from "../jobs/queue";
+import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
+import { canUploadVideo } from "../services/minutes-validation.service";
 
 export class VideoController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -60,11 +63,26 @@ export class VideoController {
         return c.json({ error: "Failed to retrieve video information. The video may be unavailable or private." }, 400);
       }
 
-      // Validate video duration (max 4 hours)
-      const durationValidation = YouTubeService.validateVideoDuration(videoInfo.duration);
-      if (!durationValidation.valid) {
-        console.log(`[VIDEO CONTROLLER] Video duration validation failed: ${durationValidation.error}`);
-        return c.json({ error: durationValidation.error }, 400);
+      // Validate video duration against plan limits and check minutes
+      const ws = await WorkspaceModel.getById(workspaceId);
+      const plan = ws?.plan || "free";
+      const planConfig = getPlanConfig(plan);
+      const minutesBalance = await MinutesModel.getBalance(workspaceId);
+
+      const uploadValidation = canUploadVideo(
+        planConfig,
+        videoInfo.duration,
+        0, // No file size for YouTube
+        minutesBalance.minutesRemaining
+      );
+
+      if (!uploadValidation.allowed) {
+        console.log(`[VIDEO CONTROLLER] Upload validation failed: ${uploadValidation.reason}`);
+        return c.json({
+          error: uploadValidation.message,
+          reason: uploadValidation.reason,
+          upgrade: uploadValidation.upgrade,
+        }, uploadValidation.reason === "INSUFFICIENT_MINUTES" ? 402 : 400);
       }
 
       // Only validate project if projectId is provided
@@ -87,6 +105,17 @@ export class VideoController {
         sourceUrl: youtubeUrl,
         title: videoInfo.title,
       });
+
+      // Deduct minutes for YouTube video (duration is known upfront)
+      const minutesToDeduct = calculateMinuteConsumption(videoInfo.duration);
+      await MinutesModel.deductMinutes({
+        workspaceId,
+        userId: user.id,
+        videoId,
+        amount: minutesToDeduct,
+        type: "upload",
+      });
+      console.log(`[VIDEO CONTROLLER] Deducted ${minutesToDeduct} minutes for YouTube video ${videoId}`);
 
       // If config is provided, save it and start processing immediately
       if (config) {
