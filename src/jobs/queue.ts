@@ -60,6 +60,8 @@ export interface ClipGenerationJobData {
   quality: "720p" | "1080p" | "4k";
   creditCost: number; // Credits to consume for this generation
   watermark?: boolean; // Burn watermark overlay (free plan)
+  // Transcript with emojis for animated emoji overlays
+  emojis?: string;
   // Intro title to burn into video for first 3 seconds
   introTitle?: string;
   // Caption data for burning into video

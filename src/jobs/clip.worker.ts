@@ -135,6 +135,7 @@ async function processClipGenerationJob(
     introTitle,
     captions,
     watermark,
+    emojis,
   } = job.data;
 
   console.log(`[CLIP WORKER] Processing clip generation job: ${clipId}`);
@@ -142,6 +143,7 @@ async function processClipGenerationJob(
   console.log(`[CLIP WORKER] Time range: ${startTime}s - ${endTime}s`);
   console.log(`[CLIP WORKER] Captions: ${captions?.words?.length || 0} words`);
   console.log(`[CLIP WORKER] Intro title: ${introTitle ? 'yes' : 'no'}`);
+  console.log(`[CLIP WORKER] Emojis: ${emojis ? 'yes' : 'no'}`);
 
   try {
     // Update status to generating (Requirement 7.5)
@@ -182,6 +184,7 @@ async function processClipGenerationJob(
       watermark,
       introTitle,
       captions,
+      emojis,
     });
 
     await job.updateProgress(80);

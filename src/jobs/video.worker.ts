@@ -296,6 +296,10 @@ async function processYouTubeVideo(
         const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
         const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
+        const captionsEnabled = videoConfig?.enableCaptions ?? true;
+        const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
+        const emojisEnabled = videoConfig?.enableEmojis ?? true;
+
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -309,11 +313,12 @@ async function processYouTubeVideo(
           aspectRatio: aspectRatio,
           quality: "1080p",
           watermark: applyWatermark,
-          introTitle: clipRecord.introTitle ?? undefined,
-          captions: {
+          emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
+          introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
+          captions: captionsEnabled ? {
             words: adjustedWords,
             style: captionStyle,
-          },
+          } : undefined,
         });
 
         console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}`);
@@ -646,6 +651,10 @@ async function processUploadedVideo(
         const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
         const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
+        const captionsEnabled = videoConfig?.enableCaptions ?? true;
+        const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
+        const emojisEnabled = videoConfig?.enableEmojis ?? true;
+
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -659,11 +668,12 @@ async function processUploadedVideo(
           aspectRatio: aspectRatio,
           quality: "1080p",
           watermark: applyWatermark,
-          introTitle: clipRecord.introTitle ?? undefined,
-          captions: {
+          emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
+          introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
+          captions: captionsEnabled ? {
             words: adjustedWords,
             style: captionStyle,
-          },
+          } : undefined,
         });
 
         console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}`);

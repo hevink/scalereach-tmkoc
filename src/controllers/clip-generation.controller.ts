@@ -12,6 +12,7 @@ import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
 import { WorkspaceModel } from "../models/workspace.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
+import { VideoConfigModel } from "../models/video-config.model";
 import { ClipGeneratorService, AspectRatio, VideoQuality } from "../services/clip-generator.service";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
 import { R2Service } from "../services/r2.service";
@@ -138,6 +139,11 @@ export class ClipGenerationController {
       const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
       const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
+      // Load video config to check enableIntroTitle/enableEmojis flags
+      const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
+      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
+      const emojisEnabled = videoConfig?.enableEmojis ?? true;
+
       // Add job to queue with intro title
       const job = await addClipGenerationJob({
         clipId,
@@ -153,7 +159,8 @@ export class ClipGenerationController {
         quality,
         creditCost: 0,
         watermark: applyWatermark,
-        introTitle: (clip as any).introTitle || undefined,
+        emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
+        introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Job queued: ${job.id}`);
@@ -293,9 +300,15 @@ export class ClipGenerationController {
       // Get saved captions from database
       const savedCaptions = await ClipCaptionModel.getByClipId(clipId);
 
+      // Load video config to check enableCaptions/enableIntroTitle flags
+      const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
+      const captionsEnabled = videoConfig?.enableCaptions ?? true;
+      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
+      const emojisEnabled = videoConfig?.enableEmojis ?? true;
+
       // Build captions object for job
       let captions: any = undefined;
-      if (savedCaptions && savedCaptions.words.length > 0) {
+      if (captionsEnabled && savedCaptions && savedCaptions.words.length > 0) {
         captions = {
           words: savedCaptions.words.map(w => ({
             word: w.word,
@@ -326,7 +339,8 @@ export class ClipGenerationController {
         quality,
         creditCost: 0,
         watermark: applyWatermark,
-        introTitle: (clip as any).introTitle || undefined,
+        emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
+        introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
       });
 

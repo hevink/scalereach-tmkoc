@@ -6,6 +6,7 @@ import { WorkspaceModel } from "../models/workspace.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { addClipGenerationJob } from "../jobs/queue";
 import { getPlanConfig } from "../config/plan-config";
+import { VideoConfigModel } from "../models/video-config.model";
 
 export class ExportController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -128,6 +129,12 @@ export class ExportController {
       const ws = exportWorkspaceId ? await WorkspaceModel.getById(exportWorkspaceId) : null;
       const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
+      // Load video config to check enableCaptions/enableIntroTitle flags
+      const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
+      const captionsEnabled = videoConfig?.enableCaptions ?? true;
+      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
+      const emojisEnabled = videoConfig?.enableEmojis ?? true;
+
       // Add job to queue for clip generation with caption data
       await addClipGenerationJob({
         clipId,
@@ -143,8 +150,9 @@ export class ExportController {
         aspectRatio: (clip.aspectRatio as "9:16" | "1:1" | "16:9") || "9:16",
         quality: resolutionToQuality(options?.resolution || "1080p"),
         watermark: applyWatermark,
-        introTitle: (clip as any).introTitle || undefined,
-        captions: words.length > 0 ? {
+        emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
+        introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
+        captions: captionsEnabled && words.length > 0 ? {
           words,
           style: style || undefined,
         } : undefined,
@@ -293,6 +301,12 @@ export class ExportController {
         const batchWs = batchWorkspaceId ? await WorkspaceModel.getById(batchWorkspaceId) : null;
         const batchWatermark = getPlanConfig(batchWs?.plan || "free").limits.watermark;
 
+        // Load video config to check enableCaptions/enableIntroTitle flags
+        const batchVideoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
+        const batchCaptionsEnabled = batchVideoConfig?.enableCaptions ?? true;
+        const batchIntroTitleEnabled = batchVideoConfig?.enableIntroTitle ?? true;
+        const batchEmojisEnabled = batchVideoConfig?.enableEmojis ?? true;
+
         // Add job to queue
         await addClipGenerationJob({
           clipId,
@@ -308,8 +322,9 @@ export class ExportController {
           aspectRatio: (clip.aspectRatio as "9:16" | "1:1" | "16:9") || "9:16",
           quality: resolutionToQuality(options?.resolution || "1080p"),
           watermark: batchWatermark,
-          introTitle: (clip as any).introTitle || undefined,
-          captions: words.length > 0 ? {
+          emojis: batchEmojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
+          introTitle: batchIntroTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
+          captions: batchCaptionsEnabled && words.length > 0 ? {
             words,
             style: style || undefined,
           } : undefined,

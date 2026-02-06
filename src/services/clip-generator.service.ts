@@ -12,6 +12,7 @@ import * as path from "path";
 import * as os from "os";
 import { nanoid } from "nanoid";
 import sharp from "sharp";
+import { extractEmojiTimings } from "../utils/emoji-timing";
 
 export type AspectRatio = "9:16" | "1:1" | "16:9";
 export type VideoQuality = "720p" | "1080p" | "4k";
@@ -27,6 +28,7 @@ export interface ClipGenerationOptions {
   aspectRatio: AspectRatio;
   quality: VideoQuality;
   watermark?: boolean;
+  emojis?: string;
   introTitle?: string;
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;
@@ -226,7 +228,8 @@ export class ClipGeneratorService {
         options.quality,
         options.captions,
         options.introTitle,
-        options.watermark
+        options.watermark,
+        options.emojis
       );
 
       // Generate clip WITHOUT captions (raw version for editing)
@@ -238,7 +241,8 @@ export class ClipGeneratorService {
         options.quality,
         undefined, // No captions
         undefined, // No intro title
-        options.watermark
+        options.watermark,
+        undefined  // No emojis
       );
     } else if (options.sourceType === "upload" && options.storageKey) {
       // Generate clip WITH captions
@@ -250,7 +254,8 @@ export class ClipGeneratorService {
         options.quality,
         options.captions,
         options.introTitle,
-        options.watermark
+        options.watermark,
+        options.emojis
       );
 
       // Generate clip WITHOUT captions (raw version for editing)
@@ -262,7 +267,8 @@ export class ClipGeneratorService {
         options.quality,
         undefined, // No captions
         undefined, // No intro title
-        options.watermark
+        options.watermark,
+        undefined  // No emojis
       );
     } else {
       throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
@@ -306,7 +312,8 @@ export class ClipGeneratorService {
     style: NonNullable<ClipGenerationOptions["captions"]>["style"] | undefined,
     width: number,
     height: number,
-    introTitle?: string
+    introTitle?: string,
+    emojis?: string
   ): string {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
@@ -345,7 +352,11 @@ export class ClipGeneratorService {
     // MarginV pushes text away from center, so we need (height/2 - height*0.25) = height*0.25
     const introMarginV = Math.round(height * 0.25);
 
-    // ASS header with styles for normal, highlighted, and intro title text
+    // Emoji overlay style - large, centered above captions
+    const emojiFontSize = Math.round(fontSize * 3);
+    const emojiMarginV = style?.position === "top" ? Math.round(height * 0.55) : Math.round(height * 0.35);
+
+    // ASS header with styles for normal, highlighted, intro title, and emoji overlay text
     let ass = `[Script Info]
 Title: Generated Captions
 ScriptType: v4.00+
@@ -358,6 +369,7 @@ Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
 Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
 Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
 Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
+Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -514,6 +526,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       }
     }
 
+    // Add emoji overlays if transcriptWithEmojis is provided
+    if (emojis && words.length > 0) {
+      const emojiOverlays = extractEmojiTimings(emojis, words);
+      for (const overlay of emojiOverlays) {
+        const emojiStart = this.formatASSTime(overlay.timestamp);
+        const emojiEnd = this.formatASSTime(overlay.timestamp + overlay.duration);
+        // Pop-in animation: scale from 200% to 100% over 200ms, then fade out over last 300ms
+        ass += `Dialogue: 2,${emojiStart},${emojiEnd},EmojiOverlay,,0,0,0,,{\\fscx200\\fscy200\\t(0,200,\\fscx100\\fscy100)\\fad(0,300)}${overlay.emoji}\n`;
+      }
+    }
+
     return ass;
   }
 
@@ -551,7 +574,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     quality: VideoQuality,
     captions?: ClipGenerationOptions["captions"],
     introTitle?: string,
-    watermark?: boolean
+    watermark?: boolean,
+    emojis?: string
   ): Promise<Buffer> {
     this.logOperation("DOWNLOAD_YOUTUBE_SEGMENT", {
       url,
@@ -574,20 +598,22 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Step 1: Download the segment using yt-dlp with --download-sections
       await this.downloadYouTubeSegmentToFile(url, startTime, endTime, tempVideoPath, quality);
 
-      // Step 2: Generate ASS subtitles if captions provided (includes intro title if provided)
-      if (captions?.words?.length || introTitle) {
+      // Step 2: Generate ASS subtitles if captions, intro title, or emojis provided
+      if (captions?.words?.length || introTitle || emojis) {
         const assContent = this.generateASSSubtitles(
-          captions?.words || [], 
-          captions?.style, 
-          width, 
+          captions?.words || [],
+          captions?.style,
+          width,
           height,
-          introTitle
+          introTitle,
+          emojis
         );
         await fs.promises.writeFile(tempSubsPath, assContent);
-        this.logOperation("GENERATED_ASS_SUBTITLES", { 
-          path: tempSubsPath, 
+        this.logOperation("GENERATED_ASS_SUBTITLES", {
+          path: tempSubsPath,
           wordCount: captions?.words?.length || 0,
-          hasIntroTitle: !!introTitle 
+          hasIntroTitle: !!introTitle,
+          hasEmojis: !!emojis
         });
       }
 
@@ -737,7 +763,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     quality: VideoQuality,
     captions?: ClipGenerationOptions["captions"],
     introTitle?: string,
-    watermark?: boolean
+    watermark?: boolean,
+    emojis?: string
   ): Promise<Buffer> {
     this.logOperation("EXTRACT_SEGMENT_FROM_FILE", {
       storageKey,
@@ -760,20 +787,22 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     // Generate ASS subtitles if captions or intro title provided
     let subsPathToUse: string | undefined;
-    if (captions?.words?.length || introTitle) {
+    if (captions?.words?.length || introTitle || emojis) {
       const assContent = this.generateASSSubtitles(
-        captions?.words || [], 
-        captions?.style, 
-        width, 
+        captions?.words || [],
+        captions?.style,
+        width,
         height,
-        introTitle
+        introTitle,
+        emojis
       );
       await fs.promises.writeFile(tempSubsPath, assContent);
       subsPathToUse = tempSubsPath;
-      this.logOperation("GENERATED_ASS_SUBTITLES", { 
-        path: tempSubsPath, 
+      this.logOperation("GENERATED_ASS_SUBTITLES", {
+        path: tempSubsPath,
         wordCount: captions?.words?.length || 0,
-        hasIntroTitle: !!introTitle 
+        hasIntroTitle: !!introTitle,
+        hasEmojis: !!emojis
       });
     }
 
