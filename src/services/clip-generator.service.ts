@@ -11,6 +11,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { nanoid } from "nanoid";
+import sharp from "sharp";
 
 export type AspectRatio = "9:16" | "1:1" | "16:9";
 export type VideoQuality = "720p" | "1080p" | "4k";
@@ -25,6 +26,7 @@ export interface ClipGenerationOptions {
   endTime: number;
   aspectRatio: AspectRatio;
   quality: VideoQuality;
+  watermark?: boolean;
   introTitle?: string;
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;
@@ -122,6 +124,70 @@ export class ClipGeneratorService {
   }
 
   /**
+   * Get the absolute path to the watermark logo PNG.
+   * Converts from SVG on first call and caches the result.
+   */
+  private static watermarkPngPath: string | null = null;
+  private static async getWatermarkLogoPath(): Promise<string> {
+    if (this.watermarkPngPath && fs.existsSync(this.watermarkPngPath)) {
+      return this.watermarkPngPath;
+    }
+    const svgPath = path.resolve(__dirname, "../assets/watermark-logo.svg");
+    const pngPath = path.resolve(os.tmpdir(), "scalereach-watermark-logo.png");
+    const svgBuffer = await fs.promises.readFile(svgPath);
+    await sharp(svgBuffer, { density: 300 }).resize(512, 512).png().toFile(pngPath);
+    this.watermarkPngPath = pngPath;
+    this.logOperation("WATERMARK_LOGO_CONVERTED", { pngPath });
+    return pngPath;
+  }
+
+  /**
+   * Build watermark filter config for FFmpeg.
+   * Layout (top-right, logo centered): "Made With" → [logo] → "ScaleReach"
+   */
+  private static getWatermarkFilterConfig(
+    videoWidth: number,
+    videoHeight: number,
+    logoPath: string
+  ): {
+    extraInputArgs: string[];
+    filterFragment: string;
+  } {
+    const logoHeight = Math.max(Math.round(videoHeight * 0.032), 19);
+    const padding = Math.round(videoHeight * 0.03);
+    const madeWithSize = Math.max(Math.round(logoHeight * 0.4), 10);
+    const scaleReachSize = Math.max(Math.round(logoHeight * 0.44), 11);
+    const gap = Math.round(madeWithSize * 0.4);
+
+    // Positions from top
+    const madeWithY = padding;
+    const logoY = madeWithY + madeWithSize + gap;
+    const scaleReachY = logoY + logoHeight + gap;
+
+    // Center all three elements (Made With, logo, ScaleReach) around a common
+    // center X in the top-right area. Use the wider "ScaleReach" text width as
+    // reference and place the block so its right edge sits at W-padding.
+    const estTextWidth = Math.round(scaleReachSize * 10 * 0.55);
+    const blockCenterX = `W-${padding}-${Math.round(estTextWidth / 2)}`;
+
+    return {
+      extraInputArgs: ["-i", logoPath],
+      filterFragment:
+        `[1:v]scale=-1:${logoHeight},format=rgba,` +
+        `colorchannelmixer=aa=0.6[wm];` +
+        `[pre_wm]drawtext=text='Made With':` +
+        `fontsize=${madeWithSize}:fontcolor=white@0.6:` +
+        `borderw=1:bordercolor=black@0.3:` +
+        `x=${blockCenterX}-tw/2:y=${madeWithY}[txt1];` +
+        `[txt1][wm]overlay=${blockCenterX}-w/2:${logoY}[logo_out];` +
+        `[logo_out]drawtext=text='ScaleReach':` +
+        `fontsize=${scaleReachSize}:fontcolor=white@0.6:` +
+        `borderw=1:bordercolor=black@0.3:` +
+        `x=${blockCenterX}-tw/2:y=${scaleReachY}`,
+    };
+  }
+
+  /**
    * Generate a clip from a video source
    * Creates TWO versions:
    * 1. storageUrl - clip WITH captions (for download/share)
@@ -159,9 +225,10 @@ export class ClipGeneratorService {
         options.aspectRatio,
         options.quality,
         options.captions,
-        options.introTitle
+        options.introTitle,
+        options.watermark
       );
-      
+
       // Generate clip WITHOUT captions (raw version for editing)
       clipWithoutCaptionsBuffer = await this.downloadYouTubeSegment(
         options.sourceUrl,
@@ -170,7 +237,8 @@ export class ClipGeneratorService {
         options.aspectRatio,
         options.quality,
         undefined, // No captions
-        undefined  // No intro title
+        undefined, // No intro title
+        options.watermark
       );
     } else if (options.sourceType === "upload" && options.storageKey) {
       // Generate clip WITH captions
@@ -181,9 +249,10 @@ export class ClipGeneratorService {
         options.aspectRatio,
         options.quality,
         options.captions,
-        options.introTitle
+        options.introTitle,
+        options.watermark
       );
-      
+
       // Generate clip WITHOUT captions (raw version for editing)
       clipWithoutCaptionsBuffer = await this.extractSegmentFromFile(
         options.storageKey,
@@ -192,7 +261,8 @@ export class ClipGeneratorService {
         options.aspectRatio,
         options.quality,
         undefined, // No captions
-        undefined  // No intro title
+        undefined, // No intro title
+        options.watermark
       );
     } else {
       throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
@@ -480,7 +550,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     aspectRatio: AspectRatio,
     quality: VideoQuality,
     captions?: ClipGenerationOptions["captions"],
-    introTitle?: string
+    introTitle?: string,
+    watermark?: boolean
   ): Promise<Buffer> {
     this.logOperation("DOWNLOAD_YOUTUBE_SEGMENT", {
       url,
@@ -526,7 +597,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         tempOutputPath,
         width,
         height,
-        (captions?.words?.length || introTitle) ? tempSubsPath : undefined
+        (captions?.words?.length || introTitle) ? tempSubsPath : undefined,
+        watermark
       );
 
       // Step 4: Read the output file
@@ -664,7 +736,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     aspectRatio: AspectRatio,
     quality: VideoQuality,
     captions?: ClipGenerationOptions["captions"],
-    introTitle?: string
+    introTitle?: string,
+    watermark?: boolean
   ): Promise<Buffer> {
     this.logOperation("EXTRACT_SEGMENT_FROM_FILE", {
       storageKey,
@@ -705,29 +778,38 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     }
 
     try {
+      const wmConfig = watermark
+        ? this.getWatermarkFilterConfig(width, height, await this.getWatermarkLogoPath())
+        : null;
+
       return await new Promise((resolve, reject) => {
         const targetAspect = width / height;
         const isVertical = targetAspect < 1;
-        
+
         let args: string[];
-        
+
         if (isVertical) {
           // Use blur background filter for vertical videos
           let filterComplex = this.buildBlurBackgroundFilter(width, height);
-          
+
           // Add subtitles to the final output if provided
           if (subsPathToUse) {
             const escapedPath = subsPathToUse
               .replace(/\\/g, "/")
               .replace(/:/g, "\\:");
-            filterComplex = `${filterComplex},ass=${escapedPath},format=yuv420p[outv]`;
+            filterComplex = `${filterComplex},ass=${escapedPath}`;
+          }
+
+          if (wmConfig) {
+            filterComplex = `${filterComplex}[pre_wm];${wmConfig.filterFragment},format=yuv420p[outv]`;
           } else {
             filterComplex = `${filterComplex},format=yuv420p[outv]`;
           }
-          
+
           args = [
             "-ss", startTime.toString(),
             "-i", videoUrl,
+            ...(wmConfig ? wmConfig.extraInputArgs : []),
             "-t", duration.toString(),
             "-filter_complex", filterComplex,
             "-map", "[outv]",
@@ -746,7 +828,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         } else {
           // Use center-crop for non-vertical videos
           let videoFilter = `scale='max(${width},iw*${height}/ih)':'max(${height},ih*${width}/iw)',crop=${width}:${height}`;
-          
+
           // Add subtitles filter if captions provided
           if (subsPathToUse) {
             const escapedPath = subsPathToUse
@@ -755,20 +837,42 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             videoFilter = `${videoFilter},ass=${escapedPath}`;
           }
 
-          args = [
-            "-ss", startTime.toString(),
-            "-i", videoUrl,
-            "-t", duration.toString(),
-            "-vf", videoFilter,
-            "-c:v", "libx264",
-            "-preset", "slow",
-            "-crf", "18",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            "-movflags", "frag_keyframe+empty_moov",
-            "-f", "mp4",
-            "-",
-          ];
+          if (wmConfig) {
+            // Need filter_complex for second input (watermark logo)
+            const filterComplex = `[0:v]${videoFilter}[pre_wm];${wmConfig.filterFragment},format=yuv420p[outv]`;
+            args = [
+              "-ss", startTime.toString(),
+              "-i", videoUrl,
+              ...wmConfig.extraInputArgs,
+              "-t", duration.toString(),
+              "-filter_complex", filterComplex,
+              "-map", "[outv]",
+              "-map", "0:a?",
+              "-c:v", "libx264",
+              "-preset", "slow",
+              "-crf", "18",
+              "-c:a", "aac",
+              "-b:a", "192k",
+              "-movflags", "frag_keyframe+empty_moov",
+              "-f", "mp4",
+              "-",
+            ];
+          } else {
+            args = [
+              "-ss", startTime.toString(),
+              "-i", videoUrl,
+              "-t", duration.toString(),
+              "-vf", videoFilter,
+              "-c:v", "libx264",
+              "-preset", "slow",
+              "-crf", "18",
+              "-c:a", "aac",
+              "-b:a", "192k",
+              "-movflags", "frag_keyframe+empty_moov",
+              "-f", "mp4",
+              "-",
+            ];
+          }
         }
 
         this.logOperation("FFMPEG_EXTRACT", { 
@@ -831,30 +935,40 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     outputPath: string,
     targetWidth: number,
     targetHeight: number,
-    subtitlesPath?: string
+    subtitlesPath?: string,
+    watermark?: boolean
   ): Promise<void> {
+    const wmConfig = watermark
+      ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())
+      : null;
+
     return new Promise((resolve, reject) => {
       const targetAspect = targetWidth / targetHeight;
       const isVertical = targetAspect < 1;
-      
+
       let args: string[];
-      
+
       if (isVertical) {
         // Use blur background filter (complex filter graph)
         let filterComplex = this.buildBlurBackgroundFilter(targetWidth, targetHeight);
-        
+
         // Add subtitles to the final output if provided
         if (subtitlesPath) {
           const escapedPath = subtitlesPath
             .replace(/\\/g, "/")
             .replace(/:/g, "\\:");
-          filterComplex = `${filterComplex},ass=${escapedPath},format=yuv420p[outv]`;
+          filterComplex = `${filterComplex},ass=${escapedPath}`;
+        }
+
+        if (wmConfig) {
+          filterComplex = `${filterComplex}[pre_wm];${wmConfig.filterFragment},format=yuv420p[outv]`;
         } else {
           filterComplex = `${filterComplex},format=yuv420p[outv]`;
         }
-        
+
         args = [
           "-i", inputPath,
+          ...(wmConfig ? wmConfig.extraInputArgs : []),
           "-filter_complex", filterComplex,
           "-map", "[outv]",
           "-map", "0:a?",
@@ -871,32 +985,52 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         ];
       } else {
         // Use simple center-crop filter
-        const cropFilter = `scale='max(${targetWidth},iw*${targetHeight}/ih)':'max(${targetHeight},ih*${targetWidth}/iw)',crop=${targetWidth}:${targetHeight},format=yuv420p`;
-        
-        let videoFilter: string;
+        let videoFilter = `scale='max(${targetWidth},iw*${targetHeight}/ih)':'max(${targetHeight},ih*${targetWidth}/iw)',crop=${targetWidth}:${targetHeight}`;
+
         if (subtitlesPath) {
           const escapedPath = subtitlesPath
             .replace(/\\/g, "/")
             .replace(/:/g, "\\:");
-          videoFilter = `${cropFilter},ass=${escapedPath}`;
-        } else {
-          videoFilter = cropFilter;
+          videoFilter = `${videoFilter},ass=${escapedPath}`;
         }
 
-        args = [
-          "-i", inputPath,
-          "-vf", videoFilter,
-          "-c:v", "libx264",
-          "-preset", "medium",
-          "-crf", "23",
-          "-profile:v", "high",
-          "-level", "4.0",
-          "-c:a", "aac",
-          "-b:a", "192k",
-          "-movflags", "+faststart",
-          "-y",
-          outputPath,
-        ];
+        if (wmConfig) {
+          // Need filter_complex for second input (watermark logo)
+          const filterComplex = `[0:v]${videoFilter}[pre_wm];${wmConfig.filterFragment},format=yuv420p[outv]`;
+          args = [
+            "-i", inputPath,
+            ...wmConfig.extraInputArgs,
+            "-filter_complex", filterComplex,
+            "-map", "[outv]",
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", "23",
+            "-profile:v", "high",
+            "-level", "4.0",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-movflags", "+faststart",
+            "-y",
+            outputPath,
+          ];
+        } else {
+          videoFilter = `${videoFilter},format=yuv420p`;
+          args = [
+            "-i", inputPath,
+            "-vf", videoFilter,
+            "-c:v", "libx264",
+            "-preset", "medium",
+            "-crf", "23",
+            "-profile:v", "high",
+            "-level", "4.0",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-movflags", "+faststart",
+            "-y",
+            outputPath,
+          ];
+        }
       }
 
       this.logOperation("FFMPEG_CONVERT_ASPECT", { 

@@ -2,8 +2,10 @@ import { Context } from "hono";
 import { nanoid } from "nanoid";
 import { ClipModel } from "../models/clip.model";
 import { VideoModel } from "../models/video.model";
+import { WorkspaceModel } from "../models/workspace.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { addClipGenerationJob } from "../jobs/queue";
+import { getPlanConfig } from "../config/plan-config";
 
 export class ExportController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -121,11 +123,16 @@ export class ExportController {
         createdAt: new Date().toISOString(),
       };
 
+      // Determine watermark based on workspace plan
+      const exportWorkspaceId = (video as any).workspaceId || "";
+      const ws = exportWorkspaceId ? await WorkspaceModel.getById(exportWorkspaceId) : null;
+      const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+
       // Add job to queue for clip generation with caption data
       await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
-        workspaceId: (video as any).workspaceId || "",
+        workspaceId: exportWorkspaceId,
         userId: video.userId || "",
         creditCost: 0, // Export doesn't cost additional credits
         sourceType: video.sourceType as "youtube" | "upload",
@@ -135,6 +142,7 @@ export class ExportController {
         endTime: clip.endTime,
         aspectRatio: (clip.aspectRatio as "9:16" | "1:1" | "16:9") || "9:16",
         quality: resolutionToQuality(options?.resolution || "1080p"),
+        watermark: applyWatermark,
         introTitle: (clip as any).introTitle || undefined,
         captions: words.length > 0 ? {
           words,
@@ -280,11 +288,16 @@ export class ExportController {
           style = undefined;
         }
 
+        // Determine watermark based on workspace plan
+        const batchWorkspaceId = (video as any).workspaceId || "";
+        const batchWs = batchWorkspaceId ? await WorkspaceModel.getById(batchWorkspaceId) : null;
+        const batchWatermark = getPlanConfig(batchWs?.plan || "free").limits.watermark;
+
         // Add job to queue
         await addClipGenerationJob({
           clipId,
           videoId: clip.videoId,
-          workspaceId: (video as any).workspaceId || "",
+          workspaceId: batchWorkspaceId,
           userId: video.userId || "",
           creditCost: 0, // Batch export doesn't cost additional credits
           sourceType: video.sourceType as "youtube" | "upload",
@@ -294,6 +307,7 @@ export class ExportController {
           endTime: clip.endTime,
           aspectRatio: (clip.aspectRatio as "9:16" | "1:1" | "16:9") || "9:16",
           quality: resolutionToQuality(options?.resolution || "1080p"),
+          watermark: batchWatermark,
           introTitle: (clip as any).introTitle || undefined,
           captions: words.length > 0 ? {
             words,

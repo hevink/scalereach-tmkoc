@@ -134,6 +134,7 @@ async function processClipGenerationJob(
     creditCost,
     introTitle,
     captions,
+    watermark,
   } = job.data;
 
   console.log(`[CLIP WORKER] Processing clip generation job: ${clipId}`);
@@ -178,6 +179,7 @@ async function processClipGenerationJob(
       endTime,
       aspectRatio,
       quality,
+      watermark,
       introTitle,
       captions,
     });

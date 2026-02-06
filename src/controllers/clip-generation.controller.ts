@@ -10,6 +10,7 @@ import { ClipModel } from "../models/clip.model";
 import { VideoModel } from "../models/video.model";
 import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
+import { WorkspaceModel } from "../models/workspace.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { ClipGeneratorService, AspectRatio, VideoQuality } from "../services/clip-generator.service";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
@@ -133,6 +134,10 @@ export class ClipGenerationController {
         return c.json({ error: validation.error }, 400);
       }
 
+      // Determine watermark based on workspace plan
+      const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+      const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+
       // Add job to queue with intro title
       const job = await addClipGenerationJob({
         clipId,
@@ -147,6 +152,7 @@ export class ClipGenerationController {
         aspectRatio,
         quality,
         creditCost: 0,
+        watermark: applyWatermark,
         introTitle: (clip as any).introTitle || undefined,
       });
 
@@ -301,6 +307,10 @@ export class ClipGenerationController {
         console.log(`[CLIP GENERATION CONTROLLER] Using saved captions: ${savedCaptions.words.length} words, isEdited: ${savedCaptions.isEdited}`);
       }
 
+      // Determine watermark based on workspace plan
+      const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+      const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+
       // Add job to queue with captions and intro title
       const job = await addClipGenerationJob({
         clipId,
@@ -315,6 +325,7 @@ export class ClipGenerationController {
         aspectRatio,
         quality,
         creditCost: 0,
+        watermark: applyWatermark,
         introTitle: (clip as any).introTitle || undefined,
         captions,
       });

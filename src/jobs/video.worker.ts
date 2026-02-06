@@ -13,6 +13,7 @@ import { VideoConfigModel } from "../models/video-config.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { UserModel } from "../models/user.model";
 import { MinutesModel } from "../models/minutes.model";
+import { WorkspaceModel } from "../models/workspace.model";
 import { emailService } from "../services/email.service";
 import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
@@ -292,6 +293,9 @@ async function processYouTubeVideo(
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
         // Queue clip generation with captions and intro title
+        const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+        const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -304,6 +308,7 @@ async function processYouTubeVideo(
           endTime: clipRecord.endTime,
           aspectRatio: aspectRatio,
           quality: "1080p",
+          watermark: applyWatermark,
           introTitle: clipRecord.introTitle ?? undefined,
           captions: {
             words: adjustedWords,
@@ -638,6 +643,9 @@ async function processUploadedVideo(
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
         // Queue clip generation with captions and intro title
+        const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+        const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -650,6 +658,7 @@ async function processUploadedVideo(
           endTime: clipRecord.endTime,
           aspectRatio: aspectRatio,
           quality: "1080p",
+          watermark: applyWatermark,
           introTitle: clipRecord.introTitle ?? undefined,
           captions: {
             words: adjustedWords,
