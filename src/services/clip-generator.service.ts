@@ -709,6 +709,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
       const downloadSection = formatYtDlpTimestamp(startTime, endTime);
 
+      // Add cookies if available
+      const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
+
       const args = [
         "-f", formatSelector,
         "--download-sections", downloadSection,
@@ -718,11 +721,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "--quiet",
         "--no-warnings",
         "--no-post-overwrites", // Prevent conflicts with concurrent processes
+        // Enable Deno as primary JavaScript runtime (faster and more reliable)
+        "--js-runtimes", "deno",
+        // Use web client when cookies are available, otherwise try android first
+        "--extractor-args", cookiesPath ? "youtube:player_client=web,android" : "youtube:player_client=android,web",
         url,
       ];
 
-      // Add cookies if available
-      const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
       if (cookiesPath) {
         args.unshift("--cookies", cookiesPath);
       }

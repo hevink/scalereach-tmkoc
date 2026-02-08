@@ -69,25 +69,40 @@ export class YouTubeService {
     console.log(`[YOUTUBE SERVICE] Getting video info for: ${url}`);
 
     return new Promise((resolve, reject) => {
+      // Add cookies if available
+      const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
+      
       const args = [
         "--dump-json",
         "--no-download",
+        // Enable Deno as primary JavaScript runtime (faster and more reliable)
+        "--js-runtimes", "deno,node",
+        // Anti-bot detection measures
+        "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        // Use web client when cookies are available, otherwise try android first
+        "--extractor-args", cookiesPath ? "youtube:player_client=web,android" : "youtube:player_client=android,web",
+        "--extractor-retries", "5",
         url,
       ];
 
-      const process = spawn("yt-dlp", args);
+      if (cookiesPath) {
+        args.unshift("--cookies", cookiesPath);
+        console.log(`[YOUTUBE SERVICE] Using cookies from: ${cookiesPath}`);
+      }
+
+      const childProcess = spawn("yt-dlp", args);
       let stdout = "";
       let stderr = "";
 
-      process.stdout.on("data", (data) => {
+      childProcess.stdout.on("data", (data) => {
         stdout += data.toString();
       });
 
-      process.stderr.on("data", (data) => {
+      childProcess.stderr.on("data", (data) => {
         stderr += data.toString();
       });
 
-      process.on("close", (code) => {
+      childProcess.on("close", (code) => {
         if (code !== 0) {
           console.error(`[YOUTUBE SERVICE] yt-dlp error: ${stderr}`);
           reject(new Error(`Failed to get video info: ${stderr}`));
@@ -160,6 +175,9 @@ export class YouTubeService {
 
     const videoInfo = await this.getVideoInfo(url);
 
+    // Add cookies if available
+    const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
+    
     const args = [
       "-f", "bestaudio[ext=m4a]/bestaudio/best",
       "-o", "-", // Output to stdout
@@ -167,12 +185,15 @@ export class YouTubeService {
       "--no-warnings",
       "--no-check-certificates",
       "--prefer-free-formats",
+      // Enable Deno as primary JavaScript runtime (faster and more reliable)
+      "--js-runtimes", "deno",
       // Anti-bot detection measures
       "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
       "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "--add-header", "Accept-Language:en-us,en;q=0.5",
       "--add-header", "Sec-Fetch-Mode:navigate",
-      "--extractor-args", "youtube:player_client=android,web",
+      // Use web client when cookies are available, otherwise try android first
+      "--extractor-args", cookiesPath ? "youtube:player_client=web,android" : "youtube:player_client=android,web",
       "--extractor-retries", "5",
       "--fragment-retries", "5",
       "--retry-sleep", "2",
@@ -181,7 +202,6 @@ export class YouTubeService {
       url,
     ];
 
-    const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
     if (cookiesPath) {
       args.unshift("--cookies", cookiesPath);
       console.log(`[YOUTUBE SERVICE] Using cookies from: ${cookiesPath}`);

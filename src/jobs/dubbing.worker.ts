@@ -169,7 +169,7 @@ async function processDubbingJob(job: Job<DubbingJobData>) {
     // Get video duration for total track length
     const videoResult = await db
       .select({
-        durationSeconds: video.durationSeconds,
+        durationSeconds: video.duration,
         audioStorageKey: video.audioStorageKey,
       })
       .from(video)

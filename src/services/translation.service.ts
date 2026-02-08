@@ -264,7 +264,7 @@ export class TranslationService {
    */
   static getLanguageStyleOverrides(
     targetLang: string
-  ): Partial<{ wordsPerLine: number; alignment: string; fontFamily: string }> {
+  ): Partial<{ wordsPerLine: number; alignment: "left" | "center" | "right"; fontFamily: string }> {
     const cjkLangs = ["ja", "ko", "zh"];
     const rtlLangs = ["ar", "he"];
 

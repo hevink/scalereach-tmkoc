@@ -80,7 +80,7 @@ export class DubbingController {
 
       // Get video duration to check minutes
       const videoResult = await db
-        .select({ durationSeconds: video.durationSeconds })
+        .select({ durationSeconds: video.duration })
         .from(video)
         .where(eq(video.id, translation.videoId));
 
