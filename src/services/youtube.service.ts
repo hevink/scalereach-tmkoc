@@ -75,8 +75,8 @@ export class YouTubeService {
       const args = [
         "--dump-json",
         "--no-download",
-        // Enable Deno as primary JavaScript runtime (faster and more reliable)
-        "--js-runtimes", "deno,node",
+        // Enable Deno as JavaScript runtime (faster and more reliable)
+        "--js-runtimes", "deno",
         // Anti-bot detection measures
         "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
         // Use web client when cookies are available, otherwise try android first
