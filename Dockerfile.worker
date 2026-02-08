@@ -21,7 +21,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     ca-certificates \
     curl \
-    && pip3 install yt-dlp --break-system-packages \
+    unzip \
+    && pip3 install --upgrade yt-dlp --break-system-packages \
+    && curl -fsSL https://deno.land/install.sh | sh \
+    && ln -s /root/.deno/bin/deno /usr/local/bin/deno \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /root/.cache
 
@@ -38,6 +41,9 @@ COPY package.json ./
 COPY src ./src
 COPY drizzle ./drizzle
 COPY drizzle.config.ts tsconfig.json ./
+
+# Create config directory for YouTube cookies (will be populated by Render Secret Files)
+RUN mkdir -p /app/config
 
 RUN chown -R appuser:appuser /app
 USER appuser

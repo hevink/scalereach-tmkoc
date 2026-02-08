@@ -54,6 +54,8 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
+      - key: YOUTUBE_COOKIES_PATH
+        sync: false
 
   # Background Worker for video/clip processing
   - type: worker
@@ -93,6 +95,8 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: RESEND_API_KEY
+        sync: false
+      - key: YOUTUBE_COOKIES_PATH
         sync: false
 
   # Redis for BullMQ job queue
