@@ -1,10 +1,12 @@
 # Build stage with native build tools
 FROM oven/bun:1-debian AS builder
 
-# Install build dependencies for native modules (better-sqlite3)
+# Install build dependencies for native modules (sharp, better-sqlite3)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     build-essential \
+    pkg-config \
+    libvips-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -14,11 +16,12 @@ RUN bun install --no-save
 # Production stage
 FROM oven/bun:1-debian AS runner
 
-# Install runtime dependencies only (no build tools needed)
+# Install runtime dependencies (libvips for sharp, ffmpeg, yt-dlp, deno)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     ffmpeg \
+    libvips42 \
     ca-certificates \
     curl \
     unzip \

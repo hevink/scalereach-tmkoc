@@ -38,6 +38,7 @@
     "nanoid": "^5.1.6",
     "nodemailer": "^7.0.12",
     "postgres": "^3.4.8",
+    "sharp": "^0.34.5",
     "zod": "^4.3.5"
   },
   "devDependencies": {
