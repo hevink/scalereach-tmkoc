@@ -64,6 +64,10 @@ export interface ClipGenerationJobData {
   emojis?: string;
   // Intro title to burn into video for first 3 seconds
   introTitle?: string;
+  // Target language for translated captions (if set, uses translated captions)
+  targetLanguage?: string;
+  // Dubbing ID for dubbed audio replacement during export
+  dubbingId?: string;
   // Caption data for burning into video
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;

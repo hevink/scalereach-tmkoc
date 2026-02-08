@@ -6,3 +6,5 @@ export * from "./credit.schema";
 export * from "./video-config.schema";
 export * from "./clip-caption.schema";
 export * from "./minutes.schema";
+export * from "./translation.schema";
+export * from "./dubbing.schema";

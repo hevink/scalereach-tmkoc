@@ -133,7 +133,7 @@ export class MinutesModel {
     userId?: string;
     videoId?: string;
     amount: number;
-    type: "upload" | "regenerate";
+    type: "upload" | "regenerate" | "dubbing";
   }) {
     this.logOperation("DEDUCT_MINUTES", {
       workspaceId: params.workspaceId,

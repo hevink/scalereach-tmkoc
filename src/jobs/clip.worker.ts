@@ -10,6 +10,8 @@ import { ClipModel } from "../models/clip.model";
 import { UserModel } from "../models/user.model";
 import { VideoModel } from "../models/video.model";
 import { WorkspaceModel } from "../models/workspace.model";
+import { TranslationModel } from "../models/translation.model";
+import { TranslationService } from "../services/translation.service";
 import { ClipGeneratorService } from "../services/clip-generator.service";
 import { emailService } from "../services/email.service";
 import {
@@ -136,6 +138,7 @@ async function processClipGenerationJob(
     captions,
     watermark,
     emojis,
+    targetLanguage,
   } = job.data;
 
   console.log(`[CLIP WORKER] Processing clip generation job: ${clipId}`);
@@ -144,11 +147,32 @@ async function processClipGenerationJob(
   console.log(`[CLIP WORKER] Captions: ${captions?.words?.length || 0} words`);
   console.log(`[CLIP WORKER] Intro title: ${introTitle ? 'yes' : 'no'}`);
   console.log(`[CLIP WORKER] Emojis: ${emojis ? 'yes' : 'no'}`);
+  console.log(`[CLIP WORKER] Target language: ${targetLanguage || 'original'}`);
 
   try {
     // Update status to generating (Requirement 7.5)
     await updateClipStatus(clipId, "generating");
     await job.updateProgress(10);
+
+    // If targetLanguage is set, fetch translated captions
+    let effectiveCaptions = captions;
+    if (targetLanguage) {
+      console.log(`[CLIP WORKER] Fetching translated captions for language: ${targetLanguage}`);
+      const translatedCaptions = await TranslationModel.getClipCaptions(clipId, targetLanguage);
+      if (translatedCaptions) {
+        const styleOverrides = TranslationService.getLanguageStyleOverrides(targetLanguage);
+        effectiveCaptions = {
+          words: translatedCaptions.words,
+          style: {
+            ...captions?.style,
+            ...styleOverrides,
+          },
+        };
+        console.log(`[CLIP WORKER] Using ${translatedCaptions.words.length} translated words`);
+      } else {
+        console.warn(`[CLIP WORKER] No translated captions found for ${targetLanguage}, using original`);
+      }
+    }
 
     // Validate options
     const validation = ClipGeneratorService.validateOptions({
@@ -183,7 +207,7 @@ async function processClipGenerationJob(
       quality,
       watermark,
       introTitle,
-      captions,
+      captions: effectiveCaptions,
       emojis,
     });
 

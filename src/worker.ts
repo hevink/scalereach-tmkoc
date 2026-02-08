@@ -1,5 +1,7 @@
 import { startVideoWorker } from "./jobs/video.worker";
 import { startClipWorker } from "./jobs/clip.worker";
+import { startTranslationWorker, translationQueue } from "./jobs/translation.worker";
+import { startDubbingWorker, dubbingQueue } from "./jobs/dubbing.worker";
 import { redisConnection, videoProcessingQueue, clipGenerationQueue } from "./jobs/queue";
 
 // Worker concurrency configuration via environment variables
@@ -8,6 +10,7 @@ import { redisConnection, videoProcessingQueue, clipGenerationQueue } from "./jo
 const VIDEO_WORKER_CONCURRENCY = parseInt(process.env.VIDEO_WORKER_CONCURRENCY || "2", 10);
 const CLIP_WORKER_CONCURRENCY = parseInt(process.env.CLIP_WORKER_CONCURRENCY || "2", 10);
 const WORKER_HEALTH_PORT = parseInt(process.env.WORKER_HEALTH_PORT || "3002", 10);
+const DUBBING_WORKER_CONCURRENCY = parseInt(process.env.DUBBING_WORKER_CONCURRENCY || "1", 10);
 
 const startTime = Date.now();
 
@@ -16,6 +19,12 @@ const videoWorker = startVideoWorker(VIDEO_WORKER_CONCURRENCY);
 
 console.log("[WORKER] Starting clip generation worker...");
 const clipWorker = startClipWorker(CLIP_WORKER_CONCURRENCY);
+
+console.log("[WORKER] Starting translation worker...");
+const translationWorker = startTranslationWorker();
+
+console.log("[WORKER] Starting dubbing worker...");
+const dubbingWorker = startDubbingWorker(DUBBING_WORKER_CONCURRENCY);
 
 /**
  * Worker health check server
@@ -54,6 +63,20 @@ async function getQueueStats() {
       clipGenerationQueue.getFailedCount(),
     ]);
 
+    const [translationWaiting, translationActive, translationCompleted, translationFailed] = await Promise.all([
+      translationQueue.getWaitingCount(),
+      translationQueue.getActiveCount(),
+      translationQueue.getCompletedCount(),
+      translationQueue.getFailedCount(),
+    ]);
+
+    const [dubbingWaiting, dubbingActive, dubbingCompleted, dubbingFailed] = await Promise.all([
+      dubbingQueue.getWaitingCount(),
+      dubbingQueue.getActiveCount(),
+      dubbingQueue.getCompletedCount(),
+      dubbingQueue.getFailedCount(),
+    ]);
+
     return {
       videoProcessing: {
         waiting: videoWaiting,
@@ -66,6 +89,18 @@ async function getQueueStats() {
         active: clipActive,
         completed: clipCompleted,
         failed: clipFailed,
+      },
+      translation: {
+        waiting: translationWaiting,
+        active: translationActive,
+        completed: translationCompleted,
+        failed: translationFailed,
+      },
+      dubbing: {
+        waiting: dubbingWaiting,
+        active: dubbingActive,
+        completed: dubbingCompleted,
+        failed: dubbingFailed,
       },
     };
   } catch {
@@ -83,9 +118,11 @@ const healthServer = Bun.serve({
       const redisHealth = await checkRedisHealth();
       const isVideoRunning = videoWorker.isRunning();
       const isClipRunning = clipWorker.isRunning();
+      const isTranslationRunning = translationWorker.isRunning();
+      const isDubbingRunning = dubbingWorker.isRunning();
 
       const isHealthy =
-        redisHealth.status === "healthy" && isVideoRunning && isClipRunning;
+        redisHealth.status === "healthy" && isVideoRunning && isClipRunning && isTranslationRunning && isDubbingRunning;
 
       const response = {
         status: isHealthy ? "healthy" : "unhealthy",
@@ -99,6 +136,14 @@ const healthServer = Bun.serve({
           clipWorker: {
             running: isClipRunning,
             concurrency: CLIP_WORKER_CONCURRENCY,
+          },
+          translationWorker: {
+            running: isTranslationRunning,
+            concurrency: 1,
+          },
+          dubbingWorker: {
+            running: isDubbingRunning,
+            concurrency: DUBBING_WORKER_CONCURRENCY,
           },
         },
         redis: redisHealth,
@@ -116,9 +161,11 @@ const healthServer = Bun.serve({
       const queueStats = await getQueueStats();
       const isVideoRunning = videoWorker.isRunning();
       const isClipRunning = clipWorker.isRunning();
+      const isTranslationRunning = translationWorker.isRunning();
+      const isDubbingRunning = dubbingWorker.isRunning();
 
       const isHealthy =
-        redisHealth.status === "healthy" && isVideoRunning && isClipRunning;
+        redisHealth.status === "healthy" && isVideoRunning && isClipRunning && isTranslationRunning && isDubbingRunning;
 
       const response = {
         status: isHealthy ? "healthy" : "unhealthy",
@@ -132,6 +179,14 @@ const healthServer = Bun.serve({
           clipWorker: {
             running: isClipRunning,
             concurrency: CLIP_WORKER_CONCURRENCY,
+          },
+          translationWorker: {
+            running: isTranslationRunning,
+            concurrency: 1,
+          },
+          dubbingWorker: {
+            running: isDubbingRunning,
+            concurrency: DUBBING_WORKER_CONCURRENCY,
           },
         },
         redis: redisHealth,
@@ -157,9 +212,11 @@ const healthServer = Bun.serve({
       const redisHealth = await checkRedisHealth();
       const isVideoRunning = videoWorker.isRunning();
       const isClipRunning = clipWorker.isRunning();
+      const isTranslationRunning = translationWorker.isRunning();
+      const isDubbingRunning = dubbingWorker.isRunning();
 
       const isReady =
-        redisHealth.status === "healthy" && isVideoRunning && isClipRunning;
+        redisHealth.status === "healthy" && isVideoRunning && isClipRunning && isTranslationRunning && isDubbingRunning;
 
       return new Response(
         JSON.stringify({
@@ -182,14 +239,14 @@ console.log(`[WORKER] Health check server running on http://localhost:${WORKER_H
 process.on("SIGTERM", async () => {
   console.log("[WORKER] Received SIGTERM, shutting down gracefully...");
   healthServer.stop();
-  await Promise.all([videoWorker.close(), clipWorker.close()]);
+  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close()]);
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
   console.log("[WORKER] Received SIGINT, shutting down gracefully...");
   healthServer.stop();
-  await Promise.all([videoWorker.close(), clipWorker.close()]);
+  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close()]);
   process.exit(0);
 });
 

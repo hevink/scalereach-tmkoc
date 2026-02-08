@@ -11,6 +11,8 @@ export interface PlanLimits {
   regenerations: number; // per video
   editing: number; // -1 = unlimited
   watermark: boolean;
+  translationsPerVideo: number; // -1 = unlimited
+  dubbingMinutesPerMonth: number; // 0 = disabled, -1 = unlimited
 }
 
 export interface PlanConfig {
@@ -30,6 +32,8 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       regenerations: 2,
       editing: 5,
       watermark: true,
+      translationsPerVideo: 1,
+      dubbingMinutesPerMonth: 0,
     },
   },
   starter: {
@@ -42,6 +46,8 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       regenerations: 5,
       editing: -1, // unlimited
       watermark: false,
+      translationsPerVideo: 5,
+      dubbingMinutesPerMonth: 10,
     },
   },
   pro: {
@@ -54,6 +60,8 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       regenerations: 5,
       editing: -1, // unlimited
       watermark: false,
+      translationsPerVideo: -1, // unlimited
+      dubbingMinutesPerMonth: 30,
     },
   },
 };

@@ -20,6 +20,8 @@ import captionTemplateRouter from "./routes/caption-template.routes";
 import exportRouter from "./routes/export.routes";
 import healthRouter from "./routes/health.routes";
 import adminRouter from "./routes/admin.routes";
+import translationRouter from "./routes/translation.routes";
+import dubbingRouter from "./routes/dubbing.routes";
 import swaggerApp from "./docs/swagger-ui";
 import { openApiDocument } from "./docs/openapi";
 import type { AuthContext } from "./lib/auth";
@@ -99,6 +101,8 @@ app.route("/api/uppy", uppyUploadRouter);
 app.route("/api/caption-templates", captionTemplateRouter);
 app.route("/api/exports", exportRouter);
 app.route("/api/admin", adminRouter);
+app.route("/api/translations", translationRouter);
+app.route("/api/dubbing", dubbingRouter);
 app.route("/health", healthRouter); // Enhanced health checks
 app.route("/api-docs", swaggerApp); // Swagger UI at api-docs path
 
@@ -125,6 +129,8 @@ app.get("/", (c) => {
       exports: "/api/exports",
       captionTemplates: "/api/caption-templates",
       admin: "/api/admin",
+      translations: "/api/translations",
+      dubbing: "/api/dubbing",
       docs: "/api-docs",
       health: "/health",
     },
