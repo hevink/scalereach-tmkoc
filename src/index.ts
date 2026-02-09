@@ -22,6 +22,7 @@ import healthRouter from "./routes/health.routes";
 import adminRouter from "./routes/admin.routes";
 import translationRouter from "./routes/translation.routes";
 import dubbingRouter from "./routes/dubbing.routes";
+import shareRouter from "./routes/share.routes";
 import swaggerApp from "./docs/swagger-ui";
 import { openApiDocument } from "./docs/openapi";
 import type { AuthContext } from "./lib/auth";
@@ -103,6 +104,7 @@ app.route("/api/exports", exportRouter);
 app.route("/api/admin", adminRouter);
 app.route("/api/translations", translationRouter);
 app.route("/api/dubbing", dubbingRouter);
+app.route("/api", shareRouter); // Share routes (includes /api/videos/:videoId/share and /api/share/:token/analytics)
 app.route("/health", healthRouter); // Enhanced health checks
 app.route("/api-docs", swaggerApp); // Swagger UI at api-docs path
 

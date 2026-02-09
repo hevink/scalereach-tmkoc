@@ -8,3 +8,4 @@ export * from "./clip-caption.schema";
 export * from "./minutes.schema";
 export * from "./translation.schema";
 export * from "./dubbing.schema";
+export * from "./share.schema";
