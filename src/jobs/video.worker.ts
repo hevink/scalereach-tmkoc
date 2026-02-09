@@ -272,6 +272,8 @@ async function processYouTubeVideo(
           backgroundColor: template.style.backgroundColor,
           backgroundOpacity: template.style.backgroundOpacity,
           position: template.style.position,
+          x: template.style.x,
+          y: template.style.y,
           alignment: template.style.alignment,
           animation: template.style.animation,
           highlightColor: template.style.highlightColor,
@@ -279,6 +281,13 @@ async function processYouTubeVideo(
           shadow: template.style.shadow,
           outline: template.style.outline,
           outlineColor: template.style.outlineColor,
+          outlineWidth: template.style.outlineWidth,
+          glowEnabled: template.style.glowEnabled,
+          glowColor: template.style.glowColor,
+          glowIntensity: template.style.glowIntensity,
+          highlightScale: template.style.highlightScale,
+          textTransform: template.style.textTransform,
+          wordsPerLine: template.style.wordsPerLine,
         };
 
         // Save caption data to database for editing
@@ -627,6 +636,8 @@ async function processUploadedVideo(
           backgroundColor: template.style.backgroundColor,
           backgroundOpacity: template.style.backgroundOpacity,
           position: template.style.position,
+          x: template.style.x,
+          y: template.style.y,
           alignment: template.style.alignment,
           animation: template.style.animation,
           highlightColor: template.style.highlightColor,
@@ -634,6 +645,13 @@ async function processUploadedVideo(
           shadow: template.style.shadow,
           outline: template.style.outline,
           outlineColor: template.style.outlineColor,
+          outlineWidth: template.style.outlineWidth,
+          glowEnabled: template.style.glowEnabled,
+          glowColor: template.style.glowColor,
+          glowIntensity: template.style.glowIntensity,
+          highlightScale: template.style.highlightScale,
+          textTransform: template.style.textTransform,
+          wordsPerLine: template.style.wordsPerLine,
         };
 
         // Save caption data to database for editing
