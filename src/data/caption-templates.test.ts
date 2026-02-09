@@ -31,8 +31,8 @@ describe("Caption Templates", () => {
       expect(CAPTION_TEMPLATES.length).toBeGreaterThanOrEqual(5);
     });
 
-    it("should have 14 templates including new viral templates", () => {
-      expect(CAPTION_TEMPLATES.length).toBe(14);
+    it("should have 22 templates including new viral templates", () => {
+      expect(CAPTION_TEMPLATES.length).toBe(22);
     });
   });
 
@@ -282,7 +282,7 @@ describe("Caption Templates", () => {
   describe("getAllTemplates", () => {
     it("should return all templates", () => {
       const templates = getAllTemplates();
-      expect(templates.length).toBe(15);
+      expect(templates.length).toBe(22);
     });
 
     it("should return templates with unique IDs", () => {
@@ -321,8 +321,8 @@ describe("Caption Templates", () => {
   });
 
   describe("Supported Fonts", () => {
-    it("should have at least 15 supported fonts", () => {
-      expect(SUPPORTED_FONTS.length).toBeGreaterThanOrEqual(15);
+    it("should have at least 18 supported fonts", () => {
+      expect(SUPPORTED_FONTS.length).toBeGreaterThanOrEqual(18);
     });
 
     it("should include common web fonts", () => {

@@ -91,72 +91,6 @@ export const CLASSIC_TEMPLATE: CaptionTemplate = {
 };
 
 /**
- * Sara Template
- * Box highlight with red/orange accent - Lexend 900
- */
-export const SARA_TEMPLATE: CaptionTemplate = {
-  id: "sara",
-  name: "Sara",
-  description: "Bold box highlight style with warm accent colors",
-  platform: "Universal",
-  style: {
-    fontFamily: "Lexend",
-    fontSize: 48,
-    textColor: "#fffee5",
-    backgroundColor: "#e13809",
-    backgroundOpacity: 100,
-    x: 50, y: 85,
-    alignment: "center",
-    animation: "karaoke",
-    highlightColor: "#e13809",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-    outlineWidth: 5,
-    highlightScale: 120,
-    textTransform: "none",
-    wordsPerLine: 3,
-  },
-  preview: "/templates/sara-preview.png",
-  createdAt: new Date("2024-04-08"),
-  updatedAt: new Date("2024-04-03"),
-};
-
-/**
- * Jimi Template
- * Blue tones with green highlight - Titan One 900
- */
-export const JIMI_TEMPLATE: CaptionTemplate = {
-  id: "jimi",
-  name: "Jimi",
-  description: "Cool blue tones with vibrant neon green highlight",
-  platform: "Universal",
-  style: {
-    fontFamily: "Titan One",
-    fontSize: 64,
-    textColor: "#cddcf4",
-    backgroundColor: "#000000",
-    backgroundOpacity: 0,
-    x: 50, y: 85,
-    alignment: "center",
-    animation: "bounce",
-    highlightColor: "#75FA55",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#103e89",
-    outlineWidth: 5,
-    highlightScale: 125,
-    textTransform: "none",
-    wordsPerLine: 3,
-  },
-  preview: "/templates/jimi-preview.png",
-  createdAt: new Date("2024-04-03"),
-  updatedAt: new Date("2024-04-03"),
-};
-
-/**
  * Basker Template
  * Elegant serif font with subtle shadow - Libre Baskerville 900
  */
@@ -494,13 +428,372 @@ export const NEON_POP_TEMPLATE: CaptionTemplate = {
 };
 
 /**
+ * Gold Luxe Template
+ * Luxurious gold glow with thick outline - premium creator aesthetic
+ */
+export const GOLD_LUXE_TEMPLATE: CaptionTemplate = {
+  id: "gold-luxe",
+  name: "Gold Luxe",
+  description: "Luxurious gold glow with thick outline - premium creator aesthetic",
+  platform: "Universal",
+  style: {
+    fontFamily: "Righteous",
+    fontSize: 42,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "karaoke",
+    highlightColor: "#FFD700",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#8B6914",
+    outlineWidth: 5,
+    glowEnabled: true,
+    glowColor: "#FFD700",
+    glowIntensity: 3,
+    highlightScale: 125,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
+  },
+  preview: "/templates/gold-luxe-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
+ * Cinematic Template
+ * Warm ivory tones with elegant fade - film-quality subtitles
+ */
+export const CINEMATIC_TEMPLATE: CaptionTemplate = {
+  id: "cinematic",
+  name: "Cinematic",
+  description: "Warm ivory tones with elegant fade - film-quality subtitles",
+  platform: "Universal",
+  style: {
+    fontFamily: "Montserrat",
+    fontSize: 34,
+    textColor: "#F0E6D3",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "fade",
+    highlightColor: "#F0E6D3",
+    highlightEnabled: false,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+    outlineWidth: 2,
+    textTransform: "none",
+    wordsPerLine: 5,
+  },
+  preview: "/templates/cinematic-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
+ * Electric Blue Template
+ * High-voltage cyan glow with deep blue outline - gaming & tech aesthetic
+ */
+export const ELECTRIC_BLUE_TEMPLATE: CaptionTemplate = {
+  id: "electric-blue",
+  name: "Electric Blue",
+  description: "High-voltage cyan glow with deep blue outline - gaming & tech aesthetic",
+  platform: "Universal",
+  style: {
+    fontFamily: "Russo One",
+    fontSize: 46,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "bounce",
+    highlightColor: "#00FFFF",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#001133",
+    outlineWidth: 5,
+    glowEnabled: true,
+    glowColor: "#0066FF",
+    glowIntensity: 4,
+    highlightScale: 130,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
+  },
+  preview: "/templates/electric-blue-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
+ * Sunset Fire Template
+ * Blazing orange with karaoke yellow highlight - high-energy viral style
+ */
+export const SUNSET_FIRE_TEMPLATE: CaptionTemplate = {
+  id: "sunset-fire",
+  name: "Sunset Fire",
+  description: "Blazing orange with karaoke yellow highlight - high-energy viral style",
+  platform: "Universal",
+  style: {
+    fontFamily: "Bangers",
+    fontSize: 50,
+    textColor: "#FF6B35",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "karaoke",
+    highlightColor: "#FFE500",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#8B0000",
+    outlineWidth: 5,
+    glowEnabled: true,
+    glowColor: "#FF6B35",
+    glowIntensity: 3,
+    highlightScale: 125,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
+  },
+  preview: "/templates/sunset-fire-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
+ * Ice Cold Template
+ * Frosty ice-blue with steel outline - cool & crisp word-by-word reveal
+ */
+export const ICE_COLD_TEMPLATE: CaptionTemplate = {
+  id: "ice-cold",
+  name: "Ice Cold",
+  description: "Frosty ice-blue with steel outline - cool & crisp word-by-word reveal",
+  platform: "Universal",
+  style: {
+    fontFamily: "Black Ops One",
+    fontSize: 44,
+    textColor: "#B8E8FF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "word-by-word",
+    highlightColor: "#FFFFFF",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#2C5F7C",
+    outlineWidth: 4,
+    glowEnabled: true,
+    glowColor: "#00FFFF",
+    glowIntensity: 3,
+    highlightScale: 120,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
+  },
+  preview: "/templates/ice-cold-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
+ * Coral Pop Template
+ * Vibrant pink glow with bouncy animation - fun & feminine aesthetic
+ */
+export const CORAL_POP_TEMPLATE: CaptionTemplate = {
+  id: "coral-pop",
+  name: "Coral Pop",
+  description: "Vibrant pink glow with bouncy animation - fun & feminine aesthetic",
+  platform: "Universal",
+  style: {
+    fontFamily: "Poppins",
+    fontSize: 38,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "bounce",
+    highlightColor: "#FF1493",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#C71585",
+    outlineWidth: 4,
+    glowEnabled: true,
+    glowColor: "#FF69B4",
+    glowIntensity: 3,
+    highlightScale: 120,
+    textTransform: "none",
+    wordsPerLine: 3,
+  },
+  preview: "/templates/coral-pop-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
+ * Midnight Purple Template
+ * Deep purple glow with lavender text - mysterious & stylish karaoke
+ */
+export const MIDNIGHT_PURPLE_TEMPLATE: CaptionTemplate = {
+  id: "midnight-purple",
+  name: "Midnight Purple",
+  description: "Deep purple glow with lavender text - mysterious & stylish karaoke",
+  platform: "Universal",
+  style: {
+    fontFamily: "Oswald",
+    fontSize: 44,
+    textColor: "#E8D5FF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "karaoke",
+    highlightColor: "#BF40FF",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#2D0A4E",
+    outlineWidth: 5,
+    glowEnabled: true,
+    glowColor: "#8B00FF",
+    glowIntensity: 3,
+    highlightScale: 125,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
+  },
+  preview: "/templates/midnight-purple-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
+ * Toxic Green Template
+ * Radioactive neon green glow with dark outline - bold & attention-grabbing
+ */
+export const TOXIC_GREEN_TEMPLATE: CaptionTemplate = {
+  id: "toxic-green",
+  name: "Toxic Green",
+  description: "Radioactive neon green glow with dark outline - bold & attention-grabbing",
+  platform: "Universal",
+  style: {
+    fontFamily: "Anton",
+    fontSize: 48,
+    textColor: "#00FF41",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "bounce",
+    highlightColor: "#39FF14",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#003300",
+    outlineWidth: 5,
+    glowEnabled: true,
+    glowColor: "#00FF41",
+    glowIntensity: 4,
+    highlightScale: 130,
+    textTransform: "uppercase",
+    wordsPerLine: 3,
+  },
+  preview: "/templates/toxic-green-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
+ * Georgia Elegance Template
+ * Classic serif style with warm tones - refined & editorial aesthetic
+ */
+export const GEORGIA_ELEGANCE_TEMPLATE: CaptionTemplate = {
+  id: "georgia-elegance",
+  name: "Georgia Elegance",
+  description: "Classic serif style with warm tones - refined & editorial aesthetic",
+  platform: "Universal",
+  style: {
+    fontFamily: "Georgia",
+    fontSize: 36,
+    textColor: "#FFFFFF",
+    backgroundColor: "#000000",
+    backgroundOpacity: 0,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "fade",
+    highlightColor: "#D4AF37",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "#000000",
+    outlineWidth: 3,
+    textTransform: "none",
+    wordsPerLine: 5,
+  },
+  preview: "/templates/georgia-elegance-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
+ * Glassmorphism Template
+ * Frosted glass background with soft white text - modern UI-inspired look
+ */
+export const GLASSMORPHISM_TEMPLATE: CaptionTemplate = {
+  id: "glassmorphism",
+  name: "Glassmorphism",
+  description: "Frosted glass panel with soft glow and translucent backdrop - modern UI aesthetic",
+  platform: "Universal",
+  style: {
+    fontFamily: "Montserrat",
+    fontSize: 34,
+    textColor: "#FFFFFF",
+    backgroundColor: "#88AAFF",
+    backgroundOpacity: 25,
+    x: 50, y: 85,
+    alignment: "center",
+    animation: "fade",
+    highlightColor: "#E0E8FF",
+    highlightEnabled: true,
+    shadow: true,
+    outline: true,
+    outlineColor: "rgba(255,255,255,0.3)",
+    outlineWidth: 1,
+    glowEnabled: true,
+    glowColor: "#AACCFF",
+    glowIntensity: 2,
+    textTransform: "none",
+    wordsPerLine: 5,
+  },
+  preview: "/templates/glassmorphism-preview.png",
+  isNew: true,
+  createdAt: new Date("2026-02-09"),
+  updatedAt: new Date("2026-02-09"),
+};
+
+/**
  * All built-in caption templates
  */
 export const CAPTION_TEMPLATES: CaptionTemplate[] = [
   RAINBOW_TEMPLATE,
   CLASSIC_TEMPLATE,
-  SARA_TEMPLATE,
-  JIMI_TEMPLATE,
   BASKER_TEMPLATE,
   BOBBY_TEMPLATE,
   BILLY_TEMPLATE,
@@ -511,6 +804,16 @@ export const CAPTION_TEMPLATES: CaptionTemplate[] = [
   GARYVEE_TEMPLATE,
   TIKTOK_NATIVE_TEMPLATE,
   NEON_POP_TEMPLATE,
+  GOLD_LUXE_TEMPLATE,
+  CINEMATIC_TEMPLATE,
+  ELECTRIC_BLUE_TEMPLATE,
+  SUNSET_FIRE_TEMPLATE,
+  ICE_COLD_TEMPLATE,
+  CORAL_POP_TEMPLATE,
+  MIDNIGHT_PURPLE_TEMPLATE,
+  TOXIC_GREEN_TEMPLATE,
+  GEORGIA_ELEGANCE_TEMPLATE,
+  GLASSMORPHISM_TEMPLATE,
 ];
 
 /**
@@ -560,6 +863,10 @@ export const SUPPORTED_FONTS = [
   "Anton",
   "Bebas Neue",
   "Permanent Marker",
+  "Righteous",
+  "Russo One",
+  "Black Ops One",
+  "Georgia",
 ] as const;
 
 export type SupportedFont = (typeof SUPPORTED_FONTS)[number];
