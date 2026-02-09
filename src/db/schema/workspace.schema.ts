@@ -36,6 +36,7 @@ export const workspace = pgTable(
     description: text("description"),
     logo: text("logo"),
     plan: text("plan").notNull().default("free"), // 'free' | 'starter' | 'pro' | 'pro-plus'
+    billingCycle: text("billing_cycle"), // 'monthly' | 'annual' | null (for free plan)
     // Subscription tracking
     subscriptionId: text("subscription_id"), // Dodo subscription ID
     subscriptionStatus: text("subscription_status"), // 'active' | 'cancelled' | 'expired' | 'paused'

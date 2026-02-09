@@ -261,7 +261,7 @@ export class MinutesModel {
     }
   }
 
-  // Reset monthly minutes for a workspace
+  // Reset monthly minutes for a workspace (adds new allocation to existing)
   static async resetMonthlyMinutes(workspaceId: string, plan: string) {
     this.logOperation("RESET_MONTHLY_MINUTES", { workspaceId, plan });
     const startTime = performance.now();
@@ -276,15 +276,16 @@ export class MinutesModel {
         .where(eq(workspaceMinutes.workspaceId, workspaceId));
 
       const minutesBefore = current[0]?.minutesRemaining || 0;
+      const newMinutesRemaining = minutesBefore + planConfig.minutes.total;
 
       const result = await db
         .update(workspaceMinutes)
         .set({
           minutesTotal: planConfig.minutes.total,
-          minutesUsed: 0,
-          minutesRemaining: planConfig.minutes.total,
+          // Don't reset minutesUsed - keep tracking total usage
+          minutesRemaining: newMinutesRemaining,
           minutesResetDate: nextResetDate,
-          editingOperationsUsed: 0,
+          // Don't reset editing operations
         })
         .where(eq(workspaceMinutes.workspaceId, workspaceId))
         .returning();
@@ -296,8 +297,8 @@ export class MinutesModel {
         type: "reset",
         minutesAmount: planConfig.minutes.total,
         minutesBefore,
-        minutesAfter: planConfig.minutes.total,
-        description: "Monthly minute reset",
+        minutesAfter: newMinutesRemaining,
+        description: `Monthly minute reset - added ${planConfig.minutes.total} minutes`,
       });
 
       const duration = performance.now() - startTime;
@@ -392,23 +393,65 @@ export class MinutesModel {
   }
 
   // Update balance when plan changes (upgrade/downgrade)
-  static async updatePlanAllocation(workspaceId: string, newPlan: string) {
-    this.logOperation("UPDATE_PLAN_ALLOCATION", { workspaceId, newPlan });
+  static async updatePlanAllocation(workspaceId: string, newPlan: string, billingCycle?: "monthly" | "annual") {
+    this.logOperation("UPDATE_PLAN_ALLOCATION", { workspaceId, newPlan, billingCycle });
     const startTime = performance.now();
 
     try {
       const planConfig = getPlanConfig(newPlan);
       const current = await this.getBalance(workspaceId);
-      const resetDate = planConfig.minutes.type === "monthly" ? this.getNextMonthDate() : null;
+      
+      // Calculate new minutes based on billing cycle
+      let newMinutesTotal: number;
+      let resetDate: Date | null = null;
+      
+      if (billingCycle === "annual") {
+        // Annual plans: Give all minutes upfront (12 months worth)
+        newMinutesTotal = planConfig.minutes.total * 12;
+        // No reset date for annual plans - minutes don't expire
+        resetDate = null;
+      } else {
+        // Monthly plans: Give monthly allocation
+        newMinutesTotal = planConfig.minutes.total;
+        // Set reset date for next month
+        resetDate = planConfig.minutes.type === "monthly" ? this.getNextMonthDate() : null;
+      }
+      
+      // Check for recent duplicate allocation (within last 5 minutes)
+      const recentTransactions = await db
+        .select()
+        .from(minuteTransaction)
+        .where(
+          and(
+            eq(minuteTransaction.workspaceId, workspaceId),
+            eq(minuteTransaction.type, "allocation"),
+            gte(minuteTransaction.createdAt, new Date(Date.now() - 5 * 60 * 1000))
+          )
+        );
+
+      const isDuplicate = recentTransactions.some(
+        (tx) => tx.minutesAmount === newMinutesTotal && 
+                tx.description?.includes(newPlan) &&
+                tx.description?.includes(billingCycle || "monthly")
+      );
+
+      if (isDuplicate) {
+        console.log(`[MINUTES MODEL] Duplicate allocation detected, skipping - plan: ${newPlan}, cycle: ${billingCycle}`);
+        return current;
+      }
+      
+      // Add new minutes to existing remaining minutes (don't replace)
+      const newMinutesRemaining = current.minutesRemaining + newMinutesTotal;
+      const newMinutesUsed = current.minutesUsed; // Keep existing usage
 
       const result = await db
         .update(workspaceMinutes)
         .set({
-          minutesTotal: planConfig.minutes.total,
-          minutesUsed: 0,
-          minutesRemaining: planConfig.minutes.total,
+          minutesTotal: newMinutesTotal,
+          minutesUsed: newMinutesUsed,
+          minutesRemaining: newMinutesRemaining,
           minutesResetDate: resetDate,
-          editingOperationsUsed: 0,
+          // Keep editing operations count
         })
         .where(eq(workspaceMinutes.workspaceId, workspaceId))
         .returning();
@@ -418,10 +461,10 @@ export class MinutesModel {
         id: this.generateId(),
         workspaceId,
         type: "allocation",
-        minutesAmount: planConfig.minutes.total,
+        minutesAmount: newMinutesTotal,
         minutesBefore: current.minutesRemaining,
-        minutesAfter: planConfig.minutes.total,
-        description: `Plan changed to ${newPlan}`,
+        minutesAfter: newMinutesRemaining,
+        description: `Plan changed to ${newPlan} (${billingCycle || "monthly"}) - added ${newMinutesTotal} minutes`,
       });
 
       const duration = performance.now() - startTime;

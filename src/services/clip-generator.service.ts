@@ -39,6 +39,9 @@ export interface ClipGenerationOptions {
       backgroundColor?: string;
       backgroundOpacity?: number;
       position?: "top" | "center" | "bottom";
+      x?: number;  // 0-100 horizontal position percentage
+      y?: number;  // 0-100 vertical position percentage
+      maxWidth?: number; // 20-100 caption container width percentage
       alignment?: "left" | "center" | "right";
       animation?: "none" | "word-by-word" | "karaoke" | "bounce" | "fade";
       highlightColor?: string;
@@ -196,7 +199,7 @@ export class ClipGeneratorService {
    * 2. rawStorageUrl - clip WITHOUT captions (for editing)
    * Validates: Requirements 7.1, 7.3
    */
-  static async generateClip(options: ClipGenerationOptions): Promise<GeneratedClip> {
+  static async generateClip(options: ClipGenerationOptions, onProgress?: (percent: number) => void): Promise<GeneratedClip> {
     this.logOperation("GENERATE_CLIP", {
       clipId: options.clipId,
       sourceType: options.sourceType,
@@ -220,6 +223,7 @@ export class ClipGeneratorService {
 
     if (options.sourceType === "youtube" && options.sourceUrl) {
       // Generate clip WITH captions
+      onProgress?.(25);
       clipWithCaptionsBuffer = await this.downloadYouTubeSegment(
         options.sourceUrl,
         options.startTime,
@@ -233,6 +237,7 @@ export class ClipGeneratorService {
       );
 
       // Generate clip WITHOUT captions (raw version for editing)
+      onProgress?.(50);
       clipWithoutCaptionsBuffer = await this.downloadYouTubeSegment(
         options.sourceUrl,
         options.startTime,
@@ -246,6 +251,7 @@ export class ClipGeneratorService {
       );
     } else if (options.sourceType === "upload" && options.storageKey) {
       // Generate clip WITH captions
+      onProgress?.(25);
       clipWithCaptionsBuffer = await this.extractSegmentFromFile(
         options.storageKey,
         options.startTime,
@@ -259,6 +265,7 @@ export class ClipGeneratorService {
       );
 
       // Generate clip WITHOUT captions (raw version for editing)
+      onProgress?.(50);
       clipWithoutCaptionsBuffer = await this.extractSegmentFromFile(
         options.storageKey,
         options.startTime,
@@ -275,6 +282,7 @@ export class ClipGeneratorService {
     }
 
     // Upload clip WITH captions to R2
+    onProgress?.(70);
     this.logOperation("UPLOADING_CLIP_WITH_CAPTIONS", { storageKey, size: clipWithCaptionsBuffer.length });
     const { url: storageUrl } = await R2Service.uploadFile(
       storageKey,
@@ -283,6 +291,7 @@ export class ClipGeneratorService {
     );
 
     // Upload clip WITHOUT captions (raw) to R2
+    onProgress?.(85);
     this.logOperation("UPLOADING_RAW_CLIP", { rawStorageKey, size: clipWithoutCaptionsBuffer.length });
     const { url: rawStorageUrl } = await R2Service.uploadFile(
       rawStorageKey,
@@ -339,12 +348,66 @@ export class ClipGeneratorService {
       return word;
     };
 
-    // Position: bottom = 2, center = 5, top = 8
-    const alignment = style?.position === "top" ? 8 : style?.position === "center" ? 5 : 2;
+    // Determine positioning from x/y percentages or fallback to position preset
+    // Frontend: x (0-100) = horizontal center, y (0-100) = vertical center
+    // maxWidth (20-100) = caption container width as percentage
+    const hasXY = typeof style?.x === "number" && typeof style?.y === "number";
+    const xPct = style?.x ?? 50;
+    const yPct = style?.y ?? 85; // Default near bottom
+    const captionMaxWidth = style?.maxWidth ?? 90; // Default 90% width
 
-    // Vertical margin based on position - higher value pushes captions further from edge
-    // For bottom position, use larger margin to position captions higher up
-    const marginV = style?.position === "center" ? 0 : style?.position === "top" ? 60 : 120;
+    let alignment: number;
+    let marginV: number;
+    let marginL: number;
+    let marginR: number;
+
+    if (hasXY) {
+      // Calculate horizontal margins from x position and maxWidth
+      // Caption container spans from (x - maxWidth/2) to (x + maxWidth/2)
+      const leftEdgePct = Math.max(0, xPct - captionMaxWidth / 2);
+      const rightEdgePct = Math.max(0, 100 - xPct - captionMaxWidth / 2);
+      marginL = Math.round((leftEdgePct / 100) * width);
+      marginR = Math.round((rightEdgePct / 100) * width);
+
+      // Text alignment within the container
+      const textAlign = style?.alignment || "center";
+      const hAlign = textAlign === "left" ? 1 : textAlign === "right" ? 3 : 2;
+
+      // Vertical positioning: ASS alignment numpad
+      // 7 8 9 = top row, 4 5 6 = middle row, 1 2 3 = bottom row
+      if (yPct <= 33) {
+        // Top zone — alignment 7/8/9, marginV = distance from top
+        alignment = 6 + hAlign;
+        marginV = Math.round((yPct / 100) * height);
+      } else if (yPct >= 66) {
+        // Bottom zone — alignment 1/2/3, marginV = distance from bottom
+        alignment = hAlign;
+        marginV = Math.round(((100 - yPct) / 100) * height);
+      } else {
+        // Center zone — alignment 4/5/6, marginV = offset from center
+        alignment = 3 + hAlign;
+        // ASS center alignment: marginV shifts text away from exact center
+        const offsetFromCenter = yPct - 50; // positive = below center
+        marginV = Math.round(Math.abs(offsetFromCenter) / 100 * height);
+        // If below center, we need to push down — ASS MarginV for center alignment
+        // pushes toward bottom when positive, which matches our need
+        if (offsetFromCenter < 0) {
+          // Above center — flip to top alignment
+          alignment = 6 + hAlign;
+          marginV = Math.round((yPct / 100) * height);
+        }
+      }
+    } else {
+      // Fallback to legacy position preset
+      const textAlign = style?.alignment || "center";
+      const hAlign = textAlign === "left" ? 1 : textAlign === "right" ? 3 : 2;
+      alignment = style?.position === "top" ? (6 + hAlign) : style?.position === "center" ? (3 + hAlign) : hAlign;
+      marginV = style?.position === "center" ? 0 : style?.position === "top" ? 60 : 120;
+      // Apply maxWidth even in legacy mode
+      const halfGap = Math.max(0, (100 - captionMaxWidth) / 2);
+      marginL = Math.round((halfGap / 100) * width);
+      marginR = marginL;
+    }
 
     // Intro title style - slightly larger than captions, positioned at 25% from top
     const introFontSize = Math.round(fontSize * 1.2);
@@ -366,8 +429,8 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
-Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},20,20,${marginV},1
+Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
 Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
 

@@ -200,8 +200,18 @@ export const clipGenerationQueue = new Queue<ClipGenerationJobData>(
 export async function addClipGenerationJob(data: ClipGenerationJobData) {
   console.log(`[QUEUE] Adding clip generation job for clip: ${data.clipId}`);
 
+  const jobId = `clip-${data.clipId}`;
+
+  // Remove any existing job with the same ID (e.g. from a previous generation)
+  // BullMQ silently ignores duplicate job IDs, so we must clean up first
+  const existingJob = await clipGenerationQueue.getJob(jobId);
+  if (existingJob) {
+    console.log(`[QUEUE] Removing existing job ${jobId} (state: ${await existingJob.getState()})`);
+    await existingJob.remove();
+  }
+
   const job = await clipGenerationQueue.add("generate-clip", data, {
-    jobId: `clip-${data.clipId}`,
+    jobId,
   });
 
   console.log(`[QUEUE] Clip generation job added with ID: ${job.id}`);

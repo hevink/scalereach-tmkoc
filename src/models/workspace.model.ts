@@ -37,6 +37,7 @@ export class WorkspaceModel {
           description: workspace.description,
           logo: workspace.logo,
           plan: workspace.plan,
+          billingCycle: workspace.billingCycle,
           ownerId: workspace.ownerId,
           createdAt: workspace.createdAt,
           updatedAt: workspace.updatedAt,
@@ -143,6 +144,7 @@ export class WorkspaceModel {
       description: string;
       logo: string;
       plan: string;
+      billingCycle: string;
       defaultCaptionStyle: WorkspaceCaptionStyle;
       subscriptionId: string;
       subscriptionStatus: string;

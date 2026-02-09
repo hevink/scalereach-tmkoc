@@ -4,7 +4,7 @@ import { ClipModel } from "../models/clip.model";
 import { VideoModel } from "../models/video.model";
 import { WorkspaceModel } from "../models/workspace.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
-import { addClipGenerationJob } from "../jobs/queue";
+import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
 import { getPlanConfig } from "../config/plan-config";
 import { VideoConfigModel } from "../models/video-config.model";
 
@@ -184,26 +184,46 @@ export class ExportController {
     // The exportId might be the clipId or a separate export ID
     // Try to find the clip to get real status
     const clip = await ClipModel.getById(exportId);
-    
+
     if (clip) {
       // Map clip status to export status
-      const statusMap: Record<string, { status: string; progress: number }> = {
-        "detected": { status: "queued", progress: 0 },
-        "generating": { status: "processing", progress: 50 },
-        "ready": { status: "completed", progress: 100 },
-        "exported": { status: "completed", progress: 100 },
-        "failed": { status: "failed", progress: 0 },
+      const statusMap: Record<string, string> = {
+        "detected": "queued",
+        "generating": "processing",
+        "ready": "completed",
+        "exported": "completed",
+        "failed": "failed",
       };
 
-      const exportStatus = statusMap[clip.status] || { status: "processing", progress: 50 };
+      const exportStatus = statusMap[clip.status] || "processing";
+
+      // Get real progress from BullMQ job
+      let progress = 0;
+      if (exportStatus === "queued") {
+        progress = 0;
+      } else if (exportStatus === "completed") {
+        progress = 100;
+      } else if (exportStatus === "failed") {
+        progress = 0;
+      } else {
+        // Try to get actual job progress from BullMQ
+        const jobId = `clip-${exportId}`;
+        const jobStatus = await getClipJobStatus(jobId);
+        if (jobStatus && typeof jobStatus.progress === "number") {
+          progress = jobStatus.progress;
+        } else {
+          progress = 10; // Minimal progress to show something is happening
+        }
+      }
 
       return c.json({
         export: {
           id: exportId,
           clipId: clip.id,
-          status: exportStatus.status,
-          progress: exportStatus.progress,
-          downloadUrl: clip.storageUrl || undefined,
+          status: exportStatus,
+          progress,
+          downloadUrl: exportStatus === "completed" ? (clip.storageUrl || undefined) : undefined,
+          error: exportStatus === "failed" ? (clip.errorMessage || "Export failed") : undefined,
           createdAt: clip.createdAt?.toISOString(),
         },
       });
@@ -214,7 +234,7 @@ export class ExportController {
       export: {
         id: exportId,
         status: "processing",
-        progress: 50,
+        progress: 10,
       },
     });
   }

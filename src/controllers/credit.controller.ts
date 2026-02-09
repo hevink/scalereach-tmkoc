@@ -6,12 +6,12 @@ import { DodoService, DodoWebhookPayload } from "../services/dodo.service";
 
 // Map product IDs to plan names
 const PRODUCT_TO_PLAN: Record<string, string> = {
-  "pdt_0NXOu8euwYE6EmEoLs6eQ": "starter",
-  "pdt_starter_yearly": "starter",
-  "pdt_pro_monthly": "pro",
-  "pdt_pro_yearly": "pro",
-  "pdt_pro_plus_monthly": "pro-plus",
-  "pdt_pro_plus_yearly": "pro-plus",
+  // Starter plans
+  "pdt_0NY6k5d7b4MxSsVM7KzEV": "starter", // Starter Monthly
+  "pdt_0NY6kJuPXxJUv7SFNbQOB": "starter", // Starter Annual
+  // Pro plans
+  "pdt_0NY6llF7a0oFiFsaeVOW7": "pro", // Pro Monthly
+  "pdt_0NY6lyuXXpnq6BWWOeDTy": "pro", // Pro Annual
 };
 
 export class CreditController {
@@ -348,10 +348,25 @@ export class CreditController {
       const productId = packageId || data?.product_cart?.[0]?.product_id;
       const plan = PRODUCT_TO_PLAN[productId];
       if (plan && workspaceId) {
-        await WorkspaceModel.update(workspaceId, { plan });
-        // Initialize or update minutes allocation for the new plan
-        await MinutesModel.updatePlanAllocation(workspaceId, plan);
-        console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan}, minutes allocated`);
+        // Determine billing cycle from product ID
+        const billingCycle = productId.includes("0NY6kJuPXxJUv7SFNbQOB") || productId.includes("0NY6lyuXXpnq6BWWOeDTy") 
+          ? "annual" 
+          : "monthly";
+        
+        await WorkspaceModel.update(workspaceId, { 
+          plan,
+          billingCycle 
+        });
+        
+        // Only allocate minutes if this is NOT a subscription (one-time purchase)
+        // For subscriptions, minutes will be allocated in subscription.active webhook
+        const isSubscription = data?.is_subscription || metadata?.isSubscription;
+        if (!isSubscription) {
+          await MinutesModel.updatePlanAllocation(workspaceId, plan, billingCycle);
+          console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan} (${billingCycle}), minutes allocated`);
+        } else {
+          console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan} (${billingCycle}), minutes will be allocated by subscription.active webhook`);
+        }
       }
 
       console.log(`[CREDIT CONTROLLER] Credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
@@ -409,15 +424,21 @@ export class CreditController {
       const productId = metadata?.packageId || data?.product_id;
       const plan = PRODUCT_TO_PLAN[productId];
       if (plan) {
+        // Determine billing cycle from product ID
+        const billingCycle = productId.includes("0NY6kJuPXxJUv7SFNbQOB") || productId.includes("0NY6lyuXXpnq6BWWOeDTy") 
+          ? "annual" 
+          : "monthly";
+        
         await WorkspaceModel.update(workspaceId, {
           plan,
+          billingCycle,
           subscriptionId: subscriptionId,
           subscriptionStatus: "active",
           subscriptionCancelledAt: undefined,
         });
         // Initialize minutes allocation for the new plan
-        await MinutesModel.updatePlanAllocation(workspaceId, plan);
-        console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan}, subscription tracked: ${subscriptionId}, minutes allocated`);
+        await MinutesModel.updatePlanAllocation(workspaceId, plan, billingCycle);
+        console.log(`[CREDIT CONTROLLER] Workspace plan updated to: ${plan} (${billingCycle}), subscription tracked: ${subscriptionId}, minutes allocated`);
       }
 
       console.log(`[CREDIT CONTROLLER] Subscription credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);

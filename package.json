@@ -10,7 +10,9 @@
     "worker:watch": "bun --watch run src/worker.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "fix:billing-cycle": "bun run scripts/fix-billing-cycle.ts",
+    "reset:workspace": "bun run scripts/reset-workspace.ts"
   },
   "dependencies": {
     "@ai-sdk/azure": "^3.0.12",

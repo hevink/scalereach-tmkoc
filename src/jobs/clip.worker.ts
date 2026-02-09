@@ -209,9 +209,13 @@ async function processClipGenerationJob(
       introTitle,
       captions: effectiveCaptions,
       emojis,
+    }, async (percent) => {
+      // Map service progress (25-85) into job progress (20-80)
+      const jobProgress = 20 + Math.round((percent / 100) * 60);
+      await job.updateProgress(jobProgress);
     });
 
-    await job.updateProgress(80);
+    await job.updateProgress(85);
 
     // Generate thumbnail from the clip (at 1 second)
     console.log(`[CLIP WORKER] Generating thumbnail...`);
