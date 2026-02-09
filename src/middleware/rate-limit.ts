@@ -5,6 +5,7 @@ import IORedis from "ioredis";
 const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379");
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || undefined;
+const REDIS_TLS = process.env.REDIS_TLS === "true" || REDIS_HOST.includes("upstash.io");
 
 // Create a dedicated Redis connection for rate limiting
 // Using a separate connection to avoid blocking the main queue connection
@@ -16,6 +17,7 @@ function getRedisClient(): IORedis {
       host: REDIS_HOST,
       port: REDIS_PORT,
       password: REDIS_PASSWORD,
+      tls: REDIS_TLS ? {} : undefined,
       maxRetriesPerRequest: 3,
       retryStrategy: (times) => {
         if (times > 3) {
@@ -27,7 +29,7 @@ function getRedisClient(): IORedis {
     });
 
     redisClient.on("connect", () => {
-      console.log("[RATE-LIMIT] Connected to Redis");
+      console.log(`[RATE-LIMIT] Connected to Redis (TLS: ${REDIS_TLS})`);
     });
 
     redisClient.on("error", (err) => {
