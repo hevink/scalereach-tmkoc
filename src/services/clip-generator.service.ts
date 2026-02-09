@@ -420,6 +420,9 @@ export class ClipGeneratorService {
     const emojiMarginV = style?.position === "top" ? Math.round(height * 0.55) : Math.round(height * 0.35);
 
     // ASS header with styles for normal, highlighted, intro title, and emoji overlay text
+    // Use font fallback chain to support emojis: Primary font, then Noto Color Emoji
+    const fontWithEmoji = `${fontFamily},Noto Color Emoji,Apple Color Emoji,Segoe UI Emoji`;
+    
     let ass = `[Script Info]
 Title: Generated Captions
 ScriptType: v4.00+
@@ -429,9 +432,9 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
+Style: Default,${fontWithEmoji},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Highlight,${fontWithEmoji},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: IntroTitle,${fontWithEmoji},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
 
 [Events]
