@@ -81,25 +81,76 @@ async function checkRateLimit(
   const windowStart = now - windowSeconds * 1000;
   const resetTime = now + windowSeconds * 1000;
 
-  // Use a Redis transaction for atomic operations
-  const pipeline = redis.pipeline();
+  // Lua script for atomic sliding window rate limiting
+  // This runs as a single atomic operation in Redis, preventing race conditions
+  const luaScript = `
+    local key = KEYS[1]
+    local now = tonumber(ARGV[1])
+    local window_start = tonumber(ARGV[2])
+    local limit = tonumber(ARGV[3])
+    local expire_seconds = tonumber(ARGV[4])
+    local member = ARGV[5]
 
-  // Remove expired entries (outside the window)
-  pipeline.zremrangebyscore(key, 0, windowStart);
+    -- Remove expired entries
+    redis.call('ZREMRANGEBYSCORE', key, 0, window_start)
 
-  // Count current requests in the window
-  pipeline.zcard(key);
+    -- Count current requests in window
+    local count = redis.call('ZCARD', key)
 
-  // Add current request timestamp
-  pipeline.zadd(key, now, `${now}-${Math.random()}`);
+    if count < limit then
+      -- Under limit: add the request and allow
+      redis.call('ZADD', key, now, member)
+      redis.call('EXPIRE', key, expire_seconds)
+      return {1, limit - count - 1}
+    else
+      -- Over limit: reject without adding
+      redis.call('EXPIRE', key, expire_seconds)
+      -- Get oldest entry for retry-after calculation
+      local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+      local oldest_time = 0
+      if oldest and #oldest >= 2 then
+        oldest_time = tonumber(oldest[2])
+      end
+      return {0, oldest_time}
+    end
+  `;
 
-  // Set expiry on the key
-  pipeline.expire(key, windowSeconds + 1);
+  try {
+    const member = `${now}-${Math.random()}`;
+    const result = await redis.eval(
+      luaScript,
+      1,
+      key,
+      now.toString(),
+      windowStart.toString(),
+      limit.toString(),
+      (windowSeconds + 1).toString(),
+      member
+    ) as [number, number];
 
-  const results = await pipeline.exec();
+    const allowed = result[0] === 1;
+    const remaining = allowed ? result[1] : 0;
 
-  if (!results) {
-    // If pipeline fails, allow the request (fail open)
+    let retryAfter = 0;
+    if (!allowed) {
+      const oldestTime = result[1];
+      if (oldestTime > 0) {
+        retryAfter = Math.ceil((oldestTime + windowSeconds * 1000 - now) / 1000);
+        retryAfter = Math.max(1, retryAfter);
+      } else {
+        retryAfter = windowSeconds;
+      }
+    }
+
+    return {
+      allowed,
+      remaining,
+      resetTime,
+      retryAfter,
+    };
+  } catch (error) {
+    // Fail open if Redis errors
+    console.error("[RATE-LIMIT] Lua script error:", error);
     return {
       allowed: true,
       remaining: limit,
@@ -107,32 +158,6 @@ async function checkRateLimit(
       retryAfter: 0,
     };
   }
-
-  // Get the count before adding the current request
-  const currentCount = (results[1]?.[1] as number) || 0;
-  const allowed = currentCount < limit;
-  const remaining = Math.max(0, limit - currentCount - 1);
-
-  // Calculate retry-after based on oldest request in window
-  let retryAfter = 0;
-  if (!allowed) {
-    // Get the oldest timestamp in the window
-    const oldest = await redis.zrange(key, 0, 0, "WITHSCORES");
-    if (oldest && oldest.length >= 2) {
-      const oldestTime = parseInt(oldest[1], 10);
-      retryAfter = Math.ceil((oldestTime + windowSeconds * 1000 - now) / 1000);
-      retryAfter = Math.max(1, retryAfter); // At least 1 second
-    } else {
-      retryAfter = windowSeconds;
-    }
-  }
-
-  return {
-    allowed,
-    remaining,
-    resetTime,
-    retryAfter,
-  };
 }
 
 /**
