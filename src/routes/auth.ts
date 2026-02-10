@@ -2,10 +2,14 @@ import { Hono } from "hono";
 import { auth } from "../lib/auth";
 import type { AuthContext } from "../lib/auth";
 import { ALLOWED_ORIGINS } from "../lib/constants";
+import { RateLimitPresets } from "../middleware/rate-limit";
 
 const authRouter = new Hono<{
   Variables: AuthContext;
 }>();
+
+// Rate limit auth endpoints to prevent brute-force attacks
+authRouter.use("/*", RateLimitPresets.auth());
 
 // Mount all Better Auth endpoints - Better Auth handles /sign-up/email, /sign-in/email, etc.
 authRouter.all("/*", async (c) => {

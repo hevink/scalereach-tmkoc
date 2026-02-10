@@ -231,18 +231,11 @@ export class CreditController {
         const isValid = DodoService.verifyWebhookSignature(body, signature, webhookSecret);
         if (!isValid) {
           console.warn("[CREDIT CONTROLLER] Webhook signature verification failed");
-          // In production, reject invalid signatures
-          if (process.env.NODE_ENV === "production") {
-            return c.json({ error: "Invalid signature" }, 401);
-          }
-          console.warn("[CREDIT CONTROLLER] Allowing invalid signature in development mode");
+          return c.json({ error: "Invalid signature" }, 401);
         }
-      } else if (process.env.NODE_ENV === "production" && webhookSecret) {
-        // In production, require signature if secret is configured
-        console.warn("[CREDIT CONTROLLER] No webhook signature provided in production");
+      } else if (webhookSecret && !signature) {
+        console.warn("[CREDIT CONTROLLER] No webhook signature provided but secret is configured");
         return c.json({ error: "Missing signature" }, 401);
-      } else {
-        console.log("[CREDIT CONTROLLER] No webhook signature provided or secret not configured");
       }
 
       const payload: DodoWebhookPayload = JSON.parse(body);

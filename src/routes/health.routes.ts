@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { redisConnection, videoProcessingQueue, clipGenerationQueue, QUEUE_NAMES } from "../jobs/queue";
+import { adminMiddleware } from "../middleware/admin.middleware";
 
 const healthRouter = new Hono();
 
@@ -172,9 +173,9 @@ healthRouter.get("/", async (c) => {
 
 /**
  * Detailed health check - includes queue stats, for monitoring dashboards
- * GET /health/detailed
+ * GET /health/detailed (admin only)
  */
-healthRouter.get("/detailed", async (c) => {
+healthRouter.get("/detailed", adminMiddleware, async (c) => {
   const [dbHealth, redisHealth, queueHealth] = await Promise.all([
     checkDatabase(),
     checkRedis(),

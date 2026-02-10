@@ -6,6 +6,5 @@ export const ALLOWED_ORIGINS = [
   "https://app.scalereach.ai",
   "https://www.scalereach.ai",
   "https://scalereach.ai",
-  "https://scalereach-f1.vercel.app",
   process.env.FRONTEND_URL,
 ].filter(Boolean) as string[];

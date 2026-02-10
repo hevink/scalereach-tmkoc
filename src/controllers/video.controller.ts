@@ -200,7 +200,7 @@ export class VideoController {
       console.error(`[VIDEO CONTROLLER] SUBMIT_YOUTUBE_URL error:`, error);
       // Return more detailed error message
       const errorMessage = error instanceof Error ? error.message : "Failed to submit video";
-      return c.json({ error: errorMessage, details: String(error) }, 500);
+      return c.json({ error: errorMessage }, 500);
     }
   }
 
@@ -209,10 +209,22 @@ export class VideoController {
     VideoController.logRequest(c, "GET_VIDEO_BY_ID", { id });
 
     try {
+      const user = c.get("user") as { id: string };
       const video = await VideoModel.getById(id);
 
       if (!video) {
         return c.json({ error: "Video not found" }, 404);
+      }
+
+      // Verify user has access via workspace membership
+      if (video.workspaceId) {
+        const { WorkspaceModel } = await import("../models/workspace.model");
+        const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, video.workspaceId);
+        if (!member) {
+          return c.json({ error: "Forbidden" }, 403);
+        }
+      } else if (video.userId !== user.id) {
+        return c.json({ error: "Forbidden" }, 403);
       }
 
       return c.json(video);
@@ -291,6 +303,24 @@ export class VideoController {
     VideoController.logRequest(c, "DELETE_VIDEO", { id });
 
     try {
+      const user = c.get("user") as { id: string };
+      const video = await VideoModel.getById(id);
+
+      if (!video) {
+        return c.json({ error: "Video not found" }, 404);
+      }
+
+      // Verify user has access via workspace membership
+      if (video.workspaceId) {
+        const { WorkspaceModel } = await import("../models/workspace.model");
+        const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, video.workspaceId);
+        if (!member) {
+          return c.json({ error: "Forbidden" }, 403);
+        }
+      } else if (video.userId !== user.id) {
+        return c.json({ error: "Forbidden" }, 403);
+      }
+
       await VideoModel.delete(id);
       return c.json({ message: "Video deleted successfully" });
     } catch (error) {

@@ -22,7 +22,7 @@ export class AdminController {
    */
   static async getUserGrowthData(c: Context) {
     try {
-      const days = parseInt(c.req.query("days") || "30", 10);
+      const days = Math.min(365, Math.max(1, parseInt(c.req.query("days") || "30", 10)));
       const data = await AdminModel.getUserGrowthData(days);
       return c.json(data);
     } catch (error) {
@@ -65,7 +65,7 @@ export class AdminController {
    */
   static async getTopWorkspaces(c: Context) {
     try {
-      const limit = parseInt(c.req.query("limit") || "10", 10);
+      const limit = Math.min(50, Math.max(1, parseInt(c.req.query("limit") || "10", 10)));
       const data = await AdminModel.getTopWorkspaces(limit);
       return c.json(data);
     } catch (error) {
@@ -80,7 +80,7 @@ export class AdminController {
    */
   static async getDailyActivityData(c: Context) {
     try {
-      const days = parseInt(c.req.query("days") || "30", 10);
+      const days = Math.min(365, Math.max(1, parseInt(c.req.query("days") || "30", 10)));
       const data = await AdminModel.getDailyActivityData(days);
       return c.json(data);
     } catch (error) {
@@ -95,7 +95,7 @@ export class AdminController {
    */
   static async getRecentActivity(c: Context) {
     try {
-      const limit = parseInt(c.req.query("limit") || "20", 10);
+      const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") || "20", 10)));
       const data = await AdminModel.getRecentActivity(limit);
       return c.json(data);
     } catch (error) {
@@ -110,8 +110,8 @@ export class AdminController {
    */
   static async getAllUsers(c: Context) {
     try {
-      const page = parseInt(c.req.query("page") || "1", 10);
-      const limit = parseInt(c.req.query("limit") || "20", 10);
+      const page = Math.max(1, parseInt(c.req.query("page") || "1", 10));
+      const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") || "20", 10)));
       const data = await AdminModel.getAllUsers(page, limit);
       return c.json(data);
     } catch (error) {
@@ -126,8 +126,8 @@ export class AdminController {
    */
   static async getAllWorkspaces(c: Context) {
     try {
-      const page = parseInt(c.req.query("page") || "1", 10);
-      const limit = parseInt(c.req.query("limit") || "20", 10);
+      const page = Math.max(1, parseInt(c.req.query("page") || "1", 10));
+      const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") || "20", 10)));
       const data = await AdminModel.getAllWorkspaces(page, limit);
       return c.json(data);
     } catch (error) {
@@ -203,7 +203,7 @@ export class AdminController {
    */
   static async getCreditAnalytics(c: Context) {
     try {
-      const days = parseInt(c.req.query("days") || "30", 10);
+      const days = Math.min(365, Math.max(1, parseInt(c.req.query("days") || "30", 10)));
       const data = await AdminModel.getCreditAnalytics(days);
       return c.json(data);
     } catch (error) {
@@ -218,8 +218,8 @@ export class AdminController {
    */
   static async getCreditTransactions(c: Context) {
     try {
-      const page = parseInt(c.req.query("page") || "1", 10);
-      const limit = parseInt(c.req.query("limit") || "50", 10);
+      const page = Math.max(1, parseInt(c.req.query("page") || "1", 10));
+      const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") || "50", 10)));
       const data = await AdminModel.getCreditTransactions(page, limit);
       return c.json(data);
     } catch (error) {

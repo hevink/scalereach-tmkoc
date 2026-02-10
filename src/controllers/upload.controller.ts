@@ -195,10 +195,13 @@ export class UploadController {
         return c.json({ error: "uploadId, videoId, storageKey, and parts are required" }, 400);
       }
 
-      // Verify video exists (ownership is verified by the fact that user created it)
+      // Verify video exists and user owns it
       const video = await VideoModel.getById(videoId);
       if (!video) {
         return c.json({ error: "Video not found" }, 404);
+      }
+      if (video.userId !== user.id) {
+        return c.json({ error: "Forbidden" }, 403);
       }
 
       // Complete the multipart upload
@@ -249,6 +252,7 @@ export class UploadController {
     try {
       const body = await c.req.json();
       const { uploadId, videoId, storageKey } = body;
+      const user = c.get("user") as { id: string };
 
       if (!uploadId || !storageKey) {
         return c.json({ error: "uploadId and storageKey are required" }, 400);
@@ -257,10 +261,10 @@ export class UploadController {
       // Abort the multipart upload
       await R2Service.abortMultipartUpload(storageKey, uploadId);
 
-      // Delete video record if exists
+      // Delete video record if exists and user owns it
       if (videoId) {
         const video = await VideoModel.getById(videoId);
-        if (video) {
+        if (video && video.userId === user.id) {
           await VideoModel.delete(videoId);
         }
       }

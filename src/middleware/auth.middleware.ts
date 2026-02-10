@@ -32,8 +32,6 @@ export async function optionalAuthMiddleware(c: Context, next: Next) {
       c.set("user", session.user);
       c.set("session", session.session);
     }
-
-    await next();
   } catch (error) {
     // Continue without auth for optional middleware
     console.log("Optional auth failed:", error);

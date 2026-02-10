@@ -188,6 +188,7 @@ export class UppyUploadController {
     try {
       const body = await c.req.json();
       const { parts, videoId } = body;
+      const user = c.get("user") as { id: string };
 
       if (!key) {
         return c.json({ error: "key query parameter is required" }, 400);
@@ -195,6 +196,17 @@ export class UppyUploadController {
 
       if (!parts || !Array.isArray(parts)) {
         return c.json({ error: "parts array is required" }, 400);
+      }
+
+      // Verify video ownership if videoId provided
+      if (videoId) {
+        const video = await VideoModel.getById(videoId);
+        if (!video) {
+          return c.json({ error: "Video not found" }, 404);
+        }
+        if (video.userId !== user.id) {
+          return c.json({ error: "Forbidden" }, 403);
+        }
       }
 
       // Complete the upload in R2

@@ -76,6 +76,7 @@ app.use(sentryRequestMiddleware);
 app.use(sentryMiddleware);
 
 import { ALLOWED_ORIGINS } from "./lib/constants";
+import { RateLimitPresets } from "./middleware/rate-limit";
 
 app.use(
   cors({
@@ -85,6 +86,9 @@ app.use(
     allowHeaders: ["Content-Type", "Authorization"],
   })
 );
+
+// Global API rate limit
+app.use("/api/*", RateLimitPresets.api());
 
 // Mount routes
 app.route("/api/auth", authRouter);
