@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     unzip \
+    fonts-noto-color-emoji \
     && pip3 install --upgrade yt-dlp --break-system-packages \
     && curl -fsSL https://deno.land/install.sh | sh \
     && ln -s /root/.deno/bin/deno /usr/local/bin/deno \
