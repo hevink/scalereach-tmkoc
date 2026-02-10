@@ -12,7 +12,9 @@
     "db:migrate": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "fix:billing-cycle": "bun run scripts/fix-billing-cycle.ts",
-    "reset:workspace": "bun run scripts/reset-workspace.ts"
+    "reset:workspace": "bun run scripts/reset-workspace.ts",
+    "clean:jobs": "bun run src/scripts/clean-stuck-jobs.ts",
+    "inspect:job": "bun run src/scripts/inspect-job.ts"
   },
   "dependencies": {
     "@ai-sdk/azure": "^3.0.12",

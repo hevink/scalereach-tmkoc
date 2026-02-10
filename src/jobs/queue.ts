@@ -1,25 +1,42 @@
 import { Queue, Worker, Job } from "bullmq";
 import IORedis from "ioredis";
 
+// Support both REDIS_URL and individual config
+const REDIS_URL = process.env.REDIS_URL;
 const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379");
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || undefined;
 const REDIS_TLS = process.env.REDIS_TLS === "true" || REDIS_HOST.includes("upstash.io");
 
 // Create Redis connection config for BullMQ
-const redisConfig: any = {
-  host: REDIS_HOST,
-  port: REDIS_PORT,
-  password: REDIS_PASSWORD,
-  maxRetriesPerRequest: null,
-};
+let redisConfig: any;
 
-// Enable TLS for Upstash and other cloud Redis providers
-if (REDIS_TLS) {
-  redisConfig.tls = {};
+if (REDIS_URL) {
+  // Use REDIS_URL if provided
+  redisConfig = {
+    maxRetriesPerRequest: null,
+  };
+  console.log(`[REDIS] Using REDIS_URL connection`);
+} else {
+  // Use individual config
+  redisConfig = {
+    host: REDIS_HOST,
+    port: REDIS_PORT,
+    password: REDIS_PASSWORD,
+    maxRetriesPerRequest: null,
+  };
+  console.log(`[REDIS] Using host:port connection: ${REDIS_HOST}:${REDIS_PORT}`);
 }
 
-export const redisConnection = new IORedis(redisConfig);
+// Enable TLS only for Upstash and other cloud Redis providers
+if (REDIS_TLS) {
+  redisConfig.tls = {};
+  console.log(`[REDIS] TLS enabled`);
+}
+
+export const redisConnection = REDIS_URL 
+  ? new IORedis(REDIS_URL, redisConfig)
+  : new IORedis(redisConfig);
 
 redisConnection.on("connect", () => {
   console.log("[REDIS] Connected to Redis");
@@ -121,15 +138,36 @@ export const videoProcessingQueue = new Queue<VideoProcessingJobData>(
       },
       removeOnComplete: {
         count: 100,
-        age: 24 * 60 * 60,
+        age: 24 * 60 * 60, // Remove completed jobs after 24 hours
       },
       removeOnFail: {
         count: 50,
-        age: 7 * 24 * 60 * 60,
+        age: 7 * 24 * 60 * 60, // Remove failed jobs after 7 days
       },
     },
   }
 );
+
+// Clean up stale jobs periodically (every hour)
+setInterval(async () => {
+  try {
+    // Clean completed jobs older than 24 hours
+    await videoProcessingQueue.clean(24 * 60 * 60 * 1000, 100, 'completed');
+    
+    // Clean failed jobs older than 7 days
+    await videoProcessingQueue.clean(7 * 24 * 60 * 60 * 1000, 50, 'failed');
+    
+    // Clean waiting jobs older than 1 hour (stuck jobs)
+    await videoProcessingQueue.clean(60 * 60 * 1000, 10, 'wait');
+    
+    // Clean active jobs older than 30 minutes (likely stuck)
+    await videoProcessingQueue.clean(30 * 60 * 1000, 10, 'active');
+    
+    console.log('[QUEUE CLEANUP] Cleaned stale video processing jobs');
+  } catch (error) {
+    console.error('[QUEUE CLEANUP] Error cleaning video processing queue:', error);
+  }
+}, 60 * 60 * 1000); // Run every hour
 
 export async function addVideoProcessingJob(data: VideoProcessingJobData) {
   console.log(`[QUEUE] Adding video processing job for video: ${data.videoId}`);
@@ -204,15 +242,36 @@ export const clipGenerationQueue = new Queue<ClipGenerationJobData>(
       },
       removeOnComplete: {
         count: 100,
-        age: 24 * 60 * 60,
+        age: 24 * 60 * 60, // Remove completed jobs after 24 hours
       },
       removeOnFail: {
         count: 50,
-        age: 7 * 24 * 60 * 60,
+        age: 7 * 24 * 60 * 60, // Remove failed jobs after 7 days
       },
     },
   }
 );
+
+// Clean up stale jobs periodically (every hour)
+setInterval(async () => {
+  try {
+    // Clean completed jobs older than 24 hours
+    await clipGenerationQueue.clean(24 * 60 * 60 * 1000, 100, 'completed');
+    
+    // Clean failed jobs older than 7 days
+    await clipGenerationQueue.clean(7 * 24 * 60 * 60 * 1000, 50, 'failed');
+    
+    // Clean waiting jobs older than 1 hour (stuck jobs)
+    await clipGenerationQueue.clean(60 * 60 * 1000, 10, 'wait');
+    
+    // Clean active jobs older than 30 minutes (likely stuck)
+    await clipGenerationQueue.clean(30 * 60 * 1000, 10, 'active');
+    
+    console.log('[QUEUE CLEANUP] Cleaned stale clip generation jobs');
+  } catch (error) {
+    console.error('[QUEUE CLEANUP] Error cleaning clip generation queue:', error);
+  }
+}, 60 * 60 * 1000); // Run every hour
 
 /**
  * Add a clip generation job to the queue
