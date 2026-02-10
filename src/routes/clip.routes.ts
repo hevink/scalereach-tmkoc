@@ -3,6 +3,7 @@ import { ViralDetectionController } from "../controllers/viral-detection.control
 import { ClipGenerationController } from "../controllers/clip-generation.controller";
 import { ClipAdjustmentController } from "../controllers/clip-adjustment.controller";
 import { ClipCaptionController } from "../controllers/clip-caption.controller";
+import { ClipTextOverlayController } from "../controllers/clip-text-overlay.controller";
 import { ExportController } from "../controllers/export.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
@@ -30,6 +31,10 @@ clipRouter.post("/:id/captions/words", ClipCaptionController.addWord);
 clipRouter.patch("/:id/captions/words/:wordId", ClipCaptionController.updateWord);
 clipRouter.delete("/:id/captions/words/:wordId", ClipCaptionController.removeWord);
 clipRouter.post("/:id/captions/reset", ClipCaptionController.resetCaptions);
+
+// Text overlay endpoints
+clipRouter.get("/:id/text-overlays", ClipTextOverlayController.getTextOverlays);
+clipRouter.put("/:id/text-overlays", ClipTextOverlayController.updateTextOverlays);
 
 // Clip generation endpoints
 // Validates: Requirements 7.1, 7.6
