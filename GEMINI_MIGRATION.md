@@ -36,11 +36,13 @@ GROQ_API_KEY=...  # No longer used
 
 ## Available Gemini Models
 
-| Model | Speed | Cost | Use Case |
-|-------|-------|------|----------|
-| `gemini-2.5-flash-lite` | Fastest | Cheapest | Quick viral detection, bulk operations |
-| `gemini-2.5-flash` | Balanced | Medium | Default for most use cases |
-| `gemini-2.5-pro` | Slowest | Highest | Premium features, complex analysis |
+| Model | Max Output | Context Window | Input Capacity | Speed | Cost | Use Case |
+|-------|-----------|----------------|----------------|-------|------|----------|
+| `gemini-2.5-flash-lite` | 8,192 | 1M tokens | ~1M tokens | Fastest | Cheapest | Quick viral detection, bulk operations |
+| `gemini-2.5-flash` | 8,192 | 1M tokens | ~1M tokens | Balanced | Medium | Default for most use cases |
+| `gemini-2.5-pro` | 8,192 | 2M tokens | ~2M tokens | Slowest | Highest | Premium features, complex analysis, long transcripts |
+
+**Note**: All models now use their maximum output tokens (8,192) by default for best results.
 
 ## API Endpoints
 

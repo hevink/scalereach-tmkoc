@@ -288,7 +288,7 @@ REMEMBER:
           model,
           systemPrompt,
           temperature: 0.7,
-          maxTokens: 8192,
+          // maxTokens not specified - will use model's maximum (8192)
           schema: schemaDescription,
         }
       );

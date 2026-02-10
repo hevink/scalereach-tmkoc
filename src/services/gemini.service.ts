@@ -9,6 +9,20 @@ console.log(`  - API Key: ${GEMINI_API_KEY ? "***set***" : "NOT SET"}`);
 
 export type GeminiModel = "gemini-2.5-flash-lite" | "gemini-2.5-flash" | "gemini-2.5-pro";
 
+// Maximum output tokens for each model
+const MODEL_MAX_TOKENS: Record<GeminiModel, number> = {
+  "gemini-2.5-flash-lite": 8192,
+  "gemini-2.5-flash": 8192,
+  "gemini-2.5-pro": 8192,
+};
+
+// Context window sizes (input + output)
+const MODEL_CONTEXT_WINDOW: Record<GeminiModel, number> = {
+  "gemini-2.5-flash-lite": 1048576, // 1M tokens
+  "gemini-2.5-flash": 1048576,      // 1M tokens
+  "gemini-2.5-pro": 2097152,        // 2M tokens
+};
+
 export interface GeminiMessage {
   role: "user" | "model";
   parts: Array<{ text: string }>;
@@ -71,8 +85,11 @@ export class GeminiService {
       model = "gemini-2.5-flash",
       systemPrompt,
       temperature = 0.7,
-      maxTokens = 8192,
+      maxTokens, // If not provided, use model's max
     } = options;
+
+    // Use model's maximum tokens if not specified
+    const outputTokens = maxTokens || MODEL_MAX_TOKENS[model];
 
     const messages: GeminiMessage[] = [];
 
@@ -93,7 +110,7 @@ export class GeminiService {
       contents: messages,
       generationConfig: {
         temperature,
-        maxOutputTokens: maxTokens,
+        maxOutputTokens: outputTokens,
       },
     };
 
@@ -113,7 +130,7 @@ export class GeminiService {
         throw new Error("No text generated from Gemini");
       }
 
-      console.log(`[GEMINI] Generated ${response.data.usageMetadata.candidatesTokenCount} tokens`);
+      console.log(`[GEMINI] Generated ${response.data.usageMetadata.candidatesTokenCount} tokens (max: ${outputTokens})`);
       return text;
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -141,9 +158,12 @@ export class GeminiService {
       model = "gemini-2.5-flash-lite",
       systemPrompt,
       temperature = 0.7,
-      maxTokens = 8192,
+      maxTokens, // If not provided, use model's max
       schema,
     } = options;
+
+    // Use model's maximum tokens if not specified
+    const outputTokens = maxTokens || MODEL_MAX_TOKENS[model];
 
     // Enhance system prompt to request JSON output
     const jsonSystemPrompt = `${systemPrompt || ""}
@@ -157,7 +177,7 @@ Your response must be parseable by JSON.parse(). Start with { and end with }.`;
       model,
       systemPrompt: jsonSystemPrompt,
       temperature,
-      maxTokens,
+      maxTokens: outputTokens,
     });
 
     try {
@@ -267,3 +287,23 @@ Your response must be parseable by JSON.parse(). Start with { and end with }.`;
 
 // Export singleton instance
 export const geminiService = new GeminiService();
+
+/**
+ * Get model information
+ */
+export function getModelInfo(model: GeminiModel) {
+  return {
+    model,
+    maxOutputTokens: MODEL_MAX_TOKENS[model],
+    contextWindow: MODEL_CONTEXT_WINDOW[model],
+  };
+}
+
+/**
+ * Get all available models with their specs
+ */
+export function getAllModels() {
+  return Object.keys(MODEL_MAX_TOKENS).map((model) => 
+    getModelInfo(model as GeminiModel)
+  );
+}
