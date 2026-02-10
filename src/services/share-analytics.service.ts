@@ -214,7 +214,7 @@ export class ShareAnalyticsService {
       if (!downloadsByClipMap.has(event.clipId)) {
         downloadsByClipMap.set(event.clipId, {
           clipId: event.clipId,
-          clipTitle: event.clip?.title,
+          clipTitle: event.clip?.title ?? undefined,
           downloads: 0,
         });
       }

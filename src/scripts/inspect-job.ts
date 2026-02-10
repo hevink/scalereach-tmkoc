@@ -11,7 +11,7 @@ async function inspectJob(jobId: string) {
 
   try {
     // Try clip generation queue
-    let job = await clipGenerationQueue.getJob(jobId);
+    let job: Awaited<ReturnType<typeof clipGenerationQueue.getJob>> | Awaited<ReturnType<typeof videoProcessingQueue.getJob>> = await clipGenerationQueue.getJob(jobId);
     let queueName = "clip-generation";
 
     if (!job) {

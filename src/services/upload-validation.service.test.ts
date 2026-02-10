@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { UploadValidationService } from "./upload-validation.service";
 import { getPlanConfig } from "../config/plan-config";
 

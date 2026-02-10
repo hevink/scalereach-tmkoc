@@ -489,7 +489,7 @@ export class ShareController {
       // The browser will handle the download
       if (clip.storageUrl.startsWith("http")) {
         // Set headers for download
-        const sanitizedTitle = clip.title.replace(/[^a-zA-Z0-9-_]/g, "_");
+        const sanitizedTitle = (clip.title || "clip").replace(/[^a-zA-Z0-9-_]/g, "_");
         const filename = `${sanitizedTitle}.mp4`;
         
         // Return a redirect response with download headers
@@ -623,7 +623,7 @@ export class ShareController {
           const buffer = await response.arrayBuffer();
           
           // Sanitize filename
-          const sanitizedClipTitle = clip.title.replace(/[^a-zA-Z0-9-_]/g, "_");
+          const sanitizedClipTitle = (clip.title || "clip").replace(/[^a-zA-Z0-9-_]/g, "_");
           const clipFilename = `${i + 1}_${sanitizedClipTitle}.mp4`;
 
           // Add to ZIP

@@ -18,6 +18,7 @@ export interface PublicShareData {
   videoTitle: string;
   clipCount: number;
   thumbnailUrl: string;
+  videoThumbnailUrl: string;
   clips: PublicClipData[];
 }
 
@@ -26,14 +27,14 @@ export interface PublicShareData {
  */
 export interface PublicClipData {
   id: string;
-  title: string;
-  duration: number;
+  title: string | null;
+  duration: number | null;
   viralityScore: number;
   viralityReason: string;
   hooks: string[];
   thumbnailUrl: string;
   storageUrl: string;
-  aspectRatio: string;
+  aspectRatio: string | null;
 }
 
 /**
@@ -202,10 +203,14 @@ export class ShareService {
     );
 
     // Sanitize data - remove all workspace/user information
+    const videoMetadata = shareLink.video.metadata as Record<string, any> | null;
+    const videoThumbnailUrl = videoMetadata?.thumbnail || "";
+
     const publicData: PublicShareData = {
-      videoTitle: shareLink.video.title,
+      videoTitle: shareLink.video.title || "",
       clipCount: sortedClips.length,
       thumbnailUrl: sortedClips[0]?.thumbnailUrl || "",
+      videoThumbnailUrl,
       clips: sortedClips.map((clip) => ({
         id: clip.id,
         title: clip.title,
