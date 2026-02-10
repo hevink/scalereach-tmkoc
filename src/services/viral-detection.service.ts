@@ -1,18 +1,5 @@
-import { generateText, Output } from "ai";
-import { createGroq } from "@ai-sdk/groq";
 import { z } from "zod";
-
-// Groq configuration
-const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
-
-// Create Groq client
-const groq = createGroq({
-  apiKey: GROQ_API_KEY,
-});
-
-// Log configuration on startup (without exposing the key)
-console.log(`[VIRAL DETECTION] Groq configured:`);
-console.log(`  - API Key: ${GROQ_API_KEY ? "***set***" : "NOT SET"}`);
+import { geminiService, type GeminiModel } from "./gemini.service";
 
 // Platform types for recommendations
 const PLATFORM_OPTIONS = [
@@ -76,6 +63,7 @@ export interface ViralDetectionOptions {
   videoTitle?: string;      // Video title for context
   genre?: string;           // Content genre for better detection (Auto, Podcast, Gaming, etc.)
   customPrompt?: string;    // Custom prompt for specific moment detection
+  model?: GeminiModel;      // Gemini model to use (default: gemini-2.5-flash-lite)
   // Editing options
   enableEmojis?: boolean;   // Whether to generate transcript with emojis
   enableIntroTitle?: boolean; // Whether to generate intro titles for clips
@@ -158,11 +146,13 @@ export class ViralDetectionService {
       minDuration = DEFAULT_MIN_DURATION,
       maxDuration = DEFAULT_MAX_DURATION,
       videoTitle = "Unknown",
+      model = "gemini-2.5-flash-lite",
       enableEmojis = true,
       enableIntroTitle = true,
     } = options;
 
     console.log(`[VIRAL DETECTION] Analyzing transcript for viral clips...`);
+    console.log(`[VIRAL DETECTION] Using Gemini model: ${model}`);
     console.log(`[VIRAL DETECTION] Transcript length: ${transcript.length} chars`);
     console.log(`[VIRAL DETECTION] Options: enableEmojis=${enableEmojis}, enableIntroTitle=${enableIntroTitle}`);
 
@@ -237,15 +227,21 @@ GUIDELINES:
 
     const userPrompt = `Analyze this transcript from the video "${videoTitle}" and identify up to ${maxClips} viral clip opportunities.
 
-IMPORTANT: Each clip MUST have a duration between ${minDuration}-${maxDuration} seconds.
-Duration = endTime - startTime. Double-check your math before submitting each clip.
+CRITICAL DURATION REQUIREMENTS:
+- Each clip MUST have a duration between ${minDuration}-${maxDuration} seconds
+- Duration = endTime - startTime
+- The startTime and endTime are in SECONDS (not minutes)
+- Example: startTime=30, endTime=60 means a 30-second clip
+- Double-check your math: if minDuration is 15, then endTime - startTime must be >= 15
+- If a moment is too short, EXTEND it by including more context before/after
+- If a moment is too long, find the CORE viral moment within it
 
 TRANSCRIPT WITH TIMESTAMPS:
 ${formattedTranscript}
 
 For each viral clip, provide:
 1. A catchy title that would work as a video caption
-${introTitleInstruction}${enableIntroTitle ? "3" : "2"}. Exact start and end times (in seconds) - MUST result in ${minDuration}-${maxDuration}s duration
+${introTitleInstruction}${enableIntroTitle ? "3" : "2"}. Exact start and end times IN SECONDS - MUST result in ${minDuration}-${maxDuration}s duration
 ${enableIntroTitle ? "4" : "3"}. The transcript segment for that clip
 ${emojiInstruction}${enableIntroTitle && enableEmojis ? "6" : enableIntroTitle || enableEmojis ? "5" : "4"}. A virality score (0-100) based on viral potential
 ${enableIntroTitle && enableEmojis ? "7" : enableIntroTitle || enableEmojis ? "6" : "5"}. A detailed reason explaining why this clip would go viral
@@ -253,28 +249,55 @@ ${enableIntroTitle && enableEmojis ? "8" : enableIntroTitle || enableEmojis ? "7
 ${enableIntroTitle && enableEmojis ? "9" : enableIntroTitle || enableEmojis ? "8" : "7"}. Primary emotions the clip evokes
 ${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "9" : "8"}. Recommended platforms (youtube_shorts, instagram_reels, tiktok, linkedin, twitter, facebook_reels)
 
-REMEMBER: Verify each clip is ${minDuration}-${maxDuration} seconds before including it.
-Focus on finding the absolute BEST moments that would perform well on social media.`;
+EXAMPLE OF CORRECT TIMING:
+If you want a 30-second clip starting at the 1-minute mark:
+- startTime: 60 (seconds)
+- endTime: 90 (seconds)
+- Duration: 90 - 60 = 30 seconds ✓
+
+REMEMBER: 
+- All times are in SECONDS, not minutes
+- Verify each clip is ${minDuration}-${maxDuration} seconds before including it
+- Focus on finding the absolute BEST moments that would perform well on social media`;
 
     try {
-      console.log(`[VIRAL DETECTION] Using Groq with mixtral-8x7b-32768`);
+      console.log(`[VIRAL DETECTION] Calling Gemini API...`);
       
-      const { output } = await generateText({
-        model: groq("openai/gpt-oss-20b"),
-        output: Output.object({
-          name: "ViralClips",
-          description: "Viral clip opportunities detected from video transcript",
-          schema: ViralClipSchema,
-        }),
-        system: systemPrompt,
-        prompt: userPrompt,
-        temperature: 0.7,
-      });
+      // Create JSON schema description for Gemini
+      const schemaDescription = `{
+  "clips": [
+    {
+      "title": "string - A catchy title for this viral clip",
+      "introTitle": "string - A short, punchy intro title (max 5-7 words) to display in the first 3 seconds",
+      "startTime": "number - Start time in seconds",
+      "endTime": "number - End time in seconds",
+      "transcript": "string - The transcript text for this clip segment",
+      "transcriptWithEmojis": "string - The same transcript but with relevant emojis added naturally",
+      "viralityScore": "number - Virality score from 0-100",
+      "viralityReason": "string - Detailed explanation of why this clip would go viral",
+      "hooks": ["string array - Key hooks or attention-grabbing elements"],
+      "emotions": ["string array - Primary emotions this clip evokes"],
+      "recommendedPlatforms": ["string array - Must include at least 1 platform from: youtube_shorts, instagram_reels, tiktok, linkedin, twitter, facebook_reels"]
+    }
+  ]
+}`;
 
-      if (!output) {
-        throw new Error("No output generated from model");
+      const responseText = await geminiService.generateJSON<{ clips: ViralClip[] }>(
+        userPrompt,
+        {
+          model,
+          systemPrompt,
+          temperature: 0.7,
+          maxTokens: 8192,
+          schema: schemaDescription,
+        }
+      );
+
+      if (!responseText || !responseText.clips) {
+        throw new Error("No clips generated from model");
       }
 
+      const output = responseText;
       console.log(`[VIRAL DETECTION] Found ${output.clips.length} viral clips`);
 
       // Log all clip durations for debugging
