@@ -41,29 +41,35 @@ export class UserController {
 
   // Update current authenticated user
   static async updateCurrentUser(c: Context) {
-    UserController.logRequest(c, 'UPDATE_CURRENT_USER');
-    
-    try {
-      const user = c.get("user");
-      if (!user) {
-        return c.json({ error: "Unauthorized" }, 401);
+      UserController.logRequest(c, 'UPDATE_CURRENT_USER');
+
+      try {
+        const user = c.get("user");
+        if (!user) {
+          return c.json({ error: "Unauthorized" }, 401);
+        }
+
+        const body = await c.req.json();
+        console.log(`[USER CONTROLLER] UPDATE_CURRENT_USER request body:`, body);
+
+        // Strip sensitive fields that users should not be able to set on themselves
+        const { role, email, emailVerified, ...safeFields } = body;
+        if (role !== undefined || email !== undefined || emailVerified !== undefined) {
+          console.warn(`[USER CONTROLLER] UPDATE_CURRENT_USER - blocked attempt to modify restricted fields by user: ${user.id}`, { role, email, emailVerified });
+        }
+
+        const updatedUser = await UserModel.update(user.id, safeFields);
+        if (!updatedUser) {
+          return c.json({ error: "User not found" }, 404);
+        }
+
+        console.log(`[USER CONTROLLER] UPDATE_CURRENT_USER success - user: ${updatedUser.id}`);
+        return c.json(updatedUser);
+      } catch (error) {
+        console.error(`[USER CONTROLLER] UPDATE_CURRENT_USER error:`, error);
+        return c.json({ error: "Failed to update user" }, 500);
       }
-      
-      const body = await c.req.json();
-      console.log(`[USER CONTROLLER] UPDATE_CURRENT_USER request body:`, body);
-      
-      const updatedUser = await UserModel.update(user.id, body);
-      if (!updatedUser) {
-        return c.json({ error: "User not found" }, 404);
-      }
-      
-      console.log(`[USER CONTROLLER] UPDATE_CURRENT_USER success - user: ${updatedUser.id}`);
-      return c.json(updatedUser);
-    } catch (error) {
-      console.error(`[USER CONTROLLER] UPDATE_CURRENT_USER error:`, error);
-      return c.json({ error: "Failed to update user" }, 500);
     }
-  }
 
   // Upload avatar
   static async uploadAvatar(c: Context) {
