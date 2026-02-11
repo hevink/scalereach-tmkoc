@@ -32,6 +32,8 @@ export interface PublicClipData {
   viralityScore: number;
   viralityReason: string;
   hooks: string[];
+  recommendedPlatforms: string[];
+  transcript: string;
   thumbnailUrl: string;
   storageUrl: string;
   aspectRatio: string | null;
@@ -218,6 +220,8 @@ export class ShareService {
         viralityScore: clip.score,
         viralityReason: clip.viralityReason || "",
         hooks: clip.hooks || [],
+        recommendedPlatforms: clip.recommendedPlatforms || [],
+        transcript: clip.transcript || "",
         thumbnailUrl: clip.thumbnailUrl || "",
         storageUrl: clip.storageUrl || "",
         aspectRatio: clip.aspectRatio,
