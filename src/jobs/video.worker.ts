@@ -17,6 +17,7 @@ import { WorkspaceModel } from "../models/workspace.model";
 import { emailService } from "../services/email.service";
 import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
+import { captureException } from "../lib/sentry";
 import {
   createWorker,
   QUEUE_NAMES,
@@ -359,6 +360,11 @@ async function processYouTubeVideo(
     console.error(`[VIDEO WORKER] Error processing video ${videoId}:`, error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    // Report to Sentry with context
+    if (error instanceof Error) {
+      captureException(error, { videoId, sourceUrl, sourceType: "youtube" });
+    }
 
     // Refund minutes if they were deducted (YouTube minutes are deducted in controller)
     if (minutesDeducted > 0 && workspaceId) {
@@ -725,6 +731,11 @@ async function processUploadedVideo(
     console.error(`[VIDEO WORKER] Error processing uploaded video ${videoId}:`, error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    // Report to Sentry with context
+    if (error instanceof Error) {
+      captureException(error, { videoId, sourceUrl, sourceType: "upload" });
+    }
 
     // Refund minutes if they were deducted
     if (minutesDeducted > 0 && workspaceId) {

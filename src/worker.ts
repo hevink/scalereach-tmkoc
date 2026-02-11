@@ -1,3 +1,6 @@
+// Initialize Sentry first (must be at the very top)
+import "./lib/sentry";
+
 import { startVideoWorker } from "./jobs/video.worker";
 import { startClipWorker } from "./jobs/clip.worker";
 import { startTranslationWorker, translationQueue } from "./jobs/translation.worker";

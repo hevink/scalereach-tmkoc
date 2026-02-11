@@ -14,6 +14,7 @@ import { TranslationModel } from "../models/translation.model";
 import { TranslationService } from "../services/translation.service";
 import { ClipGeneratorService } from "../services/clip-generator.service";
 import { emailService } from "../services/email.service";
+import { captureException } from "../lib/sentry";
 import {
   createWorker,
   QUEUE_NAMES,
@@ -261,6 +262,11 @@ async function processClipGenerationJob(
     console.error(`[CLIP WORKER] Error generating clip ${clipId}:`, error);
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    // Report to Sentry with context
+    if (error instanceof Error) {
+      captureException(error, { clipId, videoId, aspectRatio, quality });
+    }
 
     // Update status to failed (Requirement 7.7 - after 3 retries)
     // Note: BullMQ handles retries automatically, this is called on final failure
