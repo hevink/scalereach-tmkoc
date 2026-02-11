@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import { Readable } from "stream";
+import axios from "axios";
 
 export interface YouTubeVideoInfo {
   id: string;
@@ -65,8 +66,89 @@ export class YouTubeService {
     return null;
   }
 
+  /**
+   * Parse ISO 8601 duration (PT1H2M3S) to seconds
+   */
+  private static parseISO8601Duration(duration: string): number {
+    const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!match) return 0;
+    const hours = parseInt(match[1] || "0", 10);
+    const minutes = parseInt(match[2] || "0", 10);
+    const seconds = parseInt(match[3] || "0", 10);
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  /**
+   * Lightweight video info fetcher using YouTube Data API v3 (no yt-dlp needed).
+   * Used by the API server on Render. Falls back to yt-dlp if no API key is set.
+   */
+  static async getVideoInfoHttp(url: string): Promise<YouTubeVideoInfo> {
+    const videoId = this.extractVideoId(url);
+    if (!videoId) {
+      throw new Error("Invalid YouTube URL");
+    }
+
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!apiKey) {
+      throw new Error("YOUTUBE_API_KEY not set");
+    }
+
+    console.log(`[YOUTUBE SERVICE] Getting video info via HTTP API for: ${videoId}`);
+
+    const response = await axios.get(
+      `https://www.googleapis.com/youtube/v3/videos`, {
+        params: {
+          part: "snippet,contentDetails",
+          id: videoId,
+          key: apiKey,
+        },
+        timeout: 10000,
+      }
+    );
+
+    const items = response.data?.items;
+    if (!items || items.length === 0) {
+      throw new Error("Video not found or is unavailable");
+    }
+
+    const item = items[0];
+    const snippet = item.snippet;
+    const duration = this.parseISO8601Duration(item.contentDetails.duration);
+
+    return {
+      id: videoId,
+      title: snippet.title,
+      duration,
+      thumbnail: snippet.thumbnails?.maxres?.url || snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      channelName: snippet.channelTitle,
+      description: snippet.description || "",
+    };
+  }
+
+  /**
+   * Get video info — uses HTTP API if YOUTUBE_API_KEY is set (for API server),
+   * falls back to yt-dlp (for worker or local dev).
+   */
   static async getVideoInfo(url: string): Promise<YouTubeVideoInfo> {
-    console.log(`[YOUTUBE SERVICE] Getting video info for: ${url}`);
+    // Prefer HTTP API when available (no yt-dlp dependency)
+    if (process.env.YOUTUBE_API_KEY) {
+      try {
+        return await this.getVideoInfoHttp(url);
+      } catch (error) {
+        console.warn(`[YOUTUBE SERVICE] HTTP API failed, falling back to yt-dlp:`, error instanceof Error ? error.message : error);
+      }
+    }
+
+    // Fallback to yt-dlp (worker environment)
+    return this.getVideoInfoYtDlp(url);
+  }
+
+  /**
+   * Get video info using yt-dlp (requires yt-dlp binary installed).
+   * Used by the worker on DigitalOcean.
+   */
+  static async getVideoInfoYtDlp(url: string): Promise<YouTubeVideoInfo> {
+    console.log(`[YOUTUBE SERVICE] Getting video info via yt-dlp for: ${url}`);
 
     return new Promise((resolve, reject) => {
       // Add cookies if available

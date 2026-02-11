@@ -1,6 +1,6 @@
 # Render Blueprint - https://render.com/docs/blueprint-spec
 services:
-  # Main API Server
+  # Main API Server (no ffmpeg/yt-dlp - uses YouTube Data API v3 for video info)
   - type: web
     name: scalereach-api
     runtime: docker
@@ -22,16 +22,10 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
-      - key: REDIS_HOST
-        fromService:
-          type: redis
-          name: scalereach-redis
-          property: host
-      - key: REDIS_PORT
-        fromService:
-          type: redis
-          name: scalereach-redis
-          property: port
+      - key: YOUTUBE_API_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
       - key: R2_ACCOUNT_ID
         sync: false
       - key: R2_ACCESS_KEY_ID
@@ -54,54 +48,3 @@ services:
         sync: false
       - key: SENTRY_DSN
         sync: false
-      - key: YOUTUBE_COOKIES_PATH
-        sync: false
-
-  # Background Worker for video/clip processing
-  - type: worker
-    name: scalereach-worker
-    runtime: docker
-    dockerfilePath: ./Dockerfile.worker
-    dockerContext: .
-    region: oregon
-    plan: starter # $7/month - needs CPU for FFmpeg
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_HOST
-        fromService:
-          type: redis
-          name: scalereach-redis
-          property: host
-      - key: REDIS_PORT
-        fromService:
-          type: redis
-          name: scalereach-redis
-          property: port
-      - key: R2_ACCOUNT_ID
-        sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
-      - key: R2_BUCKET_NAME
-        sync: false
-      - key: R2_PUBLIC_URL
-        sync: false
-      - key: DEEPGRAM_API_KEY
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: RESEND_API_KEY
-        sync: false
-      - key: YOUTUBE_COOKIES_PATH
-        sync: false
-
-  # Redis for BullMQ job queue
-  - type: redis
-    name: scalereach-redis
-    region: oregon
-    plan: starter # $7/month - persistence needed for jobs
-    ipAllowList: []

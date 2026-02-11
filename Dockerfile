@@ -1,7 +1,7 @@
 # Build stage with native build tools
 FROM oven/bun:1-debian AS builder
 
-# Install build dependencies for native modules (sharp, better-sqlite3)
+# Install build dependencies for native modules (sharp)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     build-essential \
@@ -16,21 +16,13 @@ RUN bun install --no-save
 # Production stage
 FROM oven/bun:1-debian AS runner
 
-# Install runtime dependencies (libvips for sharp, ffmpeg, yt-dlp, deno)
+# Install runtime dependencies (libvips for sharp only - no ffmpeg/yt-dlp needed for API)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    ffmpeg \
     libvips42 \
     ca-certificates \
     curl \
-    unzip \
-    fonts-noto-color-emoji \
-    && pip3 install --upgrade yt-dlp --break-system-packages \
-    && curl -fsSL https://deno.land/install.sh | sh \
-    && ln -s /root/.deno/bin/deno /usr/local/bin/deno \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /root/.cache
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -45,9 +37,6 @@ COPY package.json ./
 COPY src ./src
 COPY drizzle ./drizzle
 COPY drizzle.config.ts tsconfig.json ./
-
-# Create config directory for YouTube cookies (will be populated by Render Secret Files)
-RUN mkdir -p /app/config
 
 RUN chown -R appuser:appuser /app
 USER appuser

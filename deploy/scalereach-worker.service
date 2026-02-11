@@ -1,0 +1,33 @@
+[Unit]
+Description=ScaleReach Video Processing Worker
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/scalereach-worker/scalereach-tmkoc
+ExecStart=/root/.bun/bin/bun run src/worker.ts
+Restart=always
+RestartSec=5
+
+# Environment file with all secrets
+EnvironmentFile=/opt/scalereach-worker/scalereach-tmkoc/.env
+
+# Worker concurrency settings
+Environment=VIDEO_WORKER_CONCURRENCY=2
+Environment=CLIP_WORKER_CONCURRENCY=2
+Environment=DUBBING_WORKER_CONCURRENCY=1
+Environment=WORKER_HEALTH_PORT=3002
+Environment=NODE_ENV=production
+
+# Process limits
+LimitNOFILE=65535
+TimeoutStopSec=30
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=scalereach-worker
+
+[Install]
+WantedBy=multi-user.target
