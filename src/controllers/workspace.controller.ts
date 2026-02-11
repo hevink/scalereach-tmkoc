@@ -165,6 +165,23 @@ export class WorkspaceController {
         return c.json({ error: "Unauthorized" }, 401);
       }
 
+      // Check workspace creation eligibility
+      // Free plan users can only have 1 workspace. To create more, at least one existing workspace must be on a paid plan.
+      const existingWorkspaces = await WorkspaceModel.getByOwnerId(user.id);
+      if (existingWorkspaces.length > 0) {
+        const hasPaidWorkspace = existingWorkspaces.some(
+          (ws) => ws.plan === "starter" || ws.plan === "pro" || ws.plan === "agency"
+        );
+        if (!hasPaidWorkspace) {
+          console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - blocked: user ${user.id} has ${existingWorkspaces.length} workspace(s) but none on a paid plan`);
+          return c.json({
+            error: "Upgrade required",
+            message: "Free plan users can only have one workspace. Upgrade any existing workspace to a paid plan to create additional workspaces.",
+            code: "WORKSPACE_LIMIT_REACHED",
+          }, 403);
+        }
+      }
+
       // Validate request body using Zod schema
       const validation = await validateBody(c, createWorkspaceSchema);
       if (!validation.success) {
@@ -199,6 +216,20 @@ export class WorkspaceController {
         userId: ownerId,
         role: "owner",
       });
+
+      // Only grant free 50 minutes for the user's very first workspace
+      const isFirstWorkspace = existingWorkspaces.length === 0;
+      if (isFirstWorkspace) {
+        try {
+          const { MinutesModel } = await import("../models/minutes.model");
+          await MinutesModel.initializeBalance(workspaceId, "free");
+          console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - granted 50 free minutes to first workspace: ${workspaceId}`);
+        } catch (error) {
+          console.error(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - failed to initialize minutes:`, error);
+        }
+      } else {
+        console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - skipping free minutes (user already has ${existingWorkspaces.length} workspace(s))`);
+      }
 
       console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE success - created workspace: ${workspace.id} (${slug})`);
       return c.json(workspace, 201);
