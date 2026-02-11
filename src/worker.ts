@@ -111,7 +111,9 @@ async function getQueueStats() {
   }
 }
 
-const healthServer = Bun.serve({
+let healthServer: ReturnType<typeof Bun.serve> | null = null;
+try {
+healthServer = Bun.serve({
   port: WORKER_HEALTH_PORT,
   async fetch(req) {
     const url = new URL(req.url);
@@ -238,17 +240,20 @@ const healthServer = Bun.serve({
 });
 
 console.log(`[WORKER] Health check server running on http://localhost:${WORKER_HEALTH_PORT}`);
+} catch (err) {
+  console.warn(`[WORKER] Health check server failed to start (port ${WORKER_HEALTH_PORT} in use). Workers will continue without health endpoint.`);
+}
 
 process.on("SIGTERM", async () => {
   console.log("[WORKER] Received SIGTERM, shutting down gracefully...");
-  healthServer.stop();
+  healthServer?.stop();
   await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close()]);
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
   console.log("[WORKER] Received SIGINT, shutting down gracefully...");
-  healthServer.stop();
+  healthServer?.stop();
   await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close()]);
   process.exit(0);
 });
