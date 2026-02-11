@@ -326,13 +326,28 @@ export class ClipGeneratorService {
   ): string {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
-    const fontSize = style?.fontSize || 32;
+    
+    // Scale font size from frontend design space (480×854) to actual output resolution.
+    // The frontend canvas editor uses a fixed 480×854 internal canvas, so all font sizes
+    // from the style are relative to that space. We scale by height ratio to match.
+    const DESIGN_HEIGHT = 854;
+    const scaleFactor = height / DESIGN_HEIGHT;
+    const fontSize = Math.round((style?.fontSize || 32) * scaleFactor);
+
+    this.logOperation("ASS_FONT_SCALING", {
+      inputFontSize: style?.fontSize || 32,
+      scaledFontSize: fontSize,
+      scaleFactor: scaleFactor.toFixed(3),
+      outputResolution: `${width}x${height}`,
+    });
+    
     const textColor = this.hexToASSColor(style?.textColor || "#FFFFFF");
     const outlineColor = this.hexToASSColor(style?.outlineColor || "#000000");
     const highlightColor = this.hexToASSColor(style?.highlightColor || "#FFFF00");
-    const shadow = style?.shadow ? 2 : 0;
+    const shadow = style?.shadow ? Math.round(2 * scaleFactor) : 0;
     // Use custom outline width if provided, otherwise default based on outline toggle
-    const outline = style?.outlineWidth ?? (style?.outline ? 3 : 2);
+    const rawOutline = style?.outlineWidth ?? (style?.outline ? 3 : 2);
+    const outline = Math.round(rawOutline * scaleFactor);
 
     // Enhanced style options
     const glowEnabled = style?.glowEnabled ?? false;
@@ -434,7 +449,7 @@ WrapStyle: 0
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
 Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
+Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${Math.round(4 * scaleFactor)},${Math.round(3 * scaleFactor)},8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},1
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
 `;
 
