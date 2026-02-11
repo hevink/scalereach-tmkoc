@@ -132,6 +132,37 @@ export class ShareController {
       return c.json({ error: "Internal Server Error", message: "Failed to create share link" }, 500);
     }
   }
+  /**
+   * GET /api/videos/:videoId/share
+   * Check if a share link exists for a video
+   */
+  static async getShareStatus(c: Context): Promise<Response> {
+    try {
+      const videoId = c.req.param("videoId");
+      const workspace = c.get("workspace");
+
+      const shareLink = await ShareService.getShareLinkByVideoId(videoId);
+
+      if (!shareLink) {
+        return c.json({ exists: false }, 200);
+      }
+
+      const baseUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const shareUrl = `${baseUrl}/share/clips/${shareLink.token}`;
+
+      return c.json({
+        exists: true,
+        shareToken: shareLink.token,
+        shareUrl,
+        createdAt: shareLink.createdAt.toISOString(),
+      }, 200);
+    } catch (error) {
+      console.error("[SHARE] Error checking share status:", error);
+      return c.json({ error: "Internal Server Error" }, 500);
+    }
+  }
+
+
 
   /**
    * DELETE /api/videos/:videoId/share

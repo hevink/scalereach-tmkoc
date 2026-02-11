@@ -18,6 +18,7 @@ const shareRouter = new Hono();
 // Apply middleware inline per-route so :videoId param is available
 // ============================================================================
 
+shareRouter.get("/videos/:videoId/share", authMiddleware, requireProPlan, ShareController.getShareStatus);
 shareRouter.post("/videos/:videoId/share", authMiddleware, requireProPlan, ShareController.createShareLink);
 shareRouter.delete("/videos/:videoId/share", authMiddleware, requireProPlan, ShareController.revokeShareLink);
 shareRouter.post("/videos/:videoId/share/regenerate", authMiddleware, requireProPlan, ShareController.regenerateShareLink);
