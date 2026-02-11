@@ -12,6 +12,7 @@ import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
 import { WorkspaceModel } from "../models/workspace.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
+import { ClipTextOverlayModel } from "../models/clip-text-overlay.model";
 import { VideoConfigModel } from "../models/video-config.model";
 import { ClipGeneratorService, AspectRatio, VideoQuality } from "../services/clip-generator.service";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
@@ -139,12 +140,34 @@ export class ClipGenerationController {
       const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
       const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
-      // Load video config to check enableIntroTitle/enableEmojis flags
+      // Load video config to check enableCaptions/enableIntroTitle/enableEmojis flags
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
+      const captionsEnabled = videoConfig?.enableCaptions ?? true;
       const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
       const emojisEnabled = videoConfig?.enableEmojis ?? true;
 
-      // Add job to queue with intro title
+      // Get saved captions from database
+      const savedCaptions = await ClipCaptionModel.getByClipId(clipId);
+
+      // Load text overlays from database
+      const textOverlayRecord = await ClipTextOverlayModel.getByClipId(clipId);
+      const textOverlays = textOverlayRecord?.overlays?.length ? textOverlayRecord.overlays : undefined;
+
+      // Build captions object for job
+      let captions: any = undefined;
+      if (captionsEnabled && savedCaptions && savedCaptions.words.length > 0) {
+        captions = {
+          words: savedCaptions.words.map((w: any) => ({
+            word: w.word,
+            start: w.start,
+            end: w.end,
+          })),
+          style: savedCaptions.styleConfig || undefined,
+        };
+        console.log(`[CLIP GENERATION CONTROLLER] Using saved captions for generate: ${savedCaptions.words.length} words`);
+      }
+
+      // Add job to queue with captions and intro title
       const job = await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
@@ -161,6 +184,8 @@ export class ClipGenerationController {
         watermark: applyWatermark,
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
+        captions,
+        textOverlays,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Job queued: ${job.id}`);
@@ -256,7 +281,7 @@ export class ClipGenerationController {
 
       // Reset clip status to detected
       await ClipModel.update(clipId, {
-        status: "detected",
+        status: "detected", 
         storageKey: undefined,
         storageUrl: undefined,
         aspectRatio: undefined,
@@ -320,6 +345,10 @@ export class ClipGenerationController {
         console.log(`[CLIP GENERATION CONTROLLER] Using saved captions: ${savedCaptions.words.length} words, isEdited: ${savedCaptions.isEdited}`);
       }
 
+      // Load text overlays from database
+      const textOverlayRecord = await ClipTextOverlayModel.getByClipId(clipId);
+      const textOverlays = textOverlayRecord?.overlays?.length ? textOverlayRecord.overlays : undefined;
+
       // Determine watermark based on workspace plan
       const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
       const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
@@ -342,6 +371,7 @@ export class ClipGenerationController {
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
+        textOverlays,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Regeneration job queued: ${job.id}`);

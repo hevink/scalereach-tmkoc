@@ -95,12 +95,23 @@ export interface ClipGenerationJobData {
       backgroundColor?: string;
       backgroundOpacity?: number;
       position?: "top" | "center" | "bottom";
+      x?: number;
+      y?: number;
+      maxWidth?: number;
       alignment?: "left" | "center" | "right";
+      animation?: "none" | "word-by-word" | "karaoke" | "bounce" | "fade";
       highlightColor?: string;
       highlightEnabled?: boolean;
       shadow?: boolean;
       outline?: boolean;
       outlineColor?: string;
+      outlineWidth?: number;
+      glowEnabled?: boolean;
+      glowColor?: string;
+      glowIntensity?: number;
+      highlightScale?: number;
+      textTransform?: "none" | "uppercase";
+      wordsPerLine?: number;
     };
   };
   // Text overlays to burn into video

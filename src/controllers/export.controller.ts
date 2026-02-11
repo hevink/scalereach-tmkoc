@@ -143,6 +143,8 @@ export class ExportController {
       const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
       const emojisEnabled = videoConfig?.enableEmojis ?? true;
 
+      console.log(`[EXPORT CONTROLLER] Export job data: captionsEnabled=${captionsEnabled}, wordCount=${words.length}, hasStyle=${!!style}, textOverlayCount=${textOverlays?.length || 0}`);
+
       // Add job to queue for clip generation with caption data
       await addClipGenerationJob({
         clipId,
