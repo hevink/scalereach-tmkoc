@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { createWorker, redisConnection } from "./queue";
+import { createWorker, createRedisConnection } from "./queue";
 import { Queue } from "bullmq";
 import { TranslationModel } from "../models/translation.model";
 import { TranslationService } from "../services/translation.service";
@@ -17,25 +17,10 @@ export interface TranslationJobData {
   targetLanguage: string;
 }
 
-// Create the translation queue
-const redisConfig: any = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT || "6379"),
-  password: process.env.REDIS_PASSWORD || undefined,
-  maxRetriesPerRequest: null,
-};
-
-if (
-  process.env.REDIS_TLS === "true" ||
-  (process.env.REDIS_HOST || "").includes("upstash.io")
-) {
-  redisConfig.tls = {};
-}
-
 export const translationQueue = new Queue<TranslationJobData>(
   TRANSLATION_QUEUE_NAME,
   {
-    connection: redisConfig,
+    connection: createRedisConnection(),
     defaultJobOptions: {
       attempts: 3,
       backoff: {

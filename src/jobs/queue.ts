@@ -8,17 +8,15 @@ const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379");
 const REDIS_PASSWORD = process.env.REDIS_PASSWORD || undefined;
 const REDIS_TLS = process.env.REDIS_TLS === "true" || REDIS_HOST.includes("upstash.io");
 
-// Create Redis connection config for BullMQ
+// Create Redis connection - used by both the shared connection and BullMQ queues/workers
 let redisConfig: any;
 
 if (REDIS_URL) {
-  // Use REDIS_URL if provided
   redisConfig = {
     maxRetriesPerRequest: null,
   };
   console.log(`[REDIS] Using REDIS_URL connection`);
 } else {
-  // Use individual config
   redisConfig = {
     host: REDIS_HOST,
     port: REDIS_PORT,
@@ -37,6 +35,12 @@ if (REDIS_TLS) {
 export const redisConnection = REDIS_URL 
   ? new IORedis(REDIS_URL, redisConfig)
   : new IORedis(redisConfig);
+
+// Factory to create new IORedis connections for BullMQ queues/workers
+// BullMQ needs its own connections (not shared), so we create new ones with the same config
+export function createRedisConnection(): any {
+  return REDIS_URL ? new IORedis(REDIS_URL, redisConfig) : new IORedis(redisConfig);
+}
 
 redisConnection.on("connect", () => {
   console.log("[REDIS] Connected to Redis");
@@ -119,7 +123,7 @@ export interface ClipGenerationJobData {
 export const videoProcessingQueue = new Queue<VideoProcessingJobData>(
   QUEUE_NAMES.VIDEO_PROCESSING,
   {
-    connection: redisConfig as any,
+    connection: createRedisConnection(),
     defaultJobOptions: {
       attempts: 1,
       backoff: {
@@ -196,7 +200,7 @@ export function createWorker<T>(
   concurrency: number = 2
 ) {
   const worker = new Worker<T>(queueName, processor, {
-    connection: redisConfig as any,
+    connection: createRedisConnection(),
     concurrency,
   });
 
@@ -223,7 +227,7 @@ export function createWorker<T>(
 export const clipGenerationQueue = new Queue<ClipGenerationJobData>(
   QUEUE_NAMES.CLIP_GENERATION,
   {
-    connection: redisConfig as any,
+    connection: createRedisConnection(),
     defaultJobOptions: {
       attempts: 1, // Retry up to 3 times (Requirement 7.7)
       backoff: {

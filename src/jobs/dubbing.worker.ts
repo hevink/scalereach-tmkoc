@@ -1,5 +1,5 @@
 import { Job } from "bullmq";
-import { createWorker } from "./queue";
+import { createWorker, createRedisConnection } from "./queue";
 import { Queue } from "bullmq";
 import { DubbingModel } from "../models/dubbing.model";
 import { TranslationModel } from "../models/translation.model";
@@ -30,23 +30,8 @@ export interface DubbingJobData {
   duckVolume: number;
 }
 
-// Redis config (same pattern as translation.worker.ts)
-const redisConfig: any = {
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT || "6379"),
-  password: process.env.REDIS_PASSWORD || undefined,
-  maxRetriesPerRequest: null,
-};
-
-if (
-  process.env.REDIS_TLS === "true" ||
-  (process.env.REDIS_HOST || "").includes("upstash.io")
-) {
-  redisConfig.tls = {};
-}
-
 export const dubbingQueue = new Queue<DubbingJobData>(DUBBING_QUEUE_NAME, {
-  connection: redisConfig,
+  connection: createRedisConnection(),
   defaultJobOptions: {
     attempts: 2,
     backoff: {
