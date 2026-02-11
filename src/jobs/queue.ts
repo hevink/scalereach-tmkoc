@@ -114,27 +114,6 @@ export interface ClipGenerationJobData {
       wordsPerLine?: number;
     };
   };
-  // Text overlays to burn into video
-  textOverlays?: Array<{
-    id: string;
-    text: string;
-    fontFamily: string;
-    fontSize: number;
-    fontWeight: "normal" | "bold";
-    fontStyle: "normal" | "italic";
-    textColor: string;
-    backgroundColor: string;
-    backgroundOpacity: number;
-    alignment: "left" | "center" | "right";
-    x: number;
-    y: number;
-    rotation: number;
-    shadow: boolean;
-    outline: boolean;
-    outlineColor: string;
-    startTime: number;
-    endTime: number;
-  }>;
 }
 
 export const videoProcessingQueue = new Queue<VideoProcessingJobData>(
@@ -233,7 +212,7 @@ export function createWorker<T>(
     console.error(`[WORKER] Worker error:`, err.message);
   });
 
-  return worker;
+  return worker; 
 }
 
 

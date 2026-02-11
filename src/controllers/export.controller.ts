@@ -4,7 +4,6 @@ import { ClipModel } from "../models/clip.model";
 import { VideoModel } from "../models/video.model";
 import { WorkspaceModel } from "../models/workspace.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
-import { ClipTextOverlayModel } from "../models/clip-text-overlay.model";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
 import { getPlanConfig } from "../config/plan-config";
 import { VideoConfigModel } from "../models/video-config.model";
@@ -113,13 +112,6 @@ export class ExportController {
 
       console.log(`[EXPORT CONTROLLER] Caption data: ${words.length} words, style: ${style ? 'yes' : 'no'}`);
 
-      // Load text overlays for this clip
-      const textOverlayRecord = await ClipTextOverlayModel.getByClipId(clipId);
-      const textOverlays = textOverlayRecord?.overlays?.length ? textOverlayRecord.overlays : undefined;
-      if (textOverlays) {
-        console.log(`[EXPORT CONTROLLER] Text overlays: ${textOverlays.length}`);
-      }
-
       // Create export record
       const exportId = nanoid();
       const exportRecord = {
@@ -143,7 +135,7 @@ export class ExportController {
       const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
       const emojisEnabled = videoConfig?.enableEmojis ?? true;
 
-      console.log(`[EXPORT CONTROLLER] Export job data: captionsEnabled=${captionsEnabled}, wordCount=${words.length}, hasStyle=${!!style}, textOverlayCount=${textOverlays?.length || 0}`);
+      console.log(`[EXPORT CONTROLLER] Export job data: captionsEnabled=${captionsEnabled}, wordCount=${words.length}, hasStyle=${!!style}`);
 
       // Add job to queue for clip generation with caption data
       await addClipGenerationJob({
@@ -166,7 +158,6 @@ export class ExportController {
           words,
           style: style || undefined,
         } : undefined,
-        textOverlays,
       });
 
       // Update clip status to generating
@@ -338,9 +329,6 @@ export class ExportController {
         const batchIntroTitleEnabled = batchVideoConfig?.enableIntroTitle ?? true;
         const batchEmojisEnabled = batchVideoConfig?.enableEmojis ?? true;
 
-        // Load text overlays for this clip
-        const batchTextOverlayRecord = await ClipTextOverlayModel.getByClipId(clipId);
-        const batchTextOverlays = batchTextOverlayRecord?.overlays?.length ? batchTextOverlayRecord.overlays : undefined;
 
         // Add job to queue
         await addClipGenerationJob({
@@ -363,7 +351,6 @@ export class ExportController {
             words,
             style: style || undefined,
           } : undefined,
-          textOverlays: batchTextOverlays,
         });
 
         await ClipModel.update(clipId, { status: "generating" });

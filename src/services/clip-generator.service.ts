@@ -59,26 +59,6 @@ export interface ClipGenerationOptions {
       wordsPerLine?: number;        // 3-7, default 5
     };
   };
-  textOverlays?: Array<{
-    id: string;
-    text: string;
-    fontFamily: string;
-    fontSize: number;
-    fontWeight: "normal" | "bold";
-    fontStyle: "normal" | "italic";
-    textColor: string;
-    backgroundColor: string;
-    backgroundOpacity: number;
-    alignment: "left" | "center" | "right";
-    x: number;
-    y: number;
-    rotation: number;
-    shadow: boolean;
-    outline: boolean;
-    outlineColor: string;
-    startTime: number;
-    endTime: number;
-  }>;
 }
 
 export interface GeneratedClip {
@@ -253,8 +233,7 @@ export class ClipGeneratorService {
         options.captions,
         options.introTitle,
         options.watermark,
-        options.emojis,
-        options.textOverlays
+        options.emojis
       );
 
       // Generate clip WITHOUT captions (raw version for editing)
@@ -268,8 +247,7 @@ export class ClipGeneratorService {
         undefined, // No captions
         undefined, // No intro title
         options.watermark,
-        undefined, // No emojis
-        undefined  // No text overlays
+        undefined  // No emojis
       );
     } else if (options.sourceType === "upload" && options.storageKey) {
       // Generate clip WITH captions
@@ -283,8 +261,7 @@ export class ClipGeneratorService {
         options.captions,
         options.introTitle,
         options.watermark,
-        options.emojis,
-        options.textOverlays
+        options.emojis
       );
 
       // Generate clip WITHOUT captions (raw version for editing)
@@ -298,8 +275,7 @@ export class ClipGeneratorService {
         undefined, // No captions
         undefined, // No intro title
         options.watermark,
-        undefined, // No emojis
-        undefined  // No text overlays
+        undefined  // No emojis
       );
     } else {
       throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
@@ -346,8 +322,7 @@ export class ClipGeneratorService {
     width: number,
     height: number,
     introTitle?: string,
-    emojis?: string,
-    textOverlays?: ClipGenerationOptions["textOverlays"]
+    emojis?: string
   ): string {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
@@ -462,40 +437,6 @@ Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},$
 Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
 `;
-
-    // Pre-generate text overlay styles (must be in [V4+ Styles] section)
-    const textOverlayDialogues: string[] = [];
-    if (textOverlays && textOverlays.length > 0) {
-      for (let i = 0; i < textOverlays.length; i++) {
-        const ovl = textOverlays[i];
-        const ovlColor = this.hexToASSColor(ovl.textColor || "#FFFFFF");
-        const ovlOutlineColor = this.hexToASSColor(ovl.outlineColor || "#000000");
-        const ovlBold = ovl.fontWeight === "bold" ? 1 : 0;
-        const ovlItalic = ovl.fontStyle === "italic" ? 1 : 0;
-        const ovlOutline = ovl.outline ? 2 : 0;
-        const ovlShadow = ovl.shadow ? 1 : 0;
-        const ovlAlign = ovl.alignment === "left" ? 1 : ovl.alignment === "right" ? 3 : 2;
-        const ovlASSAlign = 3 + ovlAlign;
-        const ovlFont = ovl.fontFamily;
-        const styleName = `TextOvl_${i}`;
-
-        // Add style to [V4+ Styles] section
-        ass += `Style: ${styleName},${ovlFont},${ovl.fontSize},${ovlColor},${ovlColor},${ovlOutlineColor},&H80000000,${ovlBold},${ovlItalic},0,0,100,100,0,0,1,${ovlOutline},${ovlShadow},${ovlASSAlign},0,0,0,1\n`;
-
-        // Build dialogue line for later
-        const posX = Math.round((ovl.x / 100) * width);
-        const posY = Math.round((ovl.y / 100) * height);
-        const ovlStart = this.formatASSTime(ovl.startTime);
-        const ovlEnd = this.formatASSTime(ovl.endTime);
-        const escapedText = ovl.text.replace(/\\/g, "\\\\").replace(/\{/g, "\\{").replace(/\}/g, "\\}").replace(/\n/g, "\\N");
-        let tags = `\\pos(${posX},${posY})`;
-        if (ovl.rotation !== 0) {
-          tags += `\\frz${-ovl.rotation}`;
-        }
-        tags += `\\fad(200,200)`;
-        textOverlayDialogues.push(`Dialogue: 3,${ovlStart},${ovlEnd},${styleName},,0,0,0,,{${tags}}${escapedText}`);
-      }
-    }
 
     ass += `
 [Events]
@@ -664,16 +605,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       }
     }
 
-    // Add text overlay dialogue lines
-    for (const line of textOverlayDialogues) {
-      ass += line + "\n";
-    }
-
     this.logOperation("ASS_CONTENT_SUMMARY", {
       wordCount: words.length,
       lineCount: lines.length,
       animation: style?.animation || "none",
-      textOverlayCount: textOverlayDialogues.length,
       hasIntroTitle: !!introTitle,
       hasEmojis: !!emojis,
       totalLength: ass.length,
@@ -717,8 +652,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     captions?: ClipGenerationOptions["captions"],
     introTitle?: string,
     watermark?: boolean,
-    emojis?: string,
-    textOverlays?: ClipGenerationOptions["textOverlays"]
+    emojis?: string
   ): Promise<Buffer> {
     this.logOperation("DOWNLOAD_YOUTUBE_SEGMENT", {
       url,
@@ -741,24 +675,22 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Step 1: Download the segment using yt-dlp with --download-sections
       await this.downloadYouTubeSegmentToFile(url, startTime, endTime, tempVideoPath, quality);
 
-      // Step 2: Generate ASS subtitles if captions, intro title, emojis, or text overlays provided
-      if (captions?.words?.length || introTitle || emojis || textOverlays?.length) {
+      // Step 2: Generate ASS subtitles if captions, intro title, or emojis provided
+      if (captions?.words?.length || introTitle || emojis) {
         const assContent = this.generateASSSubtitles(
           captions?.words || [],
           captions?.style,
           width,
           height,
           introTitle,
-          emojis,
-          textOverlays
+          emojis
         );
         await fs.promises.writeFile(tempSubsPath, assContent);
         this.logOperation("GENERATED_ASS_SUBTITLES", {
           path: tempSubsPath,
           wordCount: captions?.words?.length || 0,
           hasIntroTitle: !!introTitle,
-          hasEmojis: !!emojis,
-          textOverlayCount: textOverlays?.length || 0
+          hasEmojis: !!emojis
         });
       }
 
@@ -768,7 +700,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         tempOutputPath,
         width,
         height,
-        (captions?.words?.length || introTitle || emojis || textOverlays?.length) ? tempSubsPath : undefined,
+        (captions?.words?.length || introTitle || emojis) ? tempSubsPath : undefined,
         watermark
       );
 
@@ -914,8 +846,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     captions?: ClipGenerationOptions["captions"],
     introTitle?: string,
     watermark?: boolean,
-    emojis?: string,
-    textOverlays?: ClipGenerationOptions["textOverlays"]
+    emojis?: string
   ): Promise<Buffer> {
     this.logOperation("EXTRACT_SEGMENT_FROM_FILE", {
       storageKey,
@@ -936,17 +867,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Get signed URL for the source video
     const videoUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
 
-    // Generate ASS subtitles if captions, intro title, emojis, or text overlays provided
+    // Generate ASS subtitles if captions, intro title, or emojis provided
     let subsPathToUse: string | undefined;
-    if (captions?.words?.length || introTitle || emojis || textOverlays?.length) {
+    if (captions?.words?.length || introTitle || emojis) {
       const assContent = this.generateASSSubtitles(
         captions?.words || [],
         captions?.style,
         width,
         height,
         introTitle,
-        emojis,
-        textOverlays
+        emojis
       );
       await fs.promises.writeFile(tempSubsPath, assContent);
       subsPathToUse = tempSubsPath;
@@ -954,8 +884,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         path: tempSubsPath,
         wordCount: captions?.words?.length || 0,
         hasIntroTitle: !!introTitle,
-        hasEmojis: !!emojis,
-        textOverlayCount: textOverlays?.length || 0
+        hasEmojis: !!emojis
       });
     }
 

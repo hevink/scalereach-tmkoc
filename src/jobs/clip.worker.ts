@@ -139,7 +139,6 @@ async function processClipGenerationJob(
     watermark,
     emojis,
     targetLanguage,
-    textOverlays,
   } = job.data;
 
   console.log(`[CLIP WORKER] Processing clip generation job: ${clipId}`);
@@ -148,7 +147,6 @@ async function processClipGenerationJob(
   console.log(`[CLIP WORKER] Captions: ${captions?.words?.length || 0} words`);
   console.log(`[CLIP WORKER] Intro title: ${introTitle ? 'yes' : 'no'}`);
   console.log(`[CLIP WORKER] Emojis: ${emojis ? 'yes' : 'no'}`);
-  console.log(`[CLIP WORKER] Text overlays: ${textOverlays?.length || 0}`);
   console.log(`[CLIP WORKER] Target language: ${targetLanguage || 'original'}`);
 
   try {
@@ -211,7 +209,6 @@ async function processClipGenerationJob(
       introTitle,
       captions: effectiveCaptions,
       emojis,
-      textOverlays,
     }, async (percent) => {
       // Map service progress (25-85) into job progress (20-80)
       const jobProgress = 20 + Math.round((percent / 100) * 60);

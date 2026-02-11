@@ -12,7 +12,6 @@ import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
 import { WorkspaceModel } from "../models/workspace.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
-import { ClipTextOverlayModel } from "../models/clip-text-overlay.model";
 import { VideoConfigModel } from "../models/video-config.model";
 import { ClipGeneratorService, AspectRatio, VideoQuality } from "../services/clip-generator.service";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
@@ -149,10 +148,6 @@ export class ClipGenerationController {
       // Get saved captions from database
       const savedCaptions = await ClipCaptionModel.getByClipId(clipId);
 
-      // Load text overlays from database
-      const textOverlayRecord = await ClipTextOverlayModel.getByClipId(clipId);
-      const textOverlays = textOverlayRecord?.overlays?.length ? textOverlayRecord.overlays : undefined;
-
       // Build captions object for job
       let captions: any = undefined;
       if (captionsEnabled && savedCaptions && savedCaptions.words.length > 0) {
@@ -185,7 +180,6 @@ export class ClipGenerationController {
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
-        textOverlays,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Job queued: ${job.id}`);
@@ -345,10 +339,6 @@ export class ClipGenerationController {
         console.log(`[CLIP GENERATION CONTROLLER] Using saved captions: ${savedCaptions.words.length} words, isEdited: ${savedCaptions.isEdited}`);
       }
 
-      // Load text overlays from database
-      const textOverlayRecord = await ClipTextOverlayModel.getByClipId(clipId);
-      const textOverlays = textOverlayRecord?.overlays?.length ? textOverlayRecord.overlays : undefined;
-
       // Determine watermark based on workspace plan
       const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
       const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
@@ -371,7 +361,6 @@ export class ClipGenerationController {
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
-        textOverlays,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Regeneration job queued: ${job.id}`);
