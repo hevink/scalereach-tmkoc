@@ -445,8 +445,8 @@ export class ClipGeneratorService {
     const emojiMarginV = style?.position === "top" ? Math.round(height * 0.55) : Math.round(height * 0.35);
 
     // ASS header with styles for normal, highlighted, intro title, and emoji overlay text
-    // Use font fallback chain to support emojis: Primary font, then Noto Color Emoji
-    const fontWithEmoji = `${fontFamily},Noto Color Emoji,Apple Color Emoji,Segoe UI Emoji`;
+    // NOTE: ASS format uses commas as field delimiters, so font name must be a single name.
+    // libass/fontconfig handles font fallback automatically for emoji characters.
     
     let ass = `[Script Info]
 Title: Generated Captions
@@ -457,9 +457,9 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontWithEmoji},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: Highlight,${fontWithEmoji},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: IntroTitle,${fontWithEmoji},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
+Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,4,3,8,20,20,${introMarginV},1
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
 `;
 
@@ -476,7 +476,7 @@ Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00
         const ovlShadow = ovl.shadow ? 1 : 0;
         const ovlAlign = ovl.alignment === "left" ? 1 : ovl.alignment === "right" ? 3 : 2;
         const ovlASSAlign = 3 + ovlAlign;
-        const ovlFont = `${ovl.fontFamily},Noto Color Emoji,Apple Color Emoji,Segoe UI Emoji`;
+        const ovlFont = ovl.fontFamily;
         const styleName = `TextOvl_${i}`;
 
         // Add style to [V4+ Styles] section
@@ -668,6 +668,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     for (const line of textOverlayDialogues) {
       ass += line + "\n";
     }
+
+    this.logOperation("ASS_CONTENT_SUMMARY", {
+      wordCount: words.length,
+      lineCount: lines.length,
+      animation: style?.animation || "none",
+      textOverlayCount: textOverlayDialogues.length,
+      hasIntroTitle: !!introTitle,
+      hasEmojis: !!emojis,
+      totalLength: ass.length,
+    });
 
     return ass;
   }
