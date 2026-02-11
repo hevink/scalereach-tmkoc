@@ -61,12 +61,10 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
+          username: root
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /app/scalereach-tmkoc
+            cd /opt/scalereach-worker
             git pull origin main
-            docker compose down
-            docker compose build --no-cache
-            docker compose up -d
-            docker system prune -f
+            bun install
+            pm2 restart scalereach-worker || pm2 start ecosystem.config.cjs
