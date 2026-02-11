@@ -16,13 +16,16 @@ RUN bun install --no-save
 # Production stage
 FROM oven/bun:1-debian AS runner
 
-# Install runtime dependencies (libvips for sharp only - no ffmpeg/yt-dlp needed for API)
+# Install runtime dependencies (libvips for sharp, yt-dlp for YouTube validation)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libvips42 \
     ca-certificates \
     curl \
+    python3 \
+    python3-pip \
+    && pip3 install --upgrade yt-dlp --break-system-packages \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* /root/.cache
 
 WORKDIR /app
 
@@ -46,4 +49,4 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:3001/health || exit 1
 
-CMD ["bun", "run", "src/index.ts"]
+CMD ["bun", "run", "--env-file=.env", "src/index.ts"]

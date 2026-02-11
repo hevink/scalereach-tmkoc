@@ -46,10 +46,7 @@ COPY src ./src
 COPY drizzle ./drizzle
 COPY drizzle.config.ts tsconfig.json ./
 
-# Create config directory for YouTube cookies (will be populated by Render Secret Files)
+# Create config directory for YouTube cookies
 RUN mkdir -p /app/config
 
-RUN chown -R appuser:appuser /app
-USER appuser
-
-CMD ["bun", "run", "src/worker.ts"]
+CMD ["bun", "run", "--env-file=.env", "src/worker.ts"]
