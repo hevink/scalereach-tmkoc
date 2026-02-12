@@ -740,6 +740,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Step 4: Read the output file
       const clipBuffer = await fs.promises.readFile(tempOutputPath);
 
+      // Validate output — an MP4 with only headers (~1-2KB) means no frames were encoded
+      if (clipBuffer.length < 10000) {
+        throw new Error(`FFmpeg produced an empty or corrupt clip (${clipBuffer.length} bytes). The segment may be outside the video's duration.`);
+      }
+
       this.logOperation("YOUTUBE_SEGMENT_COMPLETE", {
         size: clipBuffer.length,
         duration: endTime - startTime,
@@ -1057,6 +1062,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           }
 
           const buffer = Buffer.concat(chunks);
+
+          // Validate output — an MP4 with only headers (~1-2KB) means no frames were encoded
+          if (buffer.length < 10000) {
+            reject(new Error(`FFmpeg produced an empty or corrupt clip (${buffer.length} bytes). The segment may be outside the video's duration.`));
+            return;
+          }
+
           this.logOperation("SEGMENT_EXTRACTED", { size: buffer.length });
           resolve(buffer);
         });
