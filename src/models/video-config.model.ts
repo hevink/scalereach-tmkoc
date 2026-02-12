@@ -15,6 +15,7 @@ export interface VideoConfigInput {
   // Language Settings
   language?: string | null; // null = auto-detect, or ISO code like 'en', 'es', 'hi', etc.
   enableAutoHook?: boolean;
+  clipType?: string;
   customPrompt?: string;
   topicKeywords?: string[];
   captionTemplateId?: string;

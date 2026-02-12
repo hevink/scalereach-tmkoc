@@ -166,6 +166,7 @@ export const viralClip = pgTable(
     thumbnailKey: text("thumbnail_key"),
     thumbnailUrl: text("thumbnail_url"),
     // Clip settings
+    clipType: text("clip_type"), // Template ID used for detection (e.g. 'viral-clips', 'testimonial')
     aspectRatio: text("aspect_ratio"), // '9:16' | '1:1' | '16:9'
     favorited: boolean("favorited").default(false).notNull(), // User favorite flag
     // Status: 'detected' | 'generating' | 'ready' | 'exported' | 'failed'

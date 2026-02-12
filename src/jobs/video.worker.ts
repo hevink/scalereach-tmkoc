@@ -213,6 +213,7 @@ async function processYouTubeVideo(
         maxDuration: videoConfig?.clipDurationMax ?? 60,
         videoTitle: videoInfo.title,
         genre: videoConfig?.genre ?? "Auto",
+        clipType: videoConfig?.clipType ?? "viral-clips",
         customPrompt: videoConfig?.customPrompt ?? undefined,
         // Editing options from video config
         enableEmojis: false,
@@ -242,6 +243,7 @@ async function processYouTubeVideo(
         hooks: clip.hooks,                     // Store hooks array as JSONB
         emotions: clip.emotions,               // Store emotions array as JSONB
         recommendedPlatforms: clip.recommendedPlatforms, // Store recommended platforms
+        clipType: videoConfig?.clipType ?? "viral-clips", // Store clip type used for detection
         status: "detected" as const,           // Initial status is 'detected'
       }));
 
@@ -586,6 +588,7 @@ async function processUploadedVideo(
         maxDuration: videoConfig?.clipDurationMax ?? 60,
         videoTitle: videoRecord[0].title || undefined,
         genre: videoConfig?.genre ?? "Auto",
+        clipType: videoConfig?.clipType ?? "viral-clips",
         customPrompt: videoConfig?.customPrompt ?? undefined,
         // Editing options from video config
         enableEmojis: false,
@@ -615,6 +618,7 @@ async function processUploadedVideo(
         hooks: clip.hooks,                     // Store hooks array as JSONB
         emotions: clip.emotions,               // Store emotions array as JSONB
         recommendedPlatforms: clip.recommendedPlatforms, // Store recommended platforms
+        clipType: videoConfig?.clipType ?? "viral-clips", // Store clip type used for detection
         status: "detected" as const,           // Initial status is 'detected'
       }));
 

@@ -149,6 +149,7 @@ export class VideoController {
           timeframeStart: config.timeframeStart ?? 0,
           timeframeEnd: config.timeframeEnd ?? null,
           enableAutoHook: config.enableAutoHook ?? true,
+          clipType: config.clipType ?? "viral-clips",
           customPrompt: config.customPrompt ?? "",
           topicKeywords: config.topicKeywords ?? [],
           captionTemplateId: config.captionTemplateId ?? "karaoke",

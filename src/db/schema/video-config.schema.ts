@@ -39,6 +39,7 @@ export const videoConfig = pgTable(
 
     // AI Settings
     enableAutoHook: boolean("enable_auto_hook").default(true),
+    clipType: text("clip_type").default("viral-clips"),
     customPrompt: text("custom_prompt"),
     topicKeywords: text("topic_keywords").array(),
 

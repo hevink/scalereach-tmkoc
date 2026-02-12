@@ -85,6 +85,7 @@ export class VideoConfigController {
         timeframeStart: body.timeframeStart ?? 0,
         timeframeEnd: body.timeframeEnd ?? null,
         enableAutoHook: body.enableAutoHook ?? true,
+        clipType: body.clipType ?? "viral-clips",
         customPrompt: body.customPrompt ?? "",
         topicKeywords: body.topicKeywords ?? [],
         captionTemplateId: body.captionTemplateId ?? "classic",
@@ -157,6 +158,7 @@ export class VideoConfigController {
       if (body.timeframeStart !== undefined) configInput.timeframeStart = body.timeframeStart;
       if (body.timeframeEnd !== undefined) configInput.timeframeEnd = body.timeframeEnd;
       if (body.enableAutoHook !== undefined) configInput.enableAutoHook = body.enableAutoHook;
+      if (body.clipType !== undefined) configInput.clipType = body.clipType;
       if (body.customPrompt !== undefined) configInput.customPrompt = body.customPrompt;
       if (body.topicKeywords !== undefined) configInput.topicKeywords = body.topicKeywords;
       if (body.captionTemplateId !== undefined) configInput.captionTemplateId = body.captionTemplateId;

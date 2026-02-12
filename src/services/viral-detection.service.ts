@@ -62,6 +62,7 @@ export interface ViralDetectionOptions {
   maxDuration?: number;     // Maximum clip duration in seconds (default: 60, max: 90)
   videoTitle?: string;      // Video title for context
   genre?: string;           // Content genre for better detection (Auto, Podcast, Gaming, etc.)
+  clipType?: string;        // Clip type template ID for targeted detection
   customPrompt?: string;    // Custom prompt for specific moment detection
   model?: GeminiModel;      // Gemini model to use (default: gemini-2.5-flash-lite)
   // Editing options
@@ -83,6 +84,25 @@ export const MAX_DURATION_LIMIT = 180;  // Maximum allowed maxDuration (seconds)
 export const DEFAULT_MIN_DURATION = 30; // Default minimum clip duration
 export const DEFAULT_MAX_DURATION = 90; // Default maximum clip duration
 export const DEFAULT_MAX_CLIPS = 10;    // Default maximum clips to detect
+
+// Clip type template prompts for targeted detection
+const CLIP_TYPE_PROMPTS: Record<string, string> = {
+  "viral-clips": "Focus on finding high-impact, shareable moments that would go viral on social media. Look for strong hooks, emotional peaks, surprising reveals, and quotable soundbites.",
+  "memorable-phrases": "Focus on finding the most quotable, shareable phrases and soundbites. Look for memorable one-liners, powerful statements, witty remarks, and phrases people would want to share or use as captions.",
+  "topic-clips": "Focus on extracting clips that cover distinct main topics or key points discussed in the video. Each clip should be a self-contained explanation of a specific topic.",
+  "trailer": "Create a summarized highlight reel featuring the most catchy, intriguing, and representative moments from the video. Think of it as a movie trailer — tease the best parts to make viewers want to watch the full video.",
+  "product-ads": "Focus on moments that showcase products or services in the best light. Look for demonstrations, benefits being explained, before/after comparisons, and compelling calls to action.",
+  "testimonial": "Focus on finding genuine testimonial moments — real reactions, endorsements, success stories, and authentic praise for a product, service, or experience.",
+  "instructions": "Focus on extracting clear, concise tutorial or how-to segments. Look for step-by-step instructions, tips, tricks, and practical demonstrations that can stand alone as quick tutorials.",
+  "product-features": "Focus on moments that highlight specific product features, capabilities, and unique selling points. Each clip should showcase a distinct feature or benefit.",
+  "positive-highlights": "Focus exclusively on positive moments — praise, success stories, exciting announcements, achievements, and uplifting content about the main topic.",
+  "negative-highlights": "Focus on critical moments — criticisms, problems identified, negative reviews, warnings, and cautionary content about the main topic.",
+  "showcase": "Focus on practical use cases and demonstrations that show real-world value. Look for moments where the product/service is being used effectively, solving problems, or delivering results.",
+  "multi-product-recap": "Focus on segments that cover different products or items being reviewed/compared. Each clip should highlight a distinct product with its key features and verdict.",
+  "speakers-insights": "Focus on the speaker's most insightful, thought-provoking, or relatable opinions and observations. Look for unique perspectives, expert knowledge, and moments of wisdom.",
+  "jokes-memes": "Focus on the funniest, most entertaining moments. Look for jokes, funny reactions, awkward moments, meme-worthy content, and anything that would make viewers laugh or share.",
+  "podcast-jokes": "Focus on the funniest bits from podcast-style conversations. Look for witty banter, unexpected humor, funny stories, comedic timing, and moments that capture the fun dynamic between speakers.",
+};
 
 export class ViralDetectionService {
   /**
@@ -146,6 +166,7 @@ export class ViralDetectionService {
       minDuration = DEFAULT_MIN_DURATION,
       maxDuration = DEFAULT_MAX_DURATION,
       videoTitle = "Unknown",
+      clipType = "viral-clips",
       model = "gemini-2.5-flash-lite",
       enableEmojis = false,
       enableIntroTitle = false,
@@ -154,7 +175,7 @@ export class ViralDetectionService {
     console.log(`[VIRAL DETECTION] Analyzing transcript for viral clips...`);
     console.log(`[VIRAL DETECTION] Using Gemini model: ${model}`);
     console.log(`[VIRAL DETECTION] Transcript length: ${transcript.length} chars`);
-    console.log(`[VIRAL DETECTION] Options: enableEmojis=${enableEmojis}, enableIntroTitle=${enableIntroTitle}`);
+    console.log(`[VIRAL DETECTION] Options: clipType=${clipType}, enableEmojis=${enableEmojis}, enableIntroTitle=${enableIntroTitle}`);
 
     // Format transcript with timestamps for better context
     const formattedTranscript = this.formatTranscriptWithTimestamps(transcriptWords);
@@ -178,6 +199,13 @@ EMOJI ENHANCEMENT REQUIREMENTS:
 - Emojis should enhance, not distract from the message
 ` : "";
 
+    // Build clip type instruction from template or custom prompt
+    const clipTypePrompt = CLIP_TYPE_PROMPTS[clipType] || CLIP_TYPE_PROMPTS["viral-clips"];
+    const customPromptText = options.customPrompt?.trim();
+    const clipTypeSection = customPromptText
+      ? `\nCLIP TYPE FOCUS:\n${customPromptText}\n`
+      : `\nCLIP TYPE FOCUS:\n${clipTypePrompt}\n`;
+
     const systemPrompt = `You are an expert viral content analyst specializing in short-form video content for platforms like TikTok, Instagram Reels, and YouTube Shorts.
 
 Your task is to analyze video transcripts and identify the most viral-worthy segments that would perform well as standalone clips.
@@ -188,7 +216,7 @@ CRITICAL DURATION REQUIREMENTS:
 - If a moment is great but too short, EXTEND it to include more context
 - If a moment is great but too long, find the CORE viral moment within it
 - REJECT any clip that doesn't meet the duration requirement
-${introTitleSection}${emojiSection}
+${introTitleSection}${emojiSection}${clipTypeSection}
 VIRAL CONTENT CRITERIA:
 1. **Hook Factor**: Strong opening that grabs attention in first 3 seconds
 2. **Emotional Impact**: Evokes strong emotions (humor, shock, inspiration, curiosity)
