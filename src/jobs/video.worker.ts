@@ -215,8 +215,8 @@ async function processYouTubeVideo(
         genre: videoConfig?.genre ?? "Auto",
         customPrompt: videoConfig?.customPrompt ?? undefined,
         // Editing options from video config
-        enableEmojis: videoConfig?.enableEmojis ?? true,
-        enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
+        enableEmojis: false,
+        enableIntroTitle: false,
       }
     );
 
@@ -307,8 +307,9 @@ async function processYouTubeVideo(
         const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
-        const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-        const emojisEnabled = videoConfig?.enableEmojis ?? true;
+        // Emojis and intro title disabled for now
+        const introTitleEnabled = false;
+        const emojisEnabled = false;
 
         await addClipGenerationJob({
           clipId: clipRecord.id,
@@ -584,8 +585,8 @@ async function processUploadedVideo(
         genre: videoConfig?.genre ?? "Auto",
         customPrompt: videoConfig?.customPrompt ?? undefined,
         // Editing options from video config
-        enableEmojis: videoConfig?.enableEmojis ?? true,
-        enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
+        enableEmojis: false,
+        enableIntroTitle: false,
       }
     );
 
@@ -676,8 +677,9 @@ async function processUploadedVideo(
         const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
-        const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-        const emojisEnabled = videoConfig?.enableEmojis ?? true;
+        // Emojis and intro title disabled for now
+        const introTitleEnabled = false;
+        const emojisEnabled = false;
 
         await addClipGenerationJob({
           clipId: clipRecord.id,

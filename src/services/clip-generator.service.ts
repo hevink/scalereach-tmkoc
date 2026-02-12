@@ -330,10 +330,10 @@ export class ClipGeneratorService {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
     
-    // Scale font size from frontend design space (480×854) to actual output resolution.
-    // The frontend canvas editor uses a fixed 480×854 internal canvas, so all font sizes
-    // from the style are relative to that space. We scale by height ratio to match.
-    const DESIGN_HEIGHT = 854;
+    // Scale font size from frontend design space to actual output resolution.
+    // Use 700 as the reference height so that font sizes chosen in the editor
+    // look correct at typical output resolutions (720p, 1080p, etc.).
+    const DESIGN_HEIGHT = 700;
     const scaleFactor = height / DESIGN_HEIGHT;
     const fontSize = Math.round((style?.fontSize || 32) * scaleFactor);
 
@@ -481,11 +481,11 @@ Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
-    // Add intro title for first 3 seconds if provided
-    if (introTitle) {
-      // Fade in effect: {\fad(300,300)} - 300ms fade in, 300ms fade out
-      ass += `Dialogue: 1,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(300,300)}${transformWord(introTitle)}\n`;
-    }
+    // // Add intro title for first 3 seconds if provided
+    // if (introTitle) {
+    //   // Fade in effect: {\fad(300,300)} - 300ms fade in, 300ms fade out
+    //   ass += `Dialogue: 1,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(300,300)}${transformWord(introTitle)}\n`;
+    // }
 
     // Group words into lines based on wordsPerLine setting
     const lines: Array<{ words: typeof words; start: number; end: number }> = [];
@@ -642,16 +642,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       }
     }
 
-    // Add emoji overlays if transcriptWithEmojis is provided
-    if (emojis && words.length > 0) {
-      const emojiOverlays = extractEmojiTimings(emojis, words);
-      for (const overlay of emojiOverlays) {
-        const emojiStart = this.formatASSTime(overlay.timestamp);
-        const emojiEnd = this.formatASSTime(overlay.timestamp + overlay.duration);
-        // Pop-in animation: scale from 200% to 100% over 200ms, then fade out over last 300ms
-        ass += `Dialogue: 2,${emojiStart},${emojiEnd},EmojiOverlay,,0,0,0,,{\\fscx200\\fscy200\\t(0,200,\\fscx100\\fscy100)\\fad(0,300)}${overlay.emoji}\n`;
-      }
-    }
+    // // Add emoji overlays if transcriptWithEmojis is provided
+    // if (emojis && words.length > 0) {
+    //   const emojiOverlays = extractEmojiTimings(emojis, words);
+    //   for (const overlay of emojiOverlays) {
+    //     const emojiStart = this.formatASSTime(overlay.timestamp);
+    //     const emojiEnd = this.formatASSTime(overlay.timestamp + overlay.duration);
+    //     // Pop-in animation: scale from 200% to 100% over 200ms, then fade out over last 300ms
+    //     ass += `Dialogue: 2,${emojiStart},${emojiEnd},EmojiOverlay,,0,0,0,,{\\fscx200\\fscy200\\t(0,200,\\fscx100\\fscy100)\\fad(0,300)}${overlay.emoji}\n`;
+    //   }
+    // }
 
     this.logOperation("ASS_CONTENT_SUMMARY", {
       wordCount: words.length,

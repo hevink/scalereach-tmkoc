@@ -139,11 +139,12 @@ export class ClipGenerationController {
       const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
       const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
-      // Load video config to check enableCaptions/enableIntroTitle/enableEmojis flags
+      // Load video config to check enableCaptions flag
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
       const captionsEnabled = videoConfig?.enableCaptions ?? true;
-      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-      const emojisEnabled = videoConfig?.enableEmojis ?? true;
+      // Emojis and intro title disabled for now
+      const introTitleEnabled = false;
+      const emojisEnabled = false;
 
       // Get saved captions from database
       const savedCaptions = await ClipCaptionModel.getByClipId(clipId);
@@ -319,11 +320,12 @@ export class ClipGenerationController {
       // Get saved captions from database
       const savedCaptions = await ClipCaptionModel.getByClipId(clipId);
 
-      // Load video config to check enableCaptions/enableIntroTitle flags
+      // Load video config to check enableCaptions flag
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
       const captionsEnabled = videoConfig?.enableCaptions ?? true;
-      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-      const emojisEnabled = videoConfig?.enableEmojis ?? true;
+      // Emojis and intro title disabled for now
+      const introTitleEnabled = false;
+      const emojisEnabled = false;
 
       // Build captions object for job
       let captions: any = undefined;

@@ -129,11 +129,12 @@ export class ExportController {
       const ws = exportWorkspaceId ? await WorkspaceModel.getById(exportWorkspaceId) : null;
       const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
-      // Load video config to check enableCaptions/enableIntroTitle flags
+      // Load video config to check enableCaptions flag
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
       const captionsEnabled = videoConfig?.enableCaptions ?? true;
-      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-      const emojisEnabled = videoConfig?.enableEmojis ?? true;
+      // Emojis and intro title disabled for now
+      const introTitleEnabled = false;
+      const emojisEnabled = false;
 
       console.log(`[EXPORT CONTROLLER] Export job data: captionsEnabled=${captionsEnabled}, wordCount=${words.length}, hasStyle=${!!style}`);
 
@@ -323,11 +324,12 @@ export class ExportController {
         const batchWs = batchWorkspaceId ? await WorkspaceModel.getById(batchWorkspaceId) : null;
         const batchWatermark = getPlanConfig(batchWs?.plan || "free").limits.watermark;
 
-        // Load video config to check enableCaptions/enableIntroTitle flags
+        // Load video config to check enableCaptions flag
         const batchVideoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
         const batchCaptionsEnabled = batchVideoConfig?.enableCaptions ?? true;
-        const batchIntroTitleEnabled = batchVideoConfig?.enableIntroTitle ?? true;
-        const batchEmojisEnabled = batchVideoConfig?.enableEmojis ?? true;
+        // Emojis and intro title disabled for now
+        const batchIntroTitleEnabled = false;
+        const batchEmojisEnabled = false;
 
 
         // Add job to queue

@@ -92,8 +92,8 @@ export class VideoConfigController {
         enableWatermark: body.enableWatermark ?? true,
         // Editing Options
         enableCaptions: body.enableCaptions ?? true,
-        enableEmojis: body.enableEmojis ?? true,
-        enableIntroTitle: body.enableIntroTitle ?? true,
+        enableEmojis: body.enableEmojis ?? false,
+        enableIntroTitle: body.enableIntroTitle ?? false,
       };
 
       // Save configuration

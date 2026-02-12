@@ -103,9 +103,9 @@ export class ViralDetectionController {
         maxDuration: body.maxDuration ?? DEFAULT_MAX_DURATION,
         maxClips: body.maxClips ?? DEFAULT_MAX_CLIPS,
         videoTitle: video.title || undefined,
-        // Editing options - default to true if not specified
-        enableEmojis: body.enableEmojis ?? true,
-        enableIntroTitle: body.enableIntroTitle ?? true,
+        // Editing options - emojis and intro title disabled for now
+        enableEmojis: false,
+        enableIntroTitle: false,
       };
 
       // Validate options

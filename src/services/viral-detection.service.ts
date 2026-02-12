@@ -147,8 +147,8 @@ export class ViralDetectionService {
       maxDuration = DEFAULT_MAX_DURATION,
       videoTitle = "Unknown",
       model = "gemini-2.5-flash-lite",
-      enableEmojis = true,
-      enableIntroTitle = true,
+      enableEmojis = false,
+      enableIntroTitle = false,
     } = options;
 
     console.log(`[VIRAL DETECTION] Analyzing transcript for viral clips...`);

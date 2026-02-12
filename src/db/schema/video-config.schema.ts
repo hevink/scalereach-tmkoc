@@ -49,8 +49,8 @@ export const videoConfig = pgTable(
 
     // Editing Options
     enableCaptions: boolean("enable_captions").default(true),
-    enableEmojis: boolean("enable_emojis").default(true),
-    enableIntroTitle: boolean("enable_intro_title").default(true),
+    enableEmojis: boolean("enable_emojis").default(false),
+    enableIntroTitle: boolean("enable_intro_title").default(false),
 
     // Timestamps
     createdAt: timestamp("created_at").defaultNow().notNull(),
