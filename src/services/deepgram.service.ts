@@ -34,6 +34,7 @@ export const SUPPORTED_LANGUAGES = {
   ru: "Russian",
   ar: "Arabic",
   hi: "Hindi",
+  multi: "Multilingual (e.g. Hindi + English)",
 } as const;
 
 export type SupportedLanguageCode = keyof typeof SUPPORTED_LANGUAGES;
@@ -110,14 +111,15 @@ export class DeepgramService {
       diarize: options?.diarize !== false,
     };
 
-    // If language is specified, use it; otherwise enable auto-detection
+    // If language is specified, use it; otherwise use multilingual mode for best results
     if (options?.language && isValidLanguageCode(options.language)) {
       transcriptionConfig.language = options.language;
       console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
     } else {
-      // Enable automatic language detection
-      transcriptionConfig.detect_language = true;
-      console.log(`[DEEPGRAM] Automatic language detection enabled`);
+      // Use multilingual mode by default — handles code-switching (e.g. Hindi + English)
+      // better than detect_language which only picks one dominant language
+      transcriptionConfig.language = "multi";
+      console.log(`[DEEPGRAM] Using multilingual mode (auto)`);
     }
 
     const { result, error } = await client.listen.prerecorded.transcribeUrl(
@@ -162,14 +164,14 @@ export class DeepgramService {
       mimetype: mimeType,
     };
 
-    // If language is specified, use it; otherwise enable auto-detection
+    // If language is specified, use it; otherwise use multilingual mode for best results
     if (options?.language && isValidLanguageCode(options.language)) {
       transcriptionConfig.language = options.language;
       console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
     } else {
-      // Enable automatic language detection
-      transcriptionConfig.detect_language = true;
-      console.log(`[DEEPGRAM] Automatic language detection enabled`);
+      // Use multilingual mode by default — handles code-switching (e.g. Hindi + English)
+      transcriptionConfig.language = "multi";
+      console.log(`[DEEPGRAM] Using multilingual mode (auto)`);
     }
 
     const { result, error } = await client.listen.prerecorded.transcribeFile(
