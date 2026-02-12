@@ -506,6 +506,21 @@ async function processUploadedVideo(
 
     await job.updateProgress(20);
 
+    // Generate thumbnail from first second of video
+    try {
+      const thumbnailKey = `thumbnails/${videoId}.jpg`;
+      const signedUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
+      const { thumbnailKey: tKey, thumbnailUrl: tUrl } = await FFmpegService.generateThumbnail(
+        signedUrl,
+        thumbnailKey,
+        1
+      );
+      await db.update(video).set({ thumbnailKey: tKey, thumbnailUrl: tUrl, updatedAt: new Date() }).where(eq(video.id, videoId));
+      console.log(`[VIDEO WORKER] Thumbnail generated for uploaded video: ${videoId}`);
+    } catch (thumbErr) {
+      console.warn(`[VIDEO WORKER] Thumbnail generation failed (non-fatal): ${thumbErr}`);
+    }
+
     // Extract audio from the uploaded video
     console.log(`[VIDEO WORKER] Extracting audio from uploaded video...`);
     const audioStorageKey = FFmpegService.generateAudioStorageKey(storageKey);

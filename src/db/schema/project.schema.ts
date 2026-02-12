@@ -88,6 +88,9 @@ export const video = pgTable(
     sourceUrl: text("source_url"),
     storageKey: text("storage_key"),
     storageUrl: text("storage_url"),
+    // Thumbnail
+    thumbnailKey: text("thumbnail_key"),
+    thumbnailUrl: text("thumbnail_url"),
     // Audio storage fields for transcription
     audioStorageKey: text("audio_storage_key"),
     audioStorageUrl: text("audio_storage_url"),
