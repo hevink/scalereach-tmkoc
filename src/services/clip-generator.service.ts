@@ -344,24 +344,31 @@ export class ClipGeneratorService {
     const textColor = this.hexToASSColor(style?.textColor || "#FFFFFF");
     const outlineColor = this.hexToASSColor(style?.outlineColor || "#000000");
     const highlightColor = this.hexToASSColor(style?.highlightColor || "#FFFF00");
-    const shadow = style?.shadow ? Math.round(2 * scaleFactor) : 0;
-    // Use custom outline width if provided, otherwise default based on outline toggle
-    const rawOutline = style?.outlineWidth ?? (style?.outline ? 3 : 2);
-    const outline = Math.round(rawOutline * scaleFactor);
 
-    // Enhanced style options
+    // Match frontend rendering:
+    // - shadow=true → 8-direction 2px black stroke (acts as outline, not drop shadow)
+    // - outline=true → WebkitTextStroke at ~3px
+    // In ASS, \bord is the outline thickness, \shad is drop shadow.
+    // Frontend has no drop shadow, so \shad=0 always.
+    // Use the effective outline: outline=true uses 3px, shadow=true uses 2px, both=3px
+    let rawOutline = 0;
+    if (style?.outline) rawOutline = 3;
+    else if (style?.shadow) rawOutline = 2;
+    const outline = Math.round(rawOutline * scaleFactor);
+    const shadow = 0; // Frontend has no drop shadow
+
+    // Enhanced style options — match frontend exactly
+    // Frontend uses hardcoded scale(1.2) for highlight, no glow unless explicitly enabled
     const glowEnabled = style?.glowEnabled ?? false;
     const glowColor = style?.glowColor ? this.hexToASSColor(style.glowColor) : highlightColor;
     const glowIntensity = style?.glowIntensity ?? 2;
-    const highlightScale = style?.highlightScale ?? 125;
-    const textTransform = style?.textTransform ?? "none";
+    // Frontend hardcodes scale(1.2) = 120%, ignore style.highlightScale to match
+    const highlightScale = 120;
+    // Frontend does NOT apply textTransform currently, so words pass through as-is
     const maxWordsPerLine = style?.wordsPerLine ?? 5;
 
-    // Helper to apply text transform
-    const transformWord = (word: string) => {
-      if (textTransform === "uppercase") return word.toUpperCase();
-      return word;
-    };
+    // Helper — no transform applied (matching frontend)
+    const transformWord = (word: string) => word;
 
     // Determine positioning from x/y percentages or fallback to position preset
     // Frontend: x (0-100) = horizontal center, y (0-100) = vertical center
@@ -438,6 +445,19 @@ export class ClipGeneratorService {
     // NOTE: ASS format uses commas as field delimiters, so font name must be a single name.
     // libass/fontconfig handles font fallback automatically for emoji characters.
     
+    // Calculate BackColour from backgroundOpacity (ASS alpha: 00=opaque, FF=transparent)
+    const bgOpacity = style?.backgroundOpacity ?? 0;
+    const bgColor = style?.backgroundColor?.replace("#", "") || "000000";
+    // Convert 0-100 opacity to ASS alpha (inverted: 0% opacity = FF, 100% opacity = 00)
+    const assAlpha = Math.round(((100 - bgOpacity) / 100) * 255).toString(16).toUpperCase().padStart(2, "0");
+    // ASS BackColour format: &HAABBGGRR
+    const bgR = bgColor.substring(0, 2);
+    const bgG = bgColor.substring(2, 4);
+    const bgB = bgColor.substring(4, 6);
+    const backColour = `&H${assAlpha}${bgB}${bgG}${bgR}`;
+    // BorderStyle: 1 = outline+shadow (no box), 3 = opaque box behind text
+    const borderStyle = bgOpacity > 0 ? 3 : 1;
+    
     let ass = `[Script Info]
 Title: Generated Captions
 ScriptType: v4.00+
@@ -447,9 +467,9 @@ WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${Math.round(4 * scaleFactor)},${Math.round(3 * scaleFactor)},8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},1
+Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},${backColour},1,0,0,0,${highlightScale},${highlightScale},0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,1,${Math.round(4 * scaleFactor)},${Math.round(3 * scaleFactor)},8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},1
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
 `;
 
@@ -490,8 +510,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Generate dialogue lines based on animation type
     const animation = style?.animation || "none";
 
-    // Glow blur value for enhanced highlight effect
-    const glowBlur = glowEnabled ? glowIntensity : 1;
+    // Glow blur value — frontend ALWAYS shows glow on highlighted words
+    // (renderCaptionText sets glowShadow whenever isHighlighted, regardless of glowEnabled)
+    // Frontend uses: textShadow: 0 0 10px highlightColor, 0 0 20px highlightColor40
+    // In ASS, \blur approximates this. Scale blur to output resolution.
+    // At 1080p (scaleFactor ~1.26), \blur2-3 gives a similar soft glow.
+    const highlightGlowBlur = Math.max(2, Math.round(2 * scaleFactor));
+    // When glowEnabled is explicitly on with custom intensity, use that instead if larger
+    const glowBlur = glowEnabled ? Math.max(highlightGlowBlur, glowIntensity) : highlightGlowBlur;
 
     if (style?.highlightEnabled && animation === "karaoke") {
       // Karaoke style: word-by-word with enhanced glow effect
@@ -508,8 +534,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              // Enhanced highlight: custom scale, highlight color, thicker outline, glow effect
-              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\bord${outline + 1}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\bord${outline}\\blur0} `;
+              // Match frontend: scale(1.2), highlight color, always glow on highlighted word
+              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\blur0} `;
             } else {
               text += `${transformedWord} `;
             }
@@ -532,8 +558,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              // Current word: highlighted with scale and color
-              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\bord${outline + 1}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\bord${outline}\\blur0} `;
+              // Match frontend: scale(1.2), highlight color, always glow on highlighted word
+              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\blur0} `;
             } else {
               text += `${transformedWord} `;
             }
@@ -590,7 +616,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\bord${outline + 1}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\bord${outline}\\blur0} `;
+              // Match frontend: scale(1.2), highlight color, always glow on highlighted word
+              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\blur0} `;
             } else {
               text += `${transformedWord} `;
             }
