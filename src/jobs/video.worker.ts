@@ -463,19 +463,25 @@ async function processUploadedVideo(
         const planConfig = getPlanConfig(plan);
         const minutesBalance = await MinutesModel.getBalance(workspaceId);
 
+        // Calculate effective processing duration based on timeframe
+        const timeframeStart = videoConfig?.timeframeStart ?? 0;
+        const timeframeEnd = videoConfig?.timeframeEnd ?? videoMetadata.duration;
+        const effectiveDuration = timeframeEnd - timeframeStart;
+
         const uploadValidation = canUploadVideo(
           planConfig,
-          videoMetadata.duration,
+          videoMetadata.duration, // Full duration for plan limit check
           0,
-          minutesBalance.minutesRemaining
+          minutesBalance.minutesRemaining,
+          effectiveDuration // Timeframe duration for minutes check
         );
 
         if (!uploadValidation.allowed) {
           throw new Error(uploadValidation.message || `Upload validation failed: ${uploadValidation.reason}`);
         }
 
-        // Deduct minutes
-        const minutesToDeduct = calculateMinuteConsumption(videoMetadata.duration);
+        // Deduct minutes based on selected timeframe, not full video duration
+        const minutesToDeduct = calculateMinuteConsumption(effectiveDuration);
         await MinutesModel.deductMinutes({
           workspaceId,
           userId,
@@ -484,7 +490,7 @@ async function processUploadedVideo(
           type: "upload",
         });
         minutesDeducted = minutesToDeduct;
-        console.log(`[VIDEO WORKER] Deducted ${minutesToDeduct} minutes for uploaded video ${videoId}`);
+        console.log(`[VIDEO WORKER] Deducted ${minutesToDeduct} minutes for uploaded video ${videoId} (timeframe: ${timeframeStart}s-${timeframeEnd}s of ${videoMetadata.duration}s total)`);
       }
     } catch (metadataError) {
       console.warn(`[VIDEO WORKER] Could not get video metadata: ${metadataError}`);

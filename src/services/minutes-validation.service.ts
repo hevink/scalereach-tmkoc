@@ -46,11 +46,12 @@ export function canUploadVideo(
   planConfig: PlanConfig,
   durationInSeconds: number,
   sizeInBytes: number,
-  minutesRemaining: number
+  minutesRemaining: number,
+  effectiveDurationInSeconds?: number
 ): ValidationResult {
   const plan = planConfig.plan;
 
-  // Check 1: Video length limit
+  // Check 1: Video length limit (always check full video duration)
   if (durationInSeconds > planConfig.limits.videoLength) {
     return {
       allowed: false,
@@ -70,8 +71,9 @@ export function canUploadVideo(
     };
   }
 
-  // Check 3: Available minutes
-  const minutesNeeded = calculateMinuteConsumption(durationInSeconds);
+  // Check 3: Available minutes (use effective/timeframe duration if provided)
+  const billingDuration = effectiveDurationInSeconds ?? durationInSeconds;
+  const minutesNeeded = calculateMinuteConsumption(billingDuration);
   if (minutesRemaining < minutesNeeded) {
     return {
       allowed: false,

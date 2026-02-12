@@ -98,7 +98,7 @@ export class MinutesController {
       }
 
       const body = await c.req.json();
-      const { duration, size } = body;
+      const { duration, size, effectiveDuration } = body;
 
       if (duration === undefined || duration === null) {
         return c.json({ error: "duration is required" }, 400);
@@ -113,7 +113,8 @@ export class MinutesController {
         planConfig,
         duration,
         size || 0,
-        balance.minutesRemaining
+        balance.minutesRemaining,
+        effectiveDuration ?? undefined
       );
 
       return c.json(validation);

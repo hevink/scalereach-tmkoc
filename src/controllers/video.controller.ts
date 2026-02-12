@@ -63,6 +63,11 @@ export class VideoController {
         return c.json({ error: "Failed to retrieve video information. The video may be unavailable or private." }, 400);
       }
 
+      // Calculate effective processing duration based on timeframe selection
+      const timeframeStart = config?.timeframeStart ?? 0;
+      const timeframeEnd = config?.timeframeEnd ?? videoInfo.duration;
+      const effectiveDuration = timeframeEnd - timeframeStart;
+
       // Validate video duration against plan limits and check minutes
       const ws = await WorkspaceModel.getById(workspaceId);
       const plan = ws?.plan || "free";
@@ -71,18 +76,19 @@ export class VideoController {
 
       const uploadValidation = canUploadVideo(
         planConfig,
-        videoInfo.duration,
+        videoInfo.duration, // Full duration for plan limit check (e.g. max video length)
         0, // No file size for YouTube
-        minutesBalance.minutesRemaining
+        minutesBalance.minutesRemaining,
+        effectiveDuration // Timeframe duration for minutes check
       );
 
       if (!uploadValidation.allowed) {
         console.log(`[VIDEO CONTROLLER] Upload validation failed: ${uploadValidation.reason}`);
-        
+
         // Determine if upgrade is available and recommended plan
         const canUpgrade = plan === "free" || plan === "starter";
         const recommendedPlan = plan === "free" ? "starter" : "pro";
-        
+
         return c.json({
           error: uploadValidation.message,
           reason: uploadValidation.reason,
@@ -118,8 +124,8 @@ export class VideoController {
         title: videoInfo.title,
       });
 
-      // Deduct minutes for YouTube video (duration is known upfront)
-      const minutesToDeduct = calculateMinuteConsumption(videoInfo.duration);
+      // Deduct minutes based on selected timeframe, not full video duration
+      const minutesToDeduct = calculateMinuteConsumption(effectiveDuration);
       await MinutesModel.deductMinutes({
         workspaceId,
         userId: user.id,
@@ -127,7 +133,7 @@ export class VideoController {
         amount: minutesToDeduct,
         type: "upload",
       });
-      console.log(`[VIDEO CONTROLLER] Deducted ${minutesToDeduct} minutes for YouTube video ${videoId}`);
+      console.log(`[VIDEO CONTROLLER] Deducted ${minutesToDeduct} minutes for YouTube video ${videoId} (timeframe: ${timeframeStart}s-${timeframeEnd}s of ${videoInfo.duration}s total)`);
 
       // If config is provided, save it and start processing immediately
       if (config) {
