@@ -14,6 +14,9 @@ import { nanoid } from "nanoid";
 import sharp from "sharp";
 import { extractEmojiTimings } from "../utils/emoji-timing";
 
+// Path to bundled fonts for ASS subtitle rendering
+const FONTS_DIR = path.resolve(__dirname, "../../assets/fonts");
+
 export type AspectRatio = "9:16" | "1:1" | "16:9";
 export type VideoQuality = "720p" | "1080p" | "4k";
 
@@ -350,25 +353,24 @@ export class ClipGeneratorService {
     // - outline=true → WebkitTextStroke at ~3px
     // In ASS, \bord is the outline thickness, \shad is drop shadow.
     // Frontend has no drop shadow, so \shad=0 always.
-    // Use the effective outline: outline=true uses 3px, shadow=true uses 2px, both=3px
+    // Use outlineWidth from style if set, otherwise: outline=true uses 3px, shadow=true uses 2px
     let rawOutline = 0;
-    if (style?.outline) rawOutline = 3;
+    if (style?.outline) rawOutline = style?.outlineWidth ?? 3;
     else if (style?.shadow) rawOutline = 2;
     const outline = Math.round(rawOutline * scaleFactor);
     const shadow = 0; // Frontend has no drop shadow
 
     // Enhanced style options — match frontend exactly
-    // Frontend uses hardcoded scale(1.2) for highlight, no glow unless explicitly enabled
     const glowEnabled = style?.glowEnabled ?? false;
     const glowColor = style?.glowColor ? this.hexToASSColor(style.glowColor) : highlightColor;
     const glowIntensity = style?.glowIntensity ?? 2;
-    // Frontend hardcodes scale(1.2) = 120%, ignore style.highlightScale to match
-    const highlightScale = 120;
-    // Frontend does NOT apply textTransform currently, so words pass through as-is
+    // Frontend defaults to 125%: (style.highlightScale ?? 125) / 100
+    const highlightScale = style?.highlightScale ?? 125;
     const maxWordsPerLine = style?.wordsPerLine ?? 5;
 
-    // Helper — no transform applied (matching frontend)
-    const transformWord = (word: string) => word;
+    // Helper — apply textTransform from style (matching frontend)
+    const transformWord = (word: string) => 
+      style?.textTransform === "uppercase" ? word.toUpperCase() : word;
 
     // Determine positioning from x/y percentages or fallback to position preset
     // Frontend: x (0-100) = horizontal center, y (0-100) = vertical center
@@ -463,6 +465,7 @@ Title: Generated Captions
 ScriptType: v4.00+
 PlayResX: ${width}
 PlayResY: ${height}
+ScaledBorderAndShadow: yes
 WrapStyle: 0
 
 [V4+ Styles]
@@ -510,14 +513,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Generate dialogue lines based on animation type
     const animation = style?.animation || "none";
 
-    // Glow blur value — frontend ALWAYS shows glow on highlighted words
-    // (renderCaptionText sets glowShadow whenever isHighlighted, regardless of glowEnabled)
-    // Frontend uses: textShadow: 0 0 10px highlightColor, 0 0 20px highlightColor40
-    // In ASS, \blur approximates this. Scale blur to output resolution.
-    // At 1080p (scaleFactor ~1.26), \blur2-3 gives a similar soft glow.
-    const highlightGlowBlur = Math.max(2, Math.round(2 * scaleFactor));
-    // When glowEnabled is explicitly on with custom intensity, use that instead if larger
-    const glowBlur = glowEnabled ? Math.max(highlightGlowBlur, glowIntensity) : highlightGlowBlur;
+    // Glow blur value — match frontend exactly:
+    // Frontend only applies drop-shadow filter when glowEnabled is true.
+    // When glowEnabled is false, NO blur/glow at all — text stays crisp.
+    const highlightGlowBlur = glowEnabled
+      ? Math.max(2, Math.round(glowIntensity * scaleFactor))
+      : 0;
+
+    // Build ASS override tags for highlighted words — only add \blur when glow is enabled
+    const highlightOpen = highlightGlowBlur > 0
+      ? `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\blur${highlightGlowBlur}}`
+      : `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}}`;
+    const highlightClose = highlightGlowBlur > 0
+      ? `{\\fscx100\\fscy100\\c${textColor}\\blur0}`
+      : `{\\fscx100\\fscy100\\c${textColor}}`;
 
     if (style?.highlightEnabled && animation === "karaoke") {
       // Karaoke style: word-by-word with enhanced glow effect
@@ -534,8 +543,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              // Match frontend: scale(1.2), highlight color, always glow on highlighted word
-              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\blur0} `;
+              text += `${highlightOpen}${transformedWord}${highlightClose} `;
             } else {
               text += `${transformedWord} `;
             }
@@ -558,8 +566,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              // Match frontend: scale(1.2), highlight color, always glow on highlighted word
-              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\blur0} `;
+              text += `${highlightOpen}${transformedWord}${highlightClose} `;
             } else {
               text += `${transformedWord} `;
             }
@@ -616,8 +623,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              // Match frontend: scale(1.2), highlight color, always glow on highlighted word
-              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\blur0} `;
+              text += `${highlightOpen}${transformedWord}${highlightClose} `;
             } else {
               text += `${transformedWord} `;
             }
@@ -950,7 +956,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const escapedPath = subsPathToUse
               .replace(/\\/g, "/")
               .replace(/:/g, "\\:");
-            filterComplex = `${filterComplex},ass=${escapedPath}`;
+            const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+            filterComplex = `${filterComplex},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
           }
 
           if (wmConfig) {
@@ -969,7 +976,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-map", "0:a?",
             "-c:v", "libx264",
             "-preset", "medium",
-            "-crf", "23",
+            "-crf", "18",
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -987,7 +994,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const escapedPath = subsPathToUse
               .replace(/\\/g, "/")
               .replace(/:/g, "\\:");
-            videoFilter = `${videoFilter},ass=${escapedPath}`;
+            const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+            videoFilter = `${videoFilter},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
           }
 
           if (wmConfig) {
@@ -1110,7 +1118,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const escapedPath = subtitlesPath
             .replace(/\\/g, "/")
             .replace(/:/g, "\\:");
-          filterComplex = `${filterComplex},ass=${escapedPath}`;
+          const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+          filterComplex = `${filterComplex},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
         }
 
         if (wmConfig) {
@@ -1127,7 +1136,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           "-map", "0:a?",
           "-c:v", "libx264",
           "-preset", "medium",
-          "-crf", "23",
+          "-crf", "18",
           "-profile:v", "high",
           "-level", "4.0",
           "-c:a", "aac",
@@ -1144,7 +1153,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const escapedPath = subtitlesPath
             .replace(/\\/g, "/")
             .replace(/:/g, "\\:");
-          videoFilter = `${videoFilter},ass=${escapedPath}`;
+          const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+          videoFilter = `${videoFilter},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
         }
 
         if (wmConfig) {
@@ -1158,7 +1168,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-map", "0:a?",
             "-c:v", "libx264",
             "-preset", "medium",
-            "-crf", "23",
+            "-crf", "18",
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -1174,7 +1184,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-vf", videoFilter,
             "-c:v", "libx264",
             "-preset", "medium",
-            "-crf", "23",
+            "-crf", "18",
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
