@@ -354,10 +354,12 @@ export class ClipGeneratorService {
     // In ASS, \bord is the outline thickness, \shad is drop shadow.
     // Frontend has no drop shadow, so \shad=0 always.
     // Use outlineWidth from style if set, otherwise: outline=true uses 3px, shadow=true uses 2px
+    // NOTE: Don't scale outline by full scaleFactor — ASS \bord renders thicker than CSS stroke.
+    // Use a dampened scale to keep it visually close to the frontend preview.
     let rawOutline = 0;
     if (style?.outline) rawOutline = style?.outlineWidth ?? 3;
     else if (style?.shadow) rawOutline = 2;
-    const outline = Math.round(rawOutline * scaleFactor);
+    const outline = Math.round(rawOutline * Math.sqrt(scaleFactor));
     const shadow = 0; // Frontend has no drop shadow
 
     // Enhanced style options — match frontend exactly
@@ -516,8 +518,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Glow blur value — match frontend exactly:
     // Frontend only applies drop-shadow filter when glowEnabled is true.
     // When glowEnabled is false, NO blur/glow at all — text stays crisp.
+    // ASS \blur is much more aggressive than CSS drop-shadow, so use a lower value.
     const highlightGlowBlur = glowEnabled
-      ? Math.max(2, Math.round(glowIntensity * scaleFactor))
+      ? Math.max(1, Math.round(glowIntensity * 0.8))
       : 0;
 
     // Build ASS override tags for highlighted words — only add \blur when glow is enabled
