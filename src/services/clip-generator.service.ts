@@ -366,8 +366,8 @@ export class ClipGeneratorService {
     const glowEnabled = style?.glowEnabled ?? false;
     const glowColor = style?.glowColor ? this.hexToASSColor(style.glowColor) : highlightColor;
     const glowIntensity = style?.glowIntensity ?? 2;
-    // Frontend defaults to 125%: (style.highlightScale ?? 125) / 100
-    const highlightScale = style?.highlightScale ?? 125;
+    // Frontend defaults to 110%: (style.highlightScale ?? 110) / 100
+    const highlightScale = style?.highlightScale ?? 110;
     const maxWordsPerLine = style?.wordsPerLine ?? 5;
 
     // Helper — apply textTransform from style (matching frontend)
