@@ -416,8 +416,6 @@ export const NEON_POP_TEMPLATE: CaptionTemplate = {
     outlineColor: "#000000",
     outlineWidth: 5,
     highlightScale: 125,
-    glowEnabled: true,
-    glowIntensity: 3,
     textTransform: "uppercase",
     wordsPerLine: 3,
   },
@@ -429,12 +427,12 @@ export const NEON_POP_TEMPLATE: CaptionTemplate = {
 
 /**
  * Gold Luxe Template
- * Luxurious gold glow with thick outline - premium creator aesthetic
+ * Luxurious gold with thick outline - premium creator aesthetic
  */
 export const GOLD_LUXE_TEMPLATE: CaptionTemplate = {
   id: "gold-luxe",
   name: "Gold Luxe",
-  description: "Luxurious gold glow with thick outline - premium creator aesthetic",
+  description: "Luxurious gold with thick outline - premium creator aesthetic",
   platform: "Universal",
   style: {
     fontFamily: "Righteous",
@@ -451,9 +449,6 @@ export const GOLD_LUXE_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#8B6914",
     outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#FFD700",
-    glowIntensity: 3,
     highlightScale: 125,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -499,12 +494,12 @@ export const CINEMATIC_TEMPLATE: CaptionTemplate = {
 
 /**
  * Electric Blue Template
- * High-voltage cyan glow with deep blue outline - gaming & tech aesthetic
+ * High-voltage cyan with deep blue outline - gaming & tech aesthetic
  */
 export const ELECTRIC_BLUE_TEMPLATE: CaptionTemplate = {
   id: "electric-blue",
   name: "Electric Blue",
-  description: "High-voltage cyan glow with deep blue outline - gaming & tech aesthetic",
+  description: "High-voltage cyan with deep blue outline - gaming & tech aesthetic",
   platform: "Universal",
   style: {
     fontFamily: "Russo One",
@@ -521,9 +516,6 @@ export const ELECTRIC_BLUE_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#001133",
     outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#0066FF",
-    glowIntensity: 4,
     highlightScale: 130,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -558,9 +550,6 @@ export const SUNSET_FIRE_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#8B0000",
     outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#FF6B35",
-    glowIntensity: 3,
     highlightScale: 125,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -595,9 +584,6 @@ export const ICE_COLD_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#2C5F7C",
     outlineWidth: 4,
-    glowEnabled: true,
-    glowColor: "#00FFFF",
-    glowIntensity: 3,
     highlightScale: 120,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -610,12 +596,12 @@ export const ICE_COLD_TEMPLATE: CaptionTemplate = {
 
 /**
  * Coral Pop Template
- * Vibrant pink glow with bouncy animation - fun & feminine aesthetic
+ * Vibrant pink with bouncy animation - fun & feminine aesthetic
  */
 export const CORAL_POP_TEMPLATE: CaptionTemplate = {
   id: "coral-pop",
   name: "Coral Pop",
-  description: "Vibrant pink glow with bouncy animation - fun & feminine aesthetic",
+  description: "Vibrant pink with bouncy animation - fun & feminine aesthetic",
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
@@ -632,9 +618,6 @@ export const CORAL_POP_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#C71585",
     outlineWidth: 4,
-    glowEnabled: true,
-    glowColor: "#FF69B4",
-    glowIntensity: 3,
     highlightScale: 120,
     textTransform: "none",
     wordsPerLine: 3,
@@ -647,12 +630,12 @@ export const CORAL_POP_TEMPLATE: CaptionTemplate = {
 
 /**
  * Midnight Purple Template
- * Deep purple glow with lavender text - mysterious & stylish karaoke
+ * Deep purple with lavender text - mysterious & stylish karaoke
  */
 export const MIDNIGHT_PURPLE_TEMPLATE: CaptionTemplate = {
   id: "midnight-purple",
   name: "Midnight Purple",
-  description: "Deep purple glow with lavender text - mysterious & stylish karaoke",
+  description: "Deep purple with lavender text - mysterious & stylish karaoke",
   platform: "Universal",
   style: {
     fontFamily: "Oswald",
@@ -669,9 +652,6 @@ export const MIDNIGHT_PURPLE_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#2D0A4E",
     outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#8B00FF",
-    glowIntensity: 3,
     highlightScale: 125,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -684,12 +664,12 @@ export const MIDNIGHT_PURPLE_TEMPLATE: CaptionTemplate = {
 
 /**
  * Toxic Green Template
- * Radioactive neon green glow with dark outline - bold & attention-grabbing
+ * Radioactive neon green with dark outline - bold & attention-grabbing
  */
 export const TOXIC_GREEN_TEMPLATE: CaptionTemplate = {
   id: "toxic-green",
   name: "Toxic Green",
-  description: "Radioactive neon green glow with dark outline - bold & attention-grabbing",
+  description: "Radioactive neon green with dark outline - bold & attention-grabbing",
   platform: "Universal",
   style: {
     fontFamily: "Anton",
@@ -706,9 +686,6 @@ export const TOXIC_GREEN_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#003300",
     outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#00FF41",
-    glowIntensity: 4,
     highlightScale: 130,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -776,9 +753,6 @@ export const GLASSMORPHISM_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "rgba(255,255,255,0.3)",
     outlineWidth: 1,
-    glowEnabled: true,
-    glowColor: "#AACCFF",
-    glowIntensity: 2,
     textTransform: "none",
     wordsPerLine: 5,
   },

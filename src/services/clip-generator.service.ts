@@ -54,9 +54,6 @@ export interface ClipGenerationOptions {
       outlineColor?: string;
       // Enhanced options for viral caption rendering
       outlineWidth?: number;        // 1-8, default 3
-      glowEnabled?: boolean;        // Add glow effect
-      glowColor?: string;           // Glow color
-      glowIntensity?: number;       // 1-5 blur strength
       highlightScale?: number;      // 100-150, default 125
       textTransform?: "none" | "uppercase";
       wordsPerLine?: number;        // 3-7, default 5
@@ -363,9 +360,6 @@ export class ClipGeneratorService {
     const shadow = 0; // Frontend has no drop shadow
 
     // Enhanced style options — match frontend exactly
-    const glowEnabled = style?.glowEnabled ?? false;
-    const glowColor = style?.glowColor ? this.hexToASSColor(style.glowColor) : highlightColor;
-    const glowIntensity = style?.glowIntensity ?? 2;
     // Frontend defaults to 110%: (style.highlightScale ?? 110) / 100
     const highlightScale = style?.highlightScale ?? 110;
     const maxWordsPerLine = style?.wordsPerLine ?? 5;
@@ -515,24 +509,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Generate dialogue lines based on animation type
     const animation = style?.animation || "none";
 
-    // Glow blur value — match frontend exactly:
-    // Frontend only applies drop-shadow filter when glowEnabled is true.
-    // When glowEnabled is false, NO blur/glow at all — text stays crisp.
-    // ASS \blur is much more aggressive than CSS drop-shadow, so use a lower value.
-    const highlightGlowBlur = glowEnabled
-      ? Math.max(1, Math.round(glowIntensity * 0.8))
-      : 0;
-
-    // Build ASS override tags for highlighted words — only add \blur when glow is enabled
-    const highlightOpen = highlightGlowBlur > 0
-      ? `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\blur${highlightGlowBlur}}`
-      : `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}}`;
-    const highlightClose = highlightGlowBlur > 0
-      ? `{\\fscx100\\fscy100\\c${textColor}\\blur0}`
-      : `{\\fscx100\\fscy100\\c${textColor}}`;
+    // Build ASS override tags for highlighted words
+    const highlightOpen = `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}}`;
+    const highlightClose = `{\\fscx100\\fscy100\\c${textColor}}`;
 
     if (style?.highlightEnabled && animation === "karaoke") {
-      // Karaoke style: word-by-word with enhanced glow effect
+      // Karaoke style: word-by-word highlighting
       // Each word gets its own dialogue line that shows highlighted during its time
       for (const line of lines) {
         for (let i = 0; i < line.words.length; i++) {
@@ -540,7 +522,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const wordStart = this.formatASSTime(word.start);
           const wordEnd = this.formatASSTime(word.end);
 
-          // Build the line text with current word highlighted (scaled + colored + glow)
+          // Build the line text with current word highlighted (scaled + colored)
           let text = "";
           for (let j = 0; j < line.words.length; j++) {
             const w = line.words[j];

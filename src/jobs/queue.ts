@@ -110,9 +110,6 @@ export interface ClipGenerationJobData {
       outline?: boolean;
       outlineColor?: string;
       outlineWidth?: number;
-      glowEnabled?: boolean;
-      glowColor?: string;
-      glowIntensity?: number;
       highlightScale?: number;
       textTransform?: "none" | "uppercase";
       wordsPerLine?: number;
