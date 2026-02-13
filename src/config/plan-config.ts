@@ -52,7 +52,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
   },
   pro: {
     plan: "pro",
-    minutes: { total: 300, type: "monthly", renewable: true },
+    minutes: { total: 500, type: "monthly", renewable: true },
     limits: {
       videoLength: 10800, // 3 hours
       uploadSize: 4 * 1024 * 1024 * 1024, // 4GB
