@@ -18,6 +18,7 @@ import uploadRouter from "./routes/upload.routes";
 import uppyUploadRouter from "./routes/uppy-upload.routes";
 import captionTemplateRouter from "./routes/caption-template.routes";
 import exportRouter from "./routes/export.routes";
+import subtitleRouter from "./routes/subtitle.routes";
 import healthRouter from "./routes/health.routes";
 import adminRouter from "./routes/admin.routes";
 import translationRouter from "./routes/translation.routes";
@@ -105,6 +106,7 @@ app.route("/api/upload", uploadRouter);
 app.route("/api/uppy", uppyUploadRouter);
 app.route("/api/caption-templates", captionTemplateRouter);
 app.route("/api/exports", exportRouter);
+app.route("/api", subtitleRouter); // Subtitle download routes
 app.route("/api/admin", adminRouter);
 app.route("/api/translations", translationRouter);
 app.route("/api/dubbing", dubbingRouter);
