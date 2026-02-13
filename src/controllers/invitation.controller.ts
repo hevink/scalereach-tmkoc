@@ -51,6 +51,15 @@ export class InvitationController {
         return c.json({ error: "Workspace not found" }, 404);
       }
 
+      // Check if workspace plan allows inviting members
+      const allowedPlans = ["starter", "pro", "pro-plus", "agency"];
+      if (!allowedPlans.includes(workspace.plan)) {
+        return c.json({ 
+          error: "Plan upgrade required", 
+          message: "Upgrade to Starter or Pro plan to invite team members" 
+        }, 403);
+      }
+
       // Check if user has permission to invite (owner or admin)
       const members = await WorkspaceModel.getMembers(workspaceId);
       const currentMember = members.find((m) => m.userId === user.id);
