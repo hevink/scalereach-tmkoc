@@ -13,6 +13,7 @@ export interface PlanLimits {
   watermark: boolean;
   translationsPerVideo: number; // -1 = unlimited
   dubbingMinutesPerMonth: number; // 0 = disabled, -1 = unlimited
+  splitScreen: boolean; // split-screen clip generation
 }
 
 export interface PlanConfig {
@@ -34,6 +35,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       watermark: true,
       translationsPerVideo: 1,
       dubbingMinutesPerMonth: 0,
+      splitScreen: false,
     },
   },
   starter: {
@@ -48,6 +50,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       watermark: false,
       translationsPerVideo: 5,
       dubbingMinutesPerMonth: 10,
+      splitScreen: true,
     },
   },
   pro: {
@@ -62,6 +65,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       watermark: false,
       translationsPerVideo: -1, // unlimited
       dubbingMinutesPerMonth: 30,
+      splitScreen: true,
     },
   },
 };

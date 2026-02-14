@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { geminiService, type GeminiModel } from "./gemini.service";
+import { aiService } from "./ai.service";
 
 // Platform types for recommendations
 const PLATFORM_OPTIONS = [
@@ -64,7 +64,7 @@ export interface ViralDetectionOptions {
   genre?: string;           // Content genre for better detection (Auto, Podcast, Gaming, etc.)
   clipType?: string;        // Clip type template ID for targeted detection
   customPrompt?: string;    // Custom prompt for specific moment detection
-  model?: GeminiModel;      // Gemini model to use (default: gemini-2.5-flash-lite)
+  // Model is configured globally via AI_PROVIDER + AI_MODEL env vars
   // Editing options
   enableEmojis?: boolean;   // Whether to generate transcript with emojis
   enableIntroTitle?: boolean; // Whether to generate intro titles for clips
@@ -167,15 +167,14 @@ export class ViralDetectionService {
       maxDuration = DEFAULT_MAX_DURATION,
       videoTitle = "Unknown",
       clipType = "viral-clips",
-      model = "gemini-2.5-flash-lite",
       enableEmojis = false,
       enableIntroTitle = false,
     } = options;
 
     console.log(`[VIRAL DETECTION] Analyzing transcript for viral clips...`);
-    console.log(`[VIRAL DETECTION] Using Gemini model: ${model}`);
+    console.log(`[VIRAL DETECTION] Using AI service (provider configured via env)`);
     console.log(`[VIRAL DETECTION] Transcript length: ${transcript.length} chars`);
-    console.log(`[VIRAL DETECTION] Options: clipType=${clipType}, enableEmojis=${enableEmojis}, enableIntroTitle=${enableIntroTitle}`);
+    console.log(`[VIRAL DETECTION] Options: clipType=${clipType}, enableEmojis=${enableEmojis}, enableIntroTitle=${enableIntroTitle}, minDuration=${minDuration}s, maxDuration=${maxDuration}s`);
 
     // Format transcript with timestamps for better context
     const formattedTranscript = this.formatTranscriptWithTimestamps(transcriptWords);
@@ -289,9 +288,9 @@ REMEMBER:
 - Focus on finding the absolute BEST moments that would perform well on social media`;
 
     try {
-      console.log(`[VIRAL DETECTION] Calling Gemini API...`);
+      console.log(`[VIRAL DETECTION] Calling Groq API...`);
       
-      // Create JSON schema description for Gemini
+      // Create JSON schema description for Groq
       const schemaDescription = `{
   "clips": [
     {
@@ -310,13 +309,11 @@ REMEMBER:
   ]
 }`;
 
-      const responseText = await geminiService.generateJSON<{ clips: ViralClip[] }>(
+      const responseText = await aiService.generateJSON<{ clips: ViralClip[] }>(
         userPrompt,
         {
-          model,
           systemPrompt,
           temperature: 0.7,
-          // maxTokens not specified - will use model's maximum (8192)
           schema: schemaDescription,
         }
       );
@@ -344,13 +341,24 @@ REMEMBER:
       ));
 
       // Filter clips by duration constraints and sort by virality score descending
-      // Validates: Requirements 5.6, 5.9
-      const sortedClips = allClipsWithDuration
-        .filter((clip) => clip.duration >= minDuration && clip.duration <= maxDuration)
+      // Allow 20% tolerance on duration to avoid losing all clips
+      const toleranceMin = minDuration * 0.8;
+      const toleranceMax = maxDuration * 1.2;
+      
+      let sortedClips = allClipsWithDuration
+        .filter((clip) => clip.duration >= toleranceMin && clip.duration <= toleranceMax)
         .sort((a, b) => b.viralityScore - a.viralityScore)
-        .slice(0, maxClips); // Limit to maxClips (Requirement 5.2)
+        .slice(0, maxClips);
 
-      console.log(`[VIRAL DETECTION] After filtering: ${sortedClips.length} clips within duration constraints`);
+      // Fallback: if strict filtering returns nothing, take the best clips anyway
+      if (sortedClips.length === 0 && allClipsWithDuration.length > 0) {
+        console.log(`[VIRAL DETECTION] No clips within duration tolerance, returning best clips regardless`);
+        sortedClips = allClipsWithDuration
+          .sort((a, b) => b.viralityScore - a.viralityScore)
+          .slice(0, maxClips);
+      }
+
+      console.log(`[VIRAL DETECTION] After filtering: ${sortedClips.length} clips (tolerance: ${toleranceMin.toFixed(0)}-${toleranceMax.toFixed(0)}s)`);
 
       return sortedClips;
     } catch (error) {

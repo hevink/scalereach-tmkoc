@@ -17,6 +17,7 @@ import { WorkspaceModel } from "../models/workspace.model";
 import { emailService } from "../services/email.service";
 import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
+import { BackgroundVideoModel } from "../models/background-video.model";
 import { captureException } from "../lib/sentry";
 import {
   createWorker,
@@ -223,6 +224,32 @@ async function processYouTubeVideo(
 
     await job.updateProgress(90);
 
+    // Resolve split-screen background video if enabled (shared across all clips)
+    let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+    if (videoConfig?.enableSplitScreen) {
+      try {
+        let bgVideo = null;
+        if (videoConfig.splitScreenBgVideoId) {
+          bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
+        } else if (videoConfig.splitScreenBgCategoryId) {
+          bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+        }
+        if (bgVideo) {
+          splitScreenData = {
+            backgroundVideoId: bgVideo.id,
+            backgroundStorageKey: bgVideo.storageKey,
+            backgroundDuration: bgVideo.duration,
+            splitRatio: videoConfig.splitRatio ?? 50,
+          };
+          console.log(`[VIDEO WORKER] Split-screen enabled: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
+        } else {
+          console.warn(`[VIDEO WORKER] Split-screen enabled but no background video found, skipping`);
+        }
+      } catch (bgError) {
+        console.warn(`[VIDEO WORKER] Failed to resolve split-screen background:`, bgError);
+      }
+    }
+
     // Save viral clips to database and queue clip generation with captions
     // Validates: Requirements 5.3, 5.4, 5.5, 5.8, 5.9
     if (viralClips.length > 0) {
@@ -329,9 +356,10 @@ async function processYouTubeVideo(
             words: adjustedWords,
             style: captionStyle,
           } : undefined,
+          splitScreen: splitScreenData,
         });
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ' (split-screen)' : ''}`);
       }
     }
 
@@ -613,6 +641,32 @@ async function processUploadedVideo(
 
     await job.updateProgress(90);
 
+    // Resolve split-screen background video if enabled (shared across all clips)
+    let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+    if (videoConfig?.enableSplitScreen) {
+      try {
+        let bgVideo = null;
+        if (videoConfig.splitScreenBgVideoId) {
+          bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
+        } else if (videoConfig.splitScreenBgCategoryId) {
+          bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+        }
+        if (bgVideo) {
+          splitScreenData = {
+            backgroundVideoId: bgVideo.id,
+            backgroundStorageKey: bgVideo.storageKey,
+            backgroundDuration: bgVideo.duration,
+            splitRatio: videoConfig.splitRatio ?? 50,
+          };
+          console.log(`[VIDEO WORKER] Split-screen enabled: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
+        } else {
+          console.warn(`[VIDEO WORKER] Split-screen enabled but no background video found, skipping`);
+        }
+      } catch (bgError) {
+        console.warn(`[VIDEO WORKER] Failed to resolve split-screen background:`, bgError);
+      }
+    }
+
     // Save viral clips to database and queue clip generation with captions
     // Validates: Requirements 5.3, 5.4, 5.5, 5.8, 5.9
     if (viralClips.length > 0) {
@@ -719,9 +773,10 @@ async function processUploadedVideo(
             words: adjustedWords,
             style: captionStyle,
           } : undefined,
+          splitScreen: splitScreenData,
         });
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ' (split-screen)' : ''}`);
       }
     }
 

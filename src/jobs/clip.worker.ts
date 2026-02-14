@@ -140,6 +140,7 @@ async function processClipGenerationJob(
     watermark,
     emojis,
     targetLanguage,
+    splitScreen,
   } = job.data;
 
   console.log(`[CLIP WORKER] Processing clip generation job: ${clipId}`);
@@ -149,6 +150,7 @@ async function processClipGenerationJob(
   console.log(`[CLIP WORKER] Intro title: ${introTitle ? 'yes' : 'no'}`);
   console.log(`[CLIP WORKER] Emojis: ${emojis ? 'yes' : 'no'}`);
   console.log(`[CLIP WORKER] Target language: ${targetLanguage || 'original'}`);
+  console.log(`[CLIP WORKER] Split-screen: ${splitScreen ? `ratio=${splitScreen.splitRatio}` : 'no'}`);
 
   try {
     // Update status to generating (Requirement 7.5)
@@ -210,6 +212,11 @@ async function processClipGenerationJob(
       introTitle,
       captions: effectiveCaptions,
       emojis,
+      splitScreen: splitScreen ? {
+        backgroundStorageKey: splitScreen.backgroundStorageKey,
+        backgroundDuration: splitScreen.backgroundDuration,
+        splitRatio: splitScreen.splitRatio,
+      } : undefined,
     }, async (percent) => {
       // Map service progress (25-85) into job progress (20-80)
       const jobProgress = 20 + Math.round((percent / 100) * 60);

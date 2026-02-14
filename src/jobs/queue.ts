@@ -89,6 +89,13 @@ export interface ClipGenerationJobData {
   targetLanguage?: string;
   // Dubbing ID for dubbed audio replacement during export
   dubbingId?: string;
+  // Split-screen background video data
+  splitScreen?: {
+    backgroundVideoId: string;
+    backgroundStorageKey: string;
+    backgroundDuration: number;
+    splitRatio: number;
+  };
   // Caption data for burning into video
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;

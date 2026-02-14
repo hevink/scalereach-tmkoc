@@ -10,3 +10,4 @@ export * from "./translation.schema";
 export * from "./dubbing.schema";
 export * from "./share.schema";
 
+export * from "./background-video.schema";

@@ -7,6 +7,7 @@
 
 import { spawn } from "child_process";
 import { R2Service } from "./r2.service";
+import { SplitScreenCompositorService } from "./split-screen-compositor.service";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -33,6 +34,11 @@ export interface ClipGenerationOptions {
   watermark?: boolean;
   emojis?: string;
   introTitle?: string;
+  splitScreen?: {
+    backgroundStorageKey: string;
+    backgroundDuration: number;
+    splitRatio: number;
+  };
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;
     style?: {
@@ -279,6 +285,72 @@ export class ClipGeneratorService {
       );
     } else {
       throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
+    }
+
+    // Apply split-screen composition if enabled
+    if (options.splitScreen) {
+      this.logOperation("SPLIT_SCREEN_COMPOSE", {
+        clipId: options.clipId,
+        splitRatio: options.splitScreen.splitRatio,
+        bgDuration: options.splitScreen.backgroundDuration,
+      });
+
+      let bgTempPath: string | undefined;
+      const tempPaths: string[] = [];
+
+      try {
+        // Download background video
+        bgTempPath = await SplitScreenCompositorService.downloadBackground(
+          options.splitScreen.backgroundStorageKey
+        );
+        tempPaths.push(bgTempPath);
+
+        // Compose split-screen for clip WITH captions
+        const mainTempWith = path.join(os.tmpdir(), `ss-main-with-${nanoid()}.mp4`);
+        const composedWith = path.join(os.tmpdir(), `ss-out-with-${nanoid()}.mp4`);
+        tempPaths.push(mainTempWith, composedWith);
+        await fs.promises.writeFile(mainTempWith, clipWithCaptionsBuffer);
+
+        await SplitScreenCompositorService.compose({
+          mainClipPath: mainTempWith,
+          backgroundVideoPath: bgTempPath,
+          outputPath: composedWith,
+          splitRatio: options.splitScreen.splitRatio,
+          targetWidth: width,
+          targetHeight: height,
+          clipDuration: duration,
+          backgroundDuration: options.splitScreen.backgroundDuration,
+        });
+        clipWithCaptionsBuffer = await fs.promises.readFile(composedWith);
+
+        // Compose split-screen for clip WITHOUT captions
+        const mainTempRaw = path.join(os.tmpdir(), `ss-main-raw-${nanoid()}.mp4`);
+        const composedRaw = path.join(os.tmpdir(), `ss-out-raw-${nanoid()}.mp4`);
+        tempPaths.push(mainTempRaw, composedRaw);
+        await fs.promises.writeFile(mainTempRaw, clipWithoutCaptionsBuffer);
+
+        await SplitScreenCompositorService.compose({
+          mainClipPath: mainTempRaw,
+          backgroundVideoPath: bgTempPath,
+          outputPath: composedRaw,
+          splitRatio: options.splitScreen.splitRatio,
+          targetWidth: width,
+          targetHeight: height,
+          clipDuration: duration,
+          backgroundDuration: options.splitScreen.backgroundDuration,
+        });
+        clipWithoutCaptionsBuffer = await fs.promises.readFile(composedRaw);
+
+        this.logOperation("SPLIT_SCREEN_COMPLETE", { clipId: options.clipId });
+      } catch (ssError) {
+        // Fall back to single-video pipeline on failure
+        console.warn(
+          `[CLIP GENERATOR] Split-screen composition failed, falling back to single-video:`,
+          ssError instanceof Error ? ssError.message : ssError
+        );
+      } finally {
+        await SplitScreenCompositorService.cleanup(tempPaths);
+      }
     }
 
     // Upload clip WITH captions to R2

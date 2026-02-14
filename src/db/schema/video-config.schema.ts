@@ -53,6 +53,12 @@ export const videoConfig = pgTable(
     enableEmojis: boolean("enable_emojis").default(false),
     enableIntroTitle: boolean("enable_intro_title").default(false),
 
+    // Split-Screen Options
+    enableSplitScreen: boolean("enable_split_screen").default(false),
+    splitScreenBgVideoId: text("split_screen_bg_video_id"),
+    splitScreenBgCategoryId: text("split_screen_bg_category_id"),
+    splitRatio: integer("split_ratio").default(50),
+
     // Timestamps
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")

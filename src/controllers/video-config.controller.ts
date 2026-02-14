@@ -2,6 +2,8 @@ import { Context } from "hono";
 import { nanoid } from "nanoid";
 import { VideoConfigModel, type VideoConfigInput } from "../models/video-config.model";
 import { VideoModel } from "../models/video.model";
+import { WorkspaceModel } from "../models/workspace.model";
+import { getPlanConfig } from "../config/plan-config";
 import { addVideoProcessingJob } from "../jobs/queue";
 
 export class VideoConfigController {
@@ -12,6 +14,13 @@ export class VideoConfigController {
       `[VIDEO CONFIG CONTROLLER] ${operation} - ${method} ${url}`,
       details ? JSON.stringify(details) : ""
     );
+  }
+
+  /**
+   * Validate split ratio: must be 30-70 in increments of 5
+   */
+  private static isValidSplitRatio(value: number): boolean {
+    return value >= 30 && value <= 70 && value % 5 === 0;
   }
 
   /**
@@ -95,7 +104,36 @@ export class VideoConfigController {
         enableCaptions: body.enableCaptions ?? true,
         enableEmojis: body.enableEmojis ?? false,
         enableIntroTitle: body.enableIntroTitle ?? false,
+        // Split-Screen Options
+        enableSplitScreen: body.enableSplitScreen ?? false,
+        splitScreenBgVideoId: body.splitScreenBgVideoId ?? null,
+        splitScreenBgCategoryId: body.splitScreenBgCategoryId ?? null,
+        splitRatio: body.splitRatio ?? 50,
       };
+
+      // Split-screen plan gating and validation
+      if (configInput.enableSplitScreen) {
+        // Check plan allows split-screen
+        const ws = video.workspaceId ? await WorkspaceModel.getById(video.workspaceId) : null;
+        const planConfig = getPlanConfig(ws?.plan || "free");
+        if (!planConfig.limits.splitScreen) {
+          return c.json(
+            { error: "Split-screen is available on Starter and Pro plans. Please upgrade to use this feature." },
+            403
+          );
+        }
+
+        // Validate split ratio
+        if (!VideoConfigController.isValidSplitRatio(configInput.splitRatio!)) {
+          return c.json(
+            { error: "Split ratio must be between 30 and 70, in increments of 5" },
+            400
+          );
+        }
+
+        // Force 9:16 aspect ratio for split-screen
+        configInput.aspectRatio = "9:16";
+      }
 
       // Save configuration
       const configId = nanoid();
@@ -168,6 +206,27 @@ export class VideoConfigController {
       if (body.enableCaptions !== undefined) configInput.enableCaptions = body.enableCaptions;
       if (body.enableEmojis !== undefined) configInput.enableEmojis = body.enableEmojis;
       if (body.enableIntroTitle !== undefined) configInput.enableIntroTitle = body.enableIntroTitle;
+      // Split-Screen Options
+      if (body.enableSplitScreen !== undefined) configInput.enableSplitScreen = body.enableSplitScreen;
+      if (body.splitScreenBgVideoId !== undefined) configInput.splitScreenBgVideoId = body.splitScreenBgVideoId;
+      if (body.splitScreenBgCategoryId !== undefined) configInput.splitScreenBgCategoryId = body.splitScreenBgCategoryId;
+      if (body.splitRatio !== undefined) configInput.splitRatio = body.splitRatio;
+
+      // Split-screen validation
+      if (configInput.enableSplitScreen) {
+        const ws = video.workspaceId ? await WorkspaceModel.getById(video.workspaceId) : null;
+        const planConfig = getPlanConfig(ws?.plan || "free");
+        if (!planConfig.limits.splitScreen) {
+          return c.json(
+            { error: "Split-screen is available on Starter and Pro plans. Please upgrade to use this feature." },
+            403
+          );
+        }
+        if (configInput.splitRatio !== undefined && !VideoConfigController.isValidSplitRatio(configInput.splitRatio)) {
+          return c.json({ error: "Split ratio must be between 30 and 70, in increments of 5" }, 400);
+        }
+        configInput.aspectRatio = "9:16";
+      }
 
       const configId = nanoid();
       const config = await VideoConfigModel.upsert(videoId, configId, configInput);
