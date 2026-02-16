@@ -35,15 +35,15 @@ export function passwordResetEmailTemplate(params: PasswordResetEmailParams): st
     ${emailIcon(EMAIL_ICONS.passwordReset)}
 
     <!-- Heading -->
-    <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: ${FONT_STACK}; text-align: center;">
+    <h1 class="base-heading" style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: 'Inter', ${FONT_STACK}; text-align: center;">
       Reset Your Password
     </h1>
-    <p style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary}; text-align: center;">
+    <p class="base-subheading" style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary}; text-align: center;">
       ${greeting} We received a request to reset your password.
     </p>
 
     <!-- Main message -->
-    <p style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary};">
+    <p class="base-body-text" style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary};">
       Click the button below to create a new password. If you didn't request this, you can safely ignore this email - your password will remain unchanged.
     </p>
 
@@ -75,7 +75,7 @@ export function passwordResetEmailTemplate(params: PasswordResetEmailParams): st
     ${divider()}
 
     <!-- Security tips -->
-    <h2 style="margin: 0 0 12px; font-size: 16px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: ${FONT_STACK};">
+    <h2 class="base-heading" style="margin: 0 0 12px; font-size: 16px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: 'Inter', ${FONT_STACK};">
       Security Tips
     </h2>
     <ul style="margin: 0 0 16px; padding-left: 20px; color: ${BRAND_COLORS.textSecondary}; font-size: 14px; line-height: 22px;">

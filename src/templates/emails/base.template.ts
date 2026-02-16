@@ -1,7 +1,7 @@
 /**
  * Base Email Template
  *
- * Dark, modern design matching scalereach.ai landing page.
+ * Light/white theme for all ScaleReach emails.
  * Uses inline CSS for maximum email client compatibility.
  */
 
@@ -12,7 +12,7 @@ export interface BaseTemplateOptions {
 }
 
 /**
- * Brand colors matching scalereach.ai dark theme
+ * Brand colors - light/white theme
  */
 export const BRAND_COLORS = {
   // Primary brand
@@ -21,35 +21,35 @@ export const BRAND_COLORS = {
   primaryDark: '#1a3d99',
 
   // Backgrounds
-  bgBody: '#0a0a0b',
-  bgCard: '#141416',
-  bgCardAlt: '#1a1a1e',
-  bgMuted: '#1e1e22',
-  bgElevated: '#222226',
+  bgBody: '#f4f4f5',
+  bgCard: '#ffffff',
+  bgCardAlt: '#f9fafb',
+  bgMuted: '#f3f4f6',
+  bgElevated: '#ffffff',
 
   // Text
-  textWhite: '#f5f5f7',
-  textPrimary: '#e4e4e7',
-  textSecondary: '#a1a1aa',
-  textMuted: '#71717a',
-  textDim: '#52525b',
+  textWhite: '#111827',
+  textPrimary: '#1f2937',
+  textSecondary: '#4b5563',
+  textMuted: '#9ca3af',
+  textDim: '#d1d5db',
 
   // Borders
-  border: 'rgba(255, 255, 255, 0.08)',
-  borderLight: 'rgba(255, 255, 255, 0.12)',
+  border: '#e5e7eb',
+  borderLight: '#f3f4f6',
   borderAccent: 'rgba(37, 83, 203, 0.3)',
 
   // Accents
-  linkBlue: '#6d9fff',
-  success: '#22c55e',
-  successBg: 'rgba(34, 197, 94, 0.1)',
-  successBorder: 'rgba(34, 197, 94, 0.2)',
-  warning: '#f59e0b',
-  warningBg: 'rgba(245, 158, 11, 0.1)',
-  warningBorder: 'rgba(245, 158, 11, 0.2)',
-  error: '#ef4444',
-  infoBg: 'rgba(37, 83, 203, 0.1)',
-  infoBorder: 'rgba(37, 83, 203, 0.2)',
+  linkBlue: '#2553CB',
+  success: '#16a34a',
+  successBg: '#f0fdf4',
+  successBorder: '#bbf7d0',
+  warning: '#d97706',
+  warningBg: '#fffbeb',
+  warningBorder: '#fde68a',
+  error: '#dc2626',
+  infoBg: '#eff6ff',
+  infoBorder: '#bfdbfe',
 
   white: '#ffffff',
 } as const;
@@ -198,9 +198,22 @@ export function baseTemplate(options: BaseTemplateOptions): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="x-apple-disable-message-reformatting">
-  <meta name="color-scheme" content="dark">
-  <meta name="supported-color-schemes" content="dark">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
   <title>ScaleReach</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @media only screen and (max-width: 480px) {
+      .base-wrapper { padding: 16px 8px !important; }
+      .base-header { padding: 0 0 16px !important; }
+      .base-content { padding: 20px 16px !important; }
+      .base-footer { padding: 16px 0 0 !important; }
+      .base-heading { font-size: 20px !important; }
+      .base-subheading { font-size: 14px !important; }
+      .base-body-text { font-size: 14px !important; line-height: 22px !important; }
+      .base-info-box { padding: 12px !important; }
+    }
+  </style>
   <!--[if mso]>
   <style type="text/css">
     table { border-collapse: collapse; }
@@ -208,7 +221,7 @@ export function baseTemplate(options: BaseTemplateOptions): string {
   </style>
   <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; font-family: ${FONT_STACK}; background-color: ${BRAND_COLORS.bgBody}; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: ${BRAND_COLORS.textPrimary};">
+<body style="margin: 0; padding: 0; font-family: 'Inter', ${FONT_STACK}; background-color: ${BRAND_COLORS.bgBody}; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: ${BRAND_COLORS.textPrimary};">
   ${preheaderText ? `
   <!-- Preheader text (hidden) -->
   <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">
@@ -220,13 +233,13 @@ export function baseTemplate(options: BaseTemplateOptions): string {
   <!-- Email wrapper -->
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${BRAND_COLORS.bgBody};">
     <tr>
-      <td align="center" style="padding: 40px 20px;">
+      <td align="center" class="base-wrapper" style="padding: 40px 20px;">
         <!-- Email container -->
         <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: collapse;">
 
           <!-- Header -->
           <tr>
-            <td align="center" style="padding: 0 0 32px;">
+            <td align="center" class="base-header" style="padding: 0 0 32px;">
               <table role="presentation" style="border-collapse: collapse;">
                 <tr>
                   <td style="padding: 0;" align="center">
@@ -252,9 +265,9 @@ export function baseTemplate(options: BaseTemplateOptions): string {
           <!-- Main content card -->
           <tr>
             <td>
-              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${BRAND_COLORS.bgCard};  border: 1px solid ${BRAND_COLORS.border};">
+              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${BRAND_COLORS.bgCard}; border: 1px solid ${BRAND_COLORS.border};">
                 <tr>
-                  <td style="padding: 40px;">
+                  <td class="base-content" style="padding: 40px;">
                     ${content}
                   </td>
                 </tr>
@@ -264,7 +277,7 @@ export function baseTemplate(options: BaseTemplateOptions): string {
 
           <!-- Footer -->
           <tr>
-            <td style="padding: 32px 0 0;">
+            <td class="base-footer" style="padding: 32px 0 0;">
               <table role="presentation" style="width: 100%; border-collapse: collapse;">
                 <tr>
                   <td align="center" style="padding: 0;">
@@ -294,14 +307,14 @@ export function baseTemplate(options: BaseTemplateOptions): string {
 }
 
 /**
- * Generate a primary CTA button (white on dark, matching landing page hero CTA)
+ * Generate a primary CTA button (brand blue on white)
  */
 export function primaryButton(text: string, href: string): string {
   return `
 <table role="presentation" style="border-collapse: collapse;">
   <tr>
-    <td style="border-radius: 50px; background-color: ${BRAND_COLORS.white};">
-      <a href="${href}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: ${BRAND_COLORS.bgBody}; text-decoration: none; border-radius: 50px; letter-spacing: -0.2px;">
+    <td style="border-radius: 50px; background-color: ${BRAND_COLORS.primary};">
+      <a href="${href}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 50px; letter-spacing: -0.2px;">
         ${text}
       </a>
     </td>
@@ -316,7 +329,7 @@ export function secondaryButton(text: string, href: string): string {
   return `
 <table role="presentation" style="border-collapse: collapse;">
   <tr>
-    <td style="border-radius: 50px; border: 1px solid ${BRAND_COLORS.borderLight};">
+    <td style="border-radius: 50px; border: 1px solid ${BRAND_COLORS.border};">
       <a href="${href}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 14px; font-weight: 500; color: ${BRAND_COLORS.textSecondary}; text-decoration: none; border-radius: 50px;">
         ${text}
       </a>
@@ -333,7 +346,7 @@ export function brandButton(text: string, href: string): string {
 <table role="presentation" style="border-collapse: collapse;">
   <tr>
     <td style="border-radius: 50px; background-color: ${BRAND_COLORS.primary};">
-      <a href="${href}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: ${BRAND_COLORS.white}; text-decoration: none; border-radius: 50px; letter-spacing: -0.2px;">
+      <a href="${href}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 50px; letter-spacing: -0.2px;">
         ${text}
       </a>
     </td>
@@ -356,7 +369,7 @@ export function divider(): string {
 }
 
 /**
- * Generate an info box/callout (dark theme)
+ * Generate an info box/callout (light theme)
  */
 export function infoBox(content: string, type: 'info' | 'success' | 'warning' = 'info'): string {
   const bgColors = {
@@ -373,7 +386,7 @@ export function infoBox(content: string, type: 'info' | 'success' | 'warning' = 
   return `
 <table role="presentation" style="width: 100%; border-collapse: collapse;">
   <tr>
-    <td style="padding: 16px; background-color: ${bgColors[type]}; border: 1px solid ${borderColors[type]}; border-radius: 8px;">
+    <td class="base-info-box" style="padding: 16px; background-color: ${bgColors[type]}; border: 1px solid ${borderColors[type]}; border-radius: 8px;">
       <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textSecondary};">
         ${content}
       </p>

@@ -54,10 +54,10 @@ export function clipReadyEmailTemplate(params: ClipReadyEmailParams): string {
     ${emailIcon(EMAIL_ICONS.clipReady)}
 
     <!-- Heading -->
-    <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: ${FONT_STACK}; text-align: center;">
+    <h1 class="base-heading" style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: 'Inter', ${FONT_STACK}; text-align: center;">
       Your Clip is Ready!
     </h1>
-    <p style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary}; text-align: center;">
+    <p class="base-subheading" style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary}; text-align: center;">
       Hi ${userName}, your clip has finished processing and is ready to view.
     </p>
 
@@ -75,7 +75,7 @@ export function clipReadyEmailTemplate(params: ClipReadyEmailParams): string {
       <tr>
         <td style="padding: 20px;">
           <!-- Clip title -->
-          <h2 style="margin: 0 0 12px; font-size: 18px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: ${FONT_STACK};">
+          <h2 style="margin: 0 0 12px; font-size: 18px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: 'Inter', ${FONT_STACK};">
             ${clipTitle}
           </h2>
 
