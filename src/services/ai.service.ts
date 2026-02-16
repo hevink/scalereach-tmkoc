@@ -1,14 +1,18 @@
 import { generateText as aiGenerateText } from "ai";
-import { createGroq } from "@ai-sdk/groq";
+import { createAnthropic } from "@ai-sdk/anthropic";
 
 // ============================================================
 // CHANGE MODEL HERE — one line swap
 // ============================================================
-const AI_MODEL = process.env.AI_MODEL || "openai/gpt-oss-120b";
+const AI_MODEL = "claude-sonnet-4-5-20250929";
 
-const groq = createGroq({ apiKey: process.env.GROQ_API_KEY });
+const anthropic = createAnthropic({
+  apiKey: "my-super-secret-password-123",
+  baseURL: "http://localhost:8000/v1",
+});
 
-console.log(`[AI] Groq model: ${AI_MODEL}`);
+console.log(`[AI] Anthropic model: ${AI_MODEL}`);
+console.log(`[AI] Anthropic baseURL: http://localhost:8000/v1`);
 
 export class AIService {
   async generateText(
@@ -22,16 +26,16 @@ export class AIService {
     const { systemPrompt, temperature = 0.7, maxTokens } = options;
 
     const result = await aiGenerateText({
-      model: groq(AI_MODEL),
+      model: anthropic(AI_MODEL),
       system: systemPrompt,
       prompt,
       temperature,
-      maxTokens,
+      maxOutputTokens: maxTokens,
     });
 
     if (!result.text) throw new Error("No text generated from AI");
 
-    console.log(`[AI] Generated ${result.usage?.completionTokens ?? "?"} tokens`);
+    console.log(`[AI] Generated ${result.usage?.outputTokens ?? "?"} tokens`);
     return result.text;
   }
 
