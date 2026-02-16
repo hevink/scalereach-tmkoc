@@ -31,8 +31,8 @@ export const BRAND_COLORS = {
   textWhite: '#111827',
   textPrimary: '#1f2937',
   textSecondary: '#4b5563',
-  textMuted: '#9ca3af',
-  textDim: '#d1d5db',
+  textMuted: '#6b7280',
+  textDim: '#9ca3af',
 
   // Borders
   border: '#e5e7eb',
