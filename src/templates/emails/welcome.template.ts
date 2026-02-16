@@ -76,7 +76,7 @@ export function welcomeEmailTemplate(params: WelcomeEmailParams): string {
     <tr>
       <td align="center" style="padding: 0 20px;">
         <!-- Main container -->
-        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: separate; border-spacing: 0; border-radius: 16px; border: 1px solid ${BRAND_COLORS.border}; overflow: hidden;">
+        <table role="presentation" style="width: 100%; max-width: 600px; border-collapse: separate; border-spacing: 0; border-radius: 16px; overflow: hidden;">
 
           <!-- Hero section with background image -->
           <tr>
