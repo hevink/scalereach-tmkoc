@@ -148,6 +148,7 @@ export class VideoController {
           clipDurationMax: config.clipDurationMax ?? 90,
           timeframeStart: config.timeframeStart ?? 0,
           timeframeEnd: config.timeframeEnd ?? null,
+          language: config.language ?? null,
           enableAutoHook: config.enableAutoHook ?? true,
           clipType: config.clipType ?? "viral-clips",
           customPrompt: config.customPrompt ?? "",
@@ -155,6 +156,15 @@ export class VideoController {
           captionTemplateId: config.captionTemplateId ?? "karaoke",
           aspectRatio: config.aspectRatio ?? "9:16",
           enableWatermark: config.enableWatermark ?? true,
+          // Editing Options
+          enableCaptions: config.enableCaptions ?? true,
+          enableEmojis: config.enableEmojis ?? false,
+          enableIntroTitle: config.enableIntroTitle ?? false,
+          // Split-Screen Options
+          enableSplitScreen: config.enableSplitScreen ?? false,
+          splitScreenBgVideoId: config.splitScreenBgVideoId ?? null,
+          splitScreenBgCategoryId: config.splitScreenBgCategoryId ?? null,
+          splitRatio: config.splitRatio ?? 50,
         });
 
         // Start processing immediately

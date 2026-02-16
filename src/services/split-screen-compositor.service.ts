@@ -29,18 +29,19 @@ export class SplitScreenCompositorService {
 
   /**
    * Build FFmpeg filter_complex string for split-screen layout.
-   * Scales and crops both streams, then vstacks them.
+   * Background fills entire frame, main video overlaid on top portion.
    */
   static buildFilterComplex(options: SplitScreenOptions): string {
     const topHeight = Math.round(options.targetHeight * (options.splitRatio / 100));
-    const bottomHeight = options.targetHeight - topHeight;
     const w = options.targetWidth;
+    const h = options.targetHeight;
 
-    // Scale to fill width, maintain aspect ratio, then center-crop to exact dimensions
+    // Background: scale to fill entire frame (1080x1920)
+    // Main video: scale to fit top portion, then overlay it
     return [
-      `[0:v]scale=${w}:${topHeight}:force_original_aspect_ratio=increase,crop=${w}:${topHeight}[top]`,
-      `[1:v]scale=${w}:${bottomHeight}:force_original_aspect_ratio=increase,crop=${w}:${bottomHeight}[bottom]`,
-      `[top][bottom]vstack=inputs=2[out]`,
+      `[1:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}[bg]`,
+      `[0:v]scale=${w}:${topHeight}:force_original_aspect_ratio=increase,crop=${w}:${topHeight}[main]`,
+      `[bg][main]overlay=0:0[out]`,
     ].join(";");
   }
 

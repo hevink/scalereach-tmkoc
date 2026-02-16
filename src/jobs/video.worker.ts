@@ -787,22 +787,22 @@ async function processUploadedVideo(
       `[VIDEO WORKER] Uploaded video processing complete: ${videoId}, found ${viralClips.length} viral clips (generation queued)`
     );
 
-    // Send email notification when video processing is done
-    try {
-      const user = await UserModel.getById(userId);
-      if (user?.email) {
-        await emailService.sendVideoProcessedNotification({
-          to: user.email,
-          userName: user.name || user.email.split("@")[0],
-          videoTitle: videoRecord[0].title || "Your video",
-          clipCount: viralClips.length,
-          videoId: videoId,
-        });
-        console.log(`[VIDEO WORKER] Email notificationnt to: ${user.email}`);
-      }
-    } catch (emailError) {
-      console.error(`[VIDEO WORKER] Failed to send email notification:`, emailError);
-    }
+    // // Send email notification when video processing is done
+    // try {
+    //   const user = await UserModel.getById(userId);
+    //   if (user?.email) {
+    //     await emailService.sendVideoProcessedNotification({
+    //       to: user.email,
+    //       userName: user.name || user.email.split("@")[0],
+    //       videoTitle: videoRecord[0].title || "Your video",
+    //       clipCount: viralClips.length,
+    //       videoId: videoId,
+    //     });
+    //     console.log(`[VIDEO WORKER] Email notificationnt to: ${user.email}`);
+    //   }
+    // } catch (emailError) {
+    //   console.error(`[VIDEO WORKER] Failed to send email notification:`, emailError);
+    // }
   } catch (error) {
     console.error(`[VIDEO WORKER] Error processing uploaded video ${videoId}:`, error);
 
