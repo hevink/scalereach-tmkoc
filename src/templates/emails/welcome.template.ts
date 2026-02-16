@@ -86,7 +86,7 @@ export function welcomeEmailTemplate(params: WelcomeEmailParams): string {
               <v:fill type="frame" src="${HERO_BG}" />
               <v:textbox style="mso-fit-shape-to-text:true" inset="0,0,0,0">
               <![endif]-->
-              <div style="background: linear-gradient(180deg, rgba(0,0,0,0.65) 0%, rgba(10,10,11,1) 100%); padding: 48px 40px 40px;">
+              <div style="background: linear-gradient(180deg, rgba(0,0,0,0.2) 0%, rgba(10,10,11,0.7) 60%, rgba(10,10,11,0.95) 100%); padding: 48px 40px 40px;">
                 <!-- Welcome icon -->
                 <div style="text-align: center; margin-bottom: 24px;">
                   ${EMAIL_ICONS.welcome}
