@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "../db";
 import { video, viralClip } from "../db/schema";
-import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
+import { YouTubeService, MAX_VIDEO_DURATION_SECONDS, getQualityFromHeight } from "../services/youtube.service";
 import { R2Service } from "../services/r2.service";
 import { DeepgramService } from "../services/deepgram.service";
 import { ViralDetectionService } from "../services/viral-detection.service";
@@ -99,6 +99,10 @@ async function processYouTubeVideo(
     }
     
     const { stream, videoInfo, mimeType } = streamResult;
+
+    // Determine best output quality based on source video resolution
+    const clipQuality = getQualityFromHeight(videoInfo.videoHeight);
+    console.log(`[VIDEO WORKER] Source video height: ${videoInfo.videoHeight ?? 'unknown'}p, clip quality: ${clipQuality}`);
 
     await job.updateProgress(30);
     console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
@@ -348,7 +352,7 @@ async function processYouTubeVideo(
           startTime: clipRecord.startTime,
           endTime: clipRecord.endTime,
           aspectRatio: aspectRatio,
-          quality: "1080p",
+          quality: clipQuality,
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
           introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
@@ -531,6 +535,10 @@ async function processUploadedVideo(
       }
       // Continue without metadata - we'll try to process anyway
     }
+
+    // Determine best output quality based on source video resolution
+    const uploadClipQuality = getQualityFromHeight(videoMetadata?.height);
+    console.log(`[VIDEO WORKER] Source video height: ${videoMetadata?.height ?? 'unknown'}p, clip quality: ${uploadClipQuality}`);
 
     await job.updateProgress(20);
 
@@ -765,7 +773,7 @@ async function processUploadedVideo(
           startTime: clipRecord.startTime,
           endTime: clipRecord.endTime,
           aspectRatio: aspectRatio,
-          quality: "1080p",
+          quality: uploadClipQuality,
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
           introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,

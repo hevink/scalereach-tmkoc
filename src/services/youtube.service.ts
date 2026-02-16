@@ -9,6 +9,8 @@ export interface YouTubeVideoInfo {
   thumbnail: string;
   channelName: string;
   description: string;
+  /** Best available video height (e.g. 720, 1080, 2160) — only set via yt-dlp */
+  videoHeight?: number;
 }
 
 export interface StreamResult {
@@ -24,6 +26,15 @@ export interface ValidationResult {
 
 // Maximum video duration: 4 hours in seconds
 export const MAX_VIDEO_DURATION_SECONDS = 14400;
+
+/**
+ * Determine the best output quality based on source video height.
+ * Returns "4k" if source is >= 2160p, "1080p" otherwise (default).
+ */
+export function getQualityFromHeight(videoHeight?: number): "720p" | "1080p" | "4k" {
+  if (videoHeight && videoHeight >= 2160) return "4k";
+  return "1080p";
+}
 
 export class YouTubeService {
   /**
@@ -224,6 +235,17 @@ export class YouTubeService {
           }
 
           // ===============================
+          // Detect best available video height (for quality selection)
+          // ===============================
+          const bestVideoHeight = info.formats
+            ?.filter((f: any) => f.vcodec && f.vcodec !== "none" && f.height)
+            ?.reduce((max: number, f: any) => Math.max(max, f.height), 0) || undefined;
+
+          if (bestVideoHeight) {
+            console.log(`[YOUTUBE SERVICE] Best available video height: ${bestVideoHeight}p`);
+          }
+
+          // ===============================
           // EXISTING RETURN
           // ===============================
           resolve({
@@ -233,6 +255,7 @@ export class YouTubeService {
             thumbnail: info.thumbnail,
             channelName: info.channel || info.uploader,
             description: info.description,
+            videoHeight: bestVideoHeight,
           });
 
         } catch (e) {
