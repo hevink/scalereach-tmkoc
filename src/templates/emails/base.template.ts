@@ -1,7 +1,7 @@
 /**
  * Base Email Template
  *
- * Provides a consistent wrapper layout for all ScaleReach emails.
+ * Dark, modern design matching scalereach.ai landing page.
  * Uses inline CSS for maximum email client compatibility.
  */
 
@@ -12,28 +12,176 @@ export interface BaseTemplateOptions {
 }
 
 /**
- * Brand colors used across all email templates
+ * Brand colors matching scalereach.ai dark theme
  */
 export const BRAND_COLORS = {
-  primary: '#18181b',
-  primaryHover: '#27272a',
-  textDark: '#18181b',
-  textGray: '#52525b',
-  textLight: '#71717a',
-  textMuted: '#a1a1aa',
-  linkBlue: '#3b82f6',
-  border: '#e4e4e7',
-  background: '#f4f4f5',
-  white: '#ffffff',
+  // Primary brand
+  primary: '#2553CB',
+  primaryLight: '#3b6ef5',
+  primaryDark: '#1a3d99',
+
+  // Backgrounds
+  bgBody: '#0a0a0b',
+  bgCard: '#141416',
+  bgCardAlt: '#1a1a1e',
+  bgMuted: '#1e1e22',
+  bgElevated: '#222226',
+
+  // Text
+  textWhite: '#f5f5f7',
+  textPrimary: '#e4e4e7',
+  textSecondary: '#a1a1aa',
+  textMuted: '#71717a',
+  textDim: '#52525b',
+
+  // Borders
+  border: 'rgba(255, 255, 255, 0.08)',
+  borderLight: 'rgba(255, 255, 255, 0.12)',
+  borderAccent: 'rgba(37, 83, 203, 0.3)',
+
+  // Accents
+  linkBlue: '#6d9fff',
   success: '#22c55e',
+  successBg: 'rgba(34, 197, 94, 0.1)',
+  successBorder: 'rgba(34, 197, 94, 0.2)',
   warning: '#f59e0b',
+  warningBg: 'rgba(245, 158, 11, 0.1)',
+  warningBorder: 'rgba(245, 158, 11, 0.2)',
   error: '#ef4444',
+  infoBg: 'rgba(37, 83, 203, 0.1)',
+  infoBorder: 'rgba(37, 83, 203, 0.2)',
+
+  white: '#ffffff',
 } as const;
 
 /**
  * Font stack for email templates
  */
 export const FONT_STACK = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+
+/**
+ * Colorful SVG icons for email templates (64x64, with gradient fills)
+ */
+export const EMAIL_ICONS = {
+  // Welcome - Rocket icon (blue-purple gradient)
+  welcome: `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="32" fill="url(#welcome_bg)"/>
+    <path d="M32 16c-4 6-6 12-6 18h12c0-6-2-12-6-18z" fill="white" opacity="0.95"/>
+    <path d="M26 34c-3 2-5 5-5 8h6v-8z" fill="white" opacity="0.7"/>
+    <path d="M38 34c3 2 5 5 5 8h-6v-8z" fill="white" opacity="0.7"/>
+    <circle cx="32" cy="28" r="3" fill="url(#welcome_bg2)"/>
+    <path d="M29 42h6v6l-3 2-3-2v-6z" fill="white" opacity="0.9"/>
+    <defs>
+      <linearGradient id="welcome_bg" x1="0" y1="0" x2="64" y2="64"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#2553CB"/></linearGradient>
+      <linearGradient id="welcome_bg2" x1="29" y1="25" x2="35" y2="31"><stop stop-color="#6366f1"/><stop offset="1" stop-color="#2553CB"/></linearGradient>
+    </defs>
+  </svg>`,
+
+  // Password Reset - Shield lock icon (amber-orange gradient)
+  passwordReset: `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="32" fill="url(#lock_bg)"/>
+    <path d="M22 28V25c0-5.523 4.477-10 10-10s10 4.477 10 10v3" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+    <rect x="20" y="28" width="24" height="18" rx="4" fill="white" opacity="0.95"/>
+    <circle cx="32" cy="36" r="3" fill="url(#lock_dot)"/>
+    <path d="M32 39v4" stroke="url(#lock_dot)" stroke-width="2.5" stroke-linecap="round"/>
+    <defs>
+      <linearGradient id="lock_bg" x1="0" y1="0" x2="64" y2="64"><stop stop-color="#f59e0b"/><stop offset="1" stop-color="#ea580c"/></linearGradient>
+      <linearGradient id="lock_dot" x1="29" y1="33" x2="35" y2="43"><stop stop-color="#f59e0b"/><stop offset="1" stop-color="#ea580c"/></linearGradient>
+    </defs>
+  </svg>`,
+
+  // Invitation - Envelope with star (blue-cyan gradient)
+  invitation: `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="32" fill="url(#invite_bg)"/>
+    <rect x="16" y="22" width="32" height="22" rx="3" fill="white" opacity="0.95"/>
+    <path d="M16 25l16 11 16-11" stroke="url(#invite_line)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="44" cy="20" r="8" fill="#fbbf24"/>
+    <path d="M44 15l1.5 3 3.5.5-2.5 2.5.5 3.5-3-1.5-3 1.5.5-3.5-2.5-2.5 3.5-.5z" fill="white"/>
+    <defs>
+      <linearGradient id="invite_bg" x1="0" y1="0" x2="64" y2="64"><stop stop-color="#06b6d4"/><stop offset="1" stop-color="#2553CB"/></linearGradient>
+      <linearGradient id="invite_line" x1="16" y1="25" x2="48" y2="36"><stop stop-color="#06b6d4"/><stop offset="1" stop-color="#2553CB"/></linearGradient>
+    </defs>
+  </svg>`,
+
+  // Clip Ready - Scissors cutting film strip (violet-pink gradient)
+  clipReady: `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="32" fill="url(#clip_bg)"/>
+    <rect x="14" y="22" width="36" height="20" rx="3" fill="white" opacity="0.95"/>
+    <rect x="14" y="22" width="8" height="20" rx="1" fill="white" opacity="0.5"/>
+    <rect x="42" y="22" width="8" height="20" rx="1" fill="white" opacity="0.5"/>
+    <rect x="17" y="25" width="2" height="4" rx="0.5" fill="url(#clip_hole)"/>
+    <rect x="17" y="31" width="2" height="4" rx="0.5" fill="url(#clip_hole)"/>
+    <rect x="17" y="37" width="2" height="4" rx="0.5" fill="url(#clip_hole)"/>
+    <rect x="45" y="25" width="2" height="4" rx="0.5" fill="url(#clip_hole)"/>
+    <rect x="45" y="31" width="2" height="4" rx="0.5" fill="url(#clip_hole)"/>
+    <rect x="45" y="37" width="2" height="4" rx="0.5" fill="url(#clip_hole)"/>
+    <path d="M28 28v8l8-4z" fill="url(#clip_play)"/>
+    <circle cx="48" cy="18" r="8" fill="#fbbf24"/>
+    <path d="M46 15.5l1.5 2 3-3.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <defs>
+      <linearGradient id="clip_bg" x1="0" y1="0" x2="64" y2="64"><stop stop-color="#a855f7"/><stop offset="1" stop-color="#ec4899"/></linearGradient>
+      <linearGradient id="clip_hole" x1="17" y1="25" x2="19" y2="41"><stop stop-color="#a855f7"/><stop offset="1" stop-color="#ec4899"/></linearGradient>
+      <linearGradient id="clip_play" x1="28" y1="28" x2="36" y2="36"><stop stop-color="#a855f7"/><stop offset="1" stop-color="#ec4899"/></linearGradient>
+    </defs>
+  </svg>`,
+
+  // Verification - Mail with checkmark (blue gradient)
+  verification: `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="32" fill="url(#verify_bg)"/>
+    <rect x="16" y="22" width="32" height="22" rx="3" fill="white" opacity="0.95"/>
+    <path d="M16 25l16 11 16-11" stroke="url(#verify_line)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="44" cy="20" r="8" fill="#22c55e"/>
+    <path d="M40.5 20l2.5 2.5 4.5-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <defs>
+      <linearGradient id="verify_bg" x1="0" y1="0" x2="64" y2="64"><stop stop-color="#3b82f6"/><stop offset="1" stop-color="#2553CB"/></linearGradient>
+      <linearGradient id="verify_line" x1="16" y1="25" x2="48" y2="36"><stop stop-color="#3b82f6"/><stop offset="1" stop-color="#2553CB"/></linearGradient>
+    </defs>
+  </svg>`,
+
+  // Video Processed - Film reel with sparkle (teal-emerald gradient)
+  videoProcessed: `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="32" fill="url(#video_bg)"/>
+    <rect x="18" y="20" width="28" height="24" rx="3" fill="white" opacity="0.95"/>
+    <rect x="22" y="24" width="20" height="12" rx="1.5" fill="url(#video_screen)"/>
+    <path d="M30 28v4l4-2z" fill="white"/>
+    <circle cx="24" cy="40" r="2" fill="url(#video_screen)"/>
+    <circle cx="32" cy="40" r="2" fill="url(#video_screen)"/>
+    <circle cx="40" cy="40" r="2" fill="url(#video_screen)"/>
+    <circle cx="46" cy="18" r="7" fill="#fbbf24"/>
+    <path d="M46 13l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z" fill="white"/>
+    <defs>
+      <linearGradient id="video_bg" x1="0" y1="0" x2="64" y2="64"><stop stop-color="#14b8a6"/><stop offset="1" stop-color="#059669"/></linearGradient>
+      <linearGradient id="video_screen" x1="22" y1="24" x2="42" y2="36"><stop stop-color="#14b8a6"/><stop offset="1" stop-color="#059669"/></linearGradient>
+    </defs>
+  </svg>`,
+
+  // All Clips Ready - Clapperboard with download (emerald-green gradient)
+  allClipsReady: `<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="32" cy="32" r="32" fill="url(#clips_bg)"/>
+    <path d="M18 20h28l-4 8H18z" fill="white" opacity="0.7"/>
+    <path d="M22 20l4 8M30 20l4 8M38 20l4 8" stroke="url(#clips_stripe)" stroke-width="1.5"/>
+    <rect x="18" y="28" width="28" height="16" rx="2" fill="white" opacity="0.95"/>
+    <circle cx="32" cy="36" r="6" fill="url(#clips_dl)"/>
+    <path d="M32 33v5M30 36l2 2 2-2" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <defs>
+      <linearGradient id="clips_bg" x1="0" y1="0" x2="64" y2="64"><stop stop-color="#10b981"/><stop offset="1" stop-color="#047857"/></linearGradient>
+      <linearGradient id="clips_stripe" x1="22" y1="20" x2="42" y2="28"><stop stop-color="#10b981"/><stop offset="1" stop-color="#047857"/></linearGradient>
+      <linearGradient id="clips_dl" x1="26" y1="30" x2="38" y2="42"><stop stop-color="#10b981"/><stop offset="1" stop-color="#047857"/></linearGradient>
+    </defs>
+  </svg>`,
+} as const;
+
+/**
+ * Helper to wrap an icon SVG in a centered container
+ */
+export function emailIcon(icon: string): string {
+  return `<div style="text-align: center; margin-bottom: 24px;">${icon}</div>`;
+}
+
+/**
+ * ScaleReach logo as inline SVG (from scalereach.ai/logo.svg)
+ */
+export const LOGO_SVG = `<svg width="36" height="36" viewBox="3 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#c)"><rect x="3" width="48" height="48" rx="12" fill="#2553CB"/><rect width="48" height="48" transform="translate(3)" fill="url(#a)"/><g><rect opacity="0.8" x="15.45" y="20.4" width="7.2" height="7.2" fill="url(#b1)"/><rect opacity="0.8" x="38.55" y="27.6" width="7.2" height="7.2" transform="rotate(180 38.55 27.6)" fill="url(#b2)"/><path opacity="0.2" d="M22.65 20.4L31.35 13.2V20.4L22.65 27.6V20.4Z" fill="url(#b3)"/><path opacity="0.4" d="M31.35 27.6L22.65 34.8V27.6L31.35 20.4V27.6Z" fill="url(#b4)"/><path opacity="0.6" d="M15.45 20.4L31.35 6V13.2L22.65 20.4H15.45Z" fill="url(#b5)"/><path opacity="0.7" d="M38.55 27.6L22.65 42V34.8L31.35 27.6H38.55Z" fill="url(#b6)"/></g></g><rect x="4" y="1" width="46" height="46" rx="11" stroke="url(#s)" stroke-width="2"/><defs><linearGradient id="a" x1="24" y1="0" x2="26" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0"/><stop offset="1" stop-color="white" stop-opacity="0.12"/></linearGradient><linearGradient id="b1" x1="19" y1="20.4" x2="19" y2="27.6" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0.8"/><stop offset="1" stop-color="white" stop-opacity="0.5"/></linearGradient><linearGradient id="b2" x1="42" y1="27.6" x2="42" y2="34.8" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0.8"/><stop offset="1" stop-color="white" stop-opacity="0.5"/></linearGradient><linearGradient id="b3" x1="27" y1="13.2" x2="27" y2="27.6" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0.8"/><stop offset="1" stop-color="white" stop-opacity="0.5"/></linearGradient><linearGradient id="b4" x1="27" y1="34.8" x2="27" y2="20.4" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0.8"/><stop offset="1" stop-color="white" stop-opacity="0.5"/></linearGradient><linearGradient id="b5" x1="23.4" y1="6" x2="23.4" y2="20.4" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0.8"/><stop offset="1" stop-color="white" stop-opacity="0.5"/></linearGradient><linearGradient id="b6" x1="30.6" y1="42" x2="30.6" y2="27.6" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0.8"/><stop offset="1" stop-color="white" stop-opacity="0.5"/></linearGradient><linearGradient id="s" x1="27" y1="0" x2="27" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="white" stop-opacity="0.12"/><stop offset="1" stop-color="white" stop-opacity="0"/></linearGradient><clipPath id="c"><rect x="3" width="48" height="48" rx="12" fill="white"/></clipPath></defs></svg>`;
 
 /**
  * Generate the base email wrapper with header and footer
@@ -50,6 +198,8 @@ export function baseTemplate(options: BaseTemplateOptions): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
   <title>ScaleReach</title>
   <!--[if mso]>
   <style type="text/css">
@@ -58,7 +208,7 @@ export function baseTemplate(options: BaseTemplateOptions): string {
   </style>
   <![endif]-->
 </head>
-<body style="margin: 0; padding: 0; font-family: ${FONT_STACK}; background-color: ${BRAND_COLORS.background}; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+<body style="margin: 0; padding: 0; font-family: ${FONT_STACK}; background-color: ${BRAND_COLORS.bgBody}; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; color: ${BRAND_COLORS.textPrimary};">
   ${preheaderText ? `
   <!-- Preheader text (hidden) -->
   <div style="display: none; max-height: 0; overflow: hidden; mso-hide: all;">
@@ -68,7 +218,7 @@ export function baseTemplate(options: BaseTemplateOptions): string {
   ` : ''}
 
   <!-- Email wrapper -->
-  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${BRAND_COLORS.background};">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${BRAND_COLORS.bgBody};">
     <tr>
       <td align="center" style="padding: 40px 20px;">
         <!-- Email container -->
@@ -79,11 +229,20 @@ export function baseTemplate(options: BaseTemplateOptions): string {
             <td align="center" style="padding: 0 0 32px;">
               <table role="presentation" style="border-collapse: collapse;">
                 <tr>
-                  <td style="padding: 0;">
-                    <!-- ScaleReach Logo/Brand -->
-                    <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: ${BRAND_COLORS.primary}; letter-spacing: -0.5px;">
-                      Scale<span style="color: ${BRAND_COLORS.linkBlue};">Reach</span>
-                    </h1>
+                  <td style="padding: 0;" align="center">
+                    <!-- Logo + Brand -->
+                    <table role="presentation" style="border-collapse: collapse;">
+                      <tr>
+                        <td style="vertical-align: middle; padding-right: 10px;">
+                          ${LOGO_SVG}
+                        </td>
+                        <td style="vertical-align: middle;">
+                          <span style="font-size: 24px; font-weight: 700; color: ${BRAND_COLORS.textWhite}; letter-spacing: -0.5px;">
+                            Scale<span style="color: ${BRAND_COLORS.primaryLight};">Reach</span>
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                 </tr>
               </table>
@@ -93,7 +252,7 @@ export function baseTemplate(options: BaseTemplateOptions): string {
           <!-- Main content card -->
           <tr>
             <td>
-              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${BRAND_COLORS.white}; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);">
+              <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${BRAND_COLORS.bgCard};  border: 1px solid ${BRAND_COLORS.border};">
                 <tr>
                   <td style="padding: 40px;">
                     ${content}
@@ -110,14 +269,14 @@ export function baseTemplate(options: BaseTemplateOptions): string {
                 <tr>
                   <td align="center" style="padding: 0;">
                     ${footerText ? `
-                    <p style="margin: 0 0 16px; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textLight};">
+                    <p style="margin: 0 0 16px; font-size: 13px; line-height: 20px; color: ${BRAND_COLORS.textMuted};">
                       ${footerText}
                     </p>
                     ` : ''}
-                    <p style="margin: 0 0 8px; font-size: 12px; color: ${BRAND_COLORS.textMuted};">
+                    <p style="margin: 0 0 8px; font-size: 12px; color: ${BRAND_COLORS.textDim};">
                       &copy; ${currentYear} ScaleReach. All rights reserved.
                     </p>
-                    <p style="margin: 0; font-size: 12px; color: ${BRAND_COLORS.textMuted};">
+                    <p style="margin: 0; font-size: 12px; color: ${BRAND_COLORS.textDim};">
                       Transform your long-form content into viral short clips.
                     </p>
                   </td>
@@ -135,14 +294,14 @@ export function baseTemplate(options: BaseTemplateOptions): string {
 }
 
 /**
- * Generate a primary CTA button
+ * Generate a primary CTA button (white on dark, matching landing page hero CTA)
  */
 export function primaryButton(text: string, href: string): string {
   return `
 <table role="presentation" style="border-collapse: collapse;">
   <tr>
-    <td style="border-radius: 8px; background-color: ${BRAND_COLORS.primary};">
-      <a href="${href}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 16px; font-weight: 600; color: ${BRAND_COLORS.white}; text-decoration: none; border-radius: 8px;">
+    <td style="border-radius: 50px; background-color: ${BRAND_COLORS.white};">
+      <a href="${href}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: ${BRAND_COLORS.bgBody}; text-decoration: none; border-radius: 50px; letter-spacing: -0.2px;">
         ${text}
       </a>
     </td>
@@ -151,14 +310,30 @@ export function primaryButton(text: string, href: string): string {
 }
 
 /**
- * Generate a secondary/outline button
+ * Generate a secondary button (outline style)
  */
 export function secondaryButton(text: string, href: string): string {
   return `
 <table role="presentation" style="border-collapse: collapse;">
   <tr>
-    <td style="border-radius: 8px; border: 2px solid ${BRAND_COLORS.border};">
-      <a href="${href}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 14px; font-weight: 500; color: ${BRAND_COLORS.textGray}; text-decoration: none; border-radius: 6px;">
+    <td style="border-radius: 50px; border: 1px solid ${BRAND_COLORS.borderLight};">
+      <a href="${href}" target="_blank" style="display: inline-block; padding: 12px 28px; font-size: 14px; font-weight: 500; color: ${BRAND_COLORS.textSecondary}; text-decoration: none; border-radius: 50px;">
+        ${text}
+      </a>
+    </td>
+  </tr>
+</table>`;
+}
+
+/**
+ * Generate a brand-colored CTA button (blue primary)
+ */
+export function brandButton(text: string, href: string): string {
+  return `
+<table role="presentation" style="border-collapse: collapse;">
+  <tr>
+    <td style="border-radius: 50px; background-color: ${BRAND_COLORS.primary};">
+      <a href="${href}" target="_blank" style="display: inline-block; padding: 14px 32px; font-size: 15px; font-weight: 600; color: ${BRAND_COLORS.white}; text-decoration: none; border-radius: 50px; letter-spacing: -0.2px;">
         ${text}
       </a>
     </td>
@@ -181,25 +356,25 @@ export function divider(): string {
 }
 
 /**
- * Generate an info box/callout
+ * Generate an info box/callout (dark theme)
  */
 export function infoBox(content: string, type: 'info' | 'success' | 'warning' = 'info'): string {
   const bgColors = {
-    info: '#eff6ff',
-    success: '#f0fdf4',
-    warning: '#fffbeb',
+    info: BRAND_COLORS.infoBg,
+    success: BRAND_COLORS.successBg,
+    warning: BRAND_COLORS.warningBg,
   };
   const borderColors = {
-    info: '#bfdbfe',
-    success: '#bbf7d0',
-    warning: '#fde68a',
+    info: BRAND_COLORS.infoBorder,
+    success: BRAND_COLORS.successBorder,
+    warning: BRAND_COLORS.warningBorder,
   };
 
   return `
 <table role="presentation" style="width: 100%; border-collapse: collapse;">
   <tr>
     <td style="padding: 16px; background-color: ${bgColors[type]}; border: 1px solid ${borderColors[type]}; border-radius: 8px;">
-      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textGray};">
+      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textSecondary};">
         ${content}
       </p>
     </td>

@@ -4,7 +4,7 @@
  * Sent to users when their clip has finished generating and is ready to view/download.
  */
 
-import { baseTemplate, primaryButton, secondaryButton, divider, infoBox, BRAND_COLORS, FONT_STACK } from './base.template';
+import { baseTemplate, primaryButton, divider, infoBox, BRAND_COLORS, FONT_STACK, EMAIL_ICONS, emailIcon } from './base.template';
 
 export interface ClipReadyEmailParams {
   userName: string;
@@ -30,9 +30,9 @@ function formatDuration(seconds: number): string {
  * Get virality score color based on value
  */
 function getScoreColor(score: number): string {
-  if (score >= 80) return '#22c55e'; // green
-  if (score >= 60) return '#f59e0b'; // amber
-  return '#6b7280'; // gray
+  if (score >= 80) return BRAND_COLORS.success;
+  if (score >= 60) return BRAND_COLORS.warning;
+  return BRAND_COLORS.textMuted;
 }
 
 /**
@@ -51,25 +51,20 @@ export function clipReadyEmailTemplate(params: ClipReadyEmailParams): string {
   } = params;
 
   const content = `
-    <!-- Success indicator -->
-    <div style="text-align: center; margin-bottom: 24px;">
-      <div style="display: inline-block; width: 64px; height: 64px; background-color: #f0fdf4; border-radius: 50%; line-height: 64px;">
-        <span style="font-size: 32px; color: #22c55e;">&#10003;</span>
-      </div>
-    </div>
+    ${emailIcon(EMAIL_ICONS.clipReady)}
 
     <!-- Heading -->
-    <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textDark}; font-family: ${FONT_STACK}; text-align: center;">
+    <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: ${FONT_STACK}; text-align: center;">
       Your Clip is Ready!
     </h1>
-    <p style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textGray}; text-align: center;">
+    <p style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary}; text-align: center;">
       Hi ${userName}, your clip has finished processing and is ready to view.
     </p>
 
     ${divider()}
 
     <!-- Clip preview card -->
-    <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${BRAND_COLORS.background}; border-radius: 12px; overflow: hidden; margin-bottom: 24px;">
+    <table role="presentation" style="width: 100%; border-collapse: separate; border-spacing: 0; background-color: ${BRAND_COLORS.bgMuted};  border: 1px solid ${BRAND_COLORS.border}; margin-bottom: 24px;">
       ${thumbnailUrl ? `
       <tr>
         <td style="padding: 0;">
@@ -80,13 +75,13 @@ export function clipReadyEmailTemplate(params: ClipReadyEmailParams): string {
       <tr>
         <td style="padding: 20px;">
           <!-- Clip title -->
-          <h2 style="margin: 0 0 12px; font-size: 18px; font-weight: 600; color: ${BRAND_COLORS.textDark}; font-family: ${FONT_STACK};">
+          <h2 style="margin: 0 0 12px; font-size: 18px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: ${FONT_STACK};">
             ${clipTitle}
           </h2>
 
           ${projectName ? `
-          <p style="margin: 0 0 16px; font-size: 13px; color: ${BRAND_COLORS.textLight};">
-            From project: <strong>${projectName}</strong>
+          <p style="margin: 0 0 16px; font-size: 13px; color: ${BRAND_COLORS.textMuted};">
+            From project: <strong style="color: ${BRAND_COLORS.textSecondary};">${projectName}</strong>
           </p>
           ` : ''}
 
@@ -95,26 +90,26 @@ export function clipReadyEmailTemplate(params: ClipReadyEmailParams): string {
             <tr>
               <!-- Duration -->
               <td style="width: 33%; padding: 8px 0;">
-                <p style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: ${BRAND_COLORS.textMuted};">
+                <p style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: ${BRAND_COLORS.textDim};">
                   Duration
                 </p>
-                <p style="margin: 0; font-size: 16px; font-weight: 600; color: ${BRAND_COLORS.textDark};">
+                <p style="margin: 0; font-size: 16px; font-weight: 600; color: ${BRAND_COLORS.textWhite};">
                   ${formatDuration(clipDuration)}
                 </p>
               </td>
               <!-- Aspect Ratio -->
               <td style="width: 33%; padding: 8px 0;">
-                <p style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: ${BRAND_COLORS.textMuted};">
+                <p style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: ${BRAND_COLORS.textDim};">
                   Format
                 </p>
-                <p style="margin: 0; font-size: 16px; font-weight: 600; color: ${BRAND_COLORS.textDark};">
+                <p style="margin: 0; font-size: 16px; font-weight: 600; color: ${BRAND_COLORS.textWhite};">
                   ${aspectRatio}
                 </p>
               </td>
               ${viralityScore !== undefined ? `
               <!-- Virality Score -->
               <td style="width: 33%; padding: 8px 0;">
-                <p style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: ${BRAND_COLORS.textMuted};">
+                <p style="margin: 0 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: ${BRAND_COLORS.textDim};">
                   Viral Score
                 </p>
                 <p style="margin: 0; font-size: 16px; font-weight: 600; color: ${getScoreColor(viralityScore)};">
@@ -131,7 +126,7 @@ export function clipReadyEmailTemplate(params: ClipReadyEmailParams): string {
     <!-- CTA Buttons -->
     <table role="presentation" style="width: 100%; border-collapse: collapse;">
       <tr>
-        <td align="center" style="padding-bottom: 12px;">
+        <td align="center" style="padding-top: 24px; padding-bottom: 12px;">
           ${primaryButton('View & Download Clip', viewClipUrl)}
         </td>
       </tr>
@@ -141,11 +136,11 @@ export function clipReadyEmailTemplate(params: ClipReadyEmailParams): string {
 
     <!-- Tips section -->
     ${infoBox(
-      `<strong>Pro tip:</strong> Share your clip within the first hour of posting for maximum engagement. The best times to post are typically 7-9 AM and 7-11 PM in your target audience's timezone.`,
+      `<strong style="color: ${BRAND_COLORS.textPrimary};">Pro tip:</strong> Share your clip within the first hour of posting for maximum engagement. The best times to post are typically 7-9 AM and 7-11 PM in your target audience's timezone.`,
       'info'
     )}
 
-    <p style="margin: 24px 0 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textLight}; text-align: center;">
+    <p style="margin: 24px 0 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textMuted}; text-align: center;">
       Want to create more clips?
       <a href="${viewClipUrl.replace(/\/clips\/.*/, '')}" style="color: ${BRAND_COLORS.linkBlue}; text-decoration: none;">Go to your dashboard</a>
     </p>

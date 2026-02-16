@@ -13,6 +13,8 @@ import {
   divider,
   BRAND_COLORS,
   FONT_STACK,
+  EMAIL_ICONS,
+  emailIcon,
 } from "../templates/emails";
 
 interface EmailConfig {
@@ -68,13 +70,12 @@ class EmailService {
   async sendEmail(options: SendEmailOptions): Promise<boolean> {
     if (!this.transporter) {
       console.warn("[EMAIL SERVICE] Transporter not configured. Skipping email.");
-      // In development, log the email content
       console.log("\n========================================");
       console.log("[EMAIL SERVICE] Would send email:");
       console.log("To:", options.to);
       console.log("Subject:", options.subject);
       console.log("========================================\n");
-      return true; // Return true in dev mode to not block the flow
+      return true;
     }
 
     try {
@@ -279,20 +280,14 @@ class EmailService {
 
     const subject = "Verify your ScaleReach email";
 
-    // Use the base template for verification email
     const content = `
-      <!-- Verification icon -->
-      <div style="text-align: center; margin-bottom: 24px;">
-        <div style="display: inline-block; width: 64px; height: 64px; background-color: #eff6ff; border-radius: 50%; line-height: 64px;">
-          <span style="font-size: 28px;">&#9993;</span>
-        </div>
-      </div>
+      ${emailIcon(EMAIL_ICONS.verification)}
 
       <!-- Heading -->
-      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textDark}; font-family: ${FONT_STACK}; text-align: center;">
+      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: ${FONT_STACK}; text-align: center;">
         Verify Your Email
       </h1>
-      <p style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textGray}; text-align: center;">
+      <p style="margin: 0 0 24px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary}; text-align: center;">
         Thanks for signing up! Please verify your email address to get started.
       </p>
 
@@ -306,7 +301,7 @@ class EmailService {
       </table>
 
       <!-- Link fallback -->
-      <p style="margin: 0 0 24px; font-size: 13px; color: ${BRAND_COLORS.textLight}; text-align: center;">
+      <p style="margin: 0 0 24px; font-size: 13px; color: ${BRAND_COLORS.textMuted}; text-align: center;">
         Or copy and paste this link into your browser:<br>
         <a href="${verificationUrl}" style="color: ${BRAND_COLORS.linkBlue}; text-decoration: none; word-break: break-all; font-size: 12px;">
           ${verificationUrl}
@@ -315,7 +310,7 @@ class EmailService {
 
       ${divider()}
 
-      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textLight}; text-align: center;">
+      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textMuted}; text-align: center;">
         If you didn't create an account, you can safely ignore this email.
       </p>
     `;
@@ -354,30 +349,25 @@ class EmailService {
     const subject = `Your video "${videoTitle}" is ready - ${clipCount} clips found!`;
 
     const content = `
-      <!-- Success icon -->
-      <div style="text-align: center; margin-bottom: 24px;">
-        <div style="display: inline-block; width: 64px; height: 64px; background-color: #dcfce7; border-radius: 50%; line-height: 64px;">
-          <span style="font-size: 28px;">✓</span>
-        </div>
-      </div>
+      ${emailIcon(EMAIL_ICONS.videoProcessed)}
 
       <!-- Heading -->
-      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textDark}; font-family: ${FONT_STACK}; text-align: center;">
+      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: ${FONT_STACK}; text-align: center;">
         Your Video is Ready!
       </h1>
-      <p style="margin: 0 0 8px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textGray}; text-align: center;">
+      <p style="margin: 0 0 8px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary}; text-align: center;">
         Hey ${userName}, we've finished processing your video.
       </p>
-      <p style="margin: 0 0 24px; font-size: 18px; font-weight: 600; color: ${BRAND_COLORS.textDark}; text-align: center;">
+      <p style="margin: 0 0 24px; font-size: 18px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; text-align: center;">
         "${videoTitle}"
       </p>
 
       <!-- Stats -->
-      <div style="background-color: #f8fafc; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: center;">
-        <p style="margin: 0; font-size: 32px; font-weight: 700; color: ${BRAND_COLORS.primary};">
+      <div style="background-color: ${BRAND_COLORS.bgMuted}; border: 1px solid ${BRAND_COLORS.border}; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: center;">
+        <p style="margin: 0; font-size: 32px; font-weight: 700; color: ${BRAND_COLORS.primaryLight};">
           ${clipCount}
         </p>
-        <p style="margin: 4px 0 0; font-size: 14px; color: ${BRAND_COLORS.textGray};">
+        <p style="margin: 4px 0 0; font-size: 14px; color: ${BRAND_COLORS.textSecondary};">
           viral clips detected
         </p>
       </div>
@@ -393,7 +383,7 @@ class EmailService {
 
       ${divider()}
 
-      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textLight}; text-align: center;">
+      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textMuted}; text-align: center;">
         Your clips are now being generated with captions. You'll be able to download them shortly.
       </p>
     `;
@@ -432,33 +422,28 @@ class EmailService {
     console.log(`║ Clips ready: ${clipCount}`);
     console.log("╚══════════════════════════════════════════════════════════════╝\n");
 
-    const subject = `🎬 All ${clipCount} clips are ready for "${videoTitle}"!`;
+    const subject = `All ${clipCount} clips are ready for "${videoTitle}"!`;
 
     const content = `
-      <!-- Success icon -->
-      <div style="text-align: center; margin-bottom: 24px;">
-        <div style="display: inline-block; width: 64px; height: 64px; background-color: #dcfce7; border-radius: 50%; line-height: 64px;">
-          <span style="font-size: 28px;">🎬</span>
-        </div>
-      </div>
+      ${emailIcon(EMAIL_ICONS.allClipsReady)}
 
       <!-- Heading -->
-      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textDark}; font-family: ${FONT_STACK}; text-align: center;">
+      <h1 style="margin: 0 0 8px; font-size: 24px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; font-family: ${FONT_STACK}; text-align: center;">
         Your Clips Are Ready!
       </h1>
-      <p style="margin: 0 0 8px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textGray}; text-align: center;">
+      <p style="margin: 0 0 8px; font-size: 16px; line-height: 24px; color: ${BRAND_COLORS.textSecondary}; text-align: center;">
         Hey ${userName}, all your clips have finished generating and are ready to download!
       </p>
-      <p style="margin: 0 0 24px; font-size: 18px; font-weight: 600; color: ${BRAND_COLORS.textDark}; text-align: center;">
+      <p style="margin: 0 0 24px; font-size: 18px; font-weight: 600; color: ${BRAND_COLORS.textWhite}; text-align: center;">
         "${videoTitle}"
       </p>
 
       <!-- Stats -->
-      <div style="background-color: #dcfce7; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: center;">
-        <p style="margin: 0; font-size: 32px; font-weight: 700; color: #16a34a;">
+      <div style="background-color: ${BRAND_COLORS.successBg}; border: 1px solid ${BRAND_COLORS.successBorder}; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: center;">
+        <p style="margin: 0; font-size: 32px; font-weight: 700; color: ${BRAND_COLORS.success};">
           ${clipCount}
         </p>
-        <p style="margin: 4px 0 0; font-size: 14px; color: #166534;">
+        <p style="margin: 4px 0 0; font-size: 14px; color: ${BRAND_COLORS.success};">
           clips ready to download
         </p>
       </div>
@@ -474,7 +459,7 @@ class EmailService {
 
       ${divider()}
 
-      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textLight}; text-align: center;">
+      <p style="margin: 0; font-size: 14px; line-height: 20px; color: ${BRAND_COLORS.textMuted}; text-align: center;">
         Your clips include captions and are optimized for social media. Start sharing!
       </p>
     `;

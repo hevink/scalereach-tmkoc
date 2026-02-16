@@ -9,10 +9,14 @@ export {
   baseTemplate,
   primaryButton,
   secondaryButton,
+  brandButton,
   divider,
   infoBox,
   BRAND_COLORS,
   FONT_STACK,
+  LOGO_SVG,
+  EMAIL_ICONS,
+  emailIcon,
   type BaseTemplateOptions,
 } from './base.template';
 
