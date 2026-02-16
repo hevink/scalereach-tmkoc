@@ -12,6 +12,27 @@ const backgroundVideoRouter = new Hono();
 backgroundVideoRouter.use("*", authMiddleware);
 
 /**
+ * GET /api/backgrounds/videos
+ * List all background videos (no category filter)
+ */
+backgroundVideoRouter.get("/videos", async (c) => {
+  try {
+    const videos = await BackgroundVideoModel.listAll();
+
+    // Add thumbnail URLs
+    const videosWithUrls = videos.map((v) => ({
+      ...v,
+      thumbnailUrl: v.thumbnailKey ? R2Service.getPublicUrl(v.thumbnailKey) : null,
+    }));
+
+    return c.json({ success: true, data: videosWithUrls });
+  } catch (error) {
+    console.error("[BG ROUTES] Failed to list videos:", error);
+    return c.json({ error: "Failed to list videos" }, 500);
+  }
+});
+
+/**
  * GET /api/backgrounds/categories
  * List all background categories with thumbnails
  */

@@ -21,6 +21,14 @@ export class BackgroundVideoModel {
       .orderBy(backgroundCategory.sortOrder);
   }
 
+  static async listAll(): Promise<BackgroundVideo[]> {
+    this.log("LIST_ALL");
+    return db
+      .select()
+      .from(backgroundVideo)
+      .orderBy(desc(backgroundVideo.createdAt));
+  }
+
   static async listByCategory(categoryId: string): Promise<BackgroundVideo[]> {
     this.log("LIST_BY_CATEGORY", { categoryId });
     return db

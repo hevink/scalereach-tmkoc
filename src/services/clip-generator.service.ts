@@ -227,8 +227,14 @@ export class ClipGeneratorService {
     let clipWithCaptionsBuffer: Buffer;
     let clipWithoutCaptionsBuffer: Buffer;
 
+    // When split screen is enabled, we generate clips WITHOUT captions first,
+    // compose the split screen, then burn captions onto the composed video
+    // so captions appear at the dividing line between main video and gameplay.
+    const deferCaptions = !!options.splitScreen && !!options.captions?.words?.length;
+    const captionsForGeneration = deferCaptions ? undefined : options.captions;
+
     if (options.sourceType === "youtube" && options.sourceUrl) {
-      // Generate clip WITH captions
+      // Generate clip WITH captions (or without if deferred for split screen)
       onProgress?.(25);
       clipWithCaptionsBuffer = await this.downloadYouTubeSegment(
         options.sourceUrl,
@@ -236,7 +242,7 @@ export class ClipGeneratorService {
         options.endTime,
         options.aspectRatio,
         options.quality,
-        options.captions,
+        captionsForGeneration,
         options.introTitle,
         options.watermark,
         options.emojis
@@ -256,7 +262,7 @@ export class ClipGeneratorService {
         undefined  // No emojis
       );
     } else if (options.sourceType === "upload" && options.storageKey) {
-      // Generate clip WITH captions
+      // Generate clip WITH captions (or without if deferred for split screen)
       onProgress?.(25);
       clipWithCaptionsBuffer = await this.extractSegmentFromFile(
         options.storageKey,
@@ -264,7 +270,7 @@ export class ClipGeneratorService {
         options.endTime,
         options.aspectRatio,
         options.quality,
-        options.captions,
+        captionsForGeneration,
         options.introTitle,
         options.watermark,
         options.emojis
@@ -293,6 +299,7 @@ export class ClipGeneratorService {
         clipId: options.clipId,
         splitRatio: options.splitScreen.splitRatio,
         bgDuration: options.splitScreen.backgroundDuration,
+        deferCaptions,
       });
 
       let bgTempPath: string | undefined;
@@ -305,7 +312,7 @@ export class ClipGeneratorService {
         );
         tempPaths.push(bgTempPath);
 
-        // Compose split-screen for clip WITH captions
+        // Compose split-screen for main clip (no captions yet if deferred)
         const mainTempWith = path.join(os.tmpdir(), `ss-main-with-${nanoid()}.mp4`);
         const composedWith = path.join(os.tmpdir(), `ss-out-with-${nanoid()}.mp4`);
         tempPaths.push(mainTempWith, composedWith);
@@ -323,7 +330,7 @@ export class ClipGeneratorService {
         });
         clipWithCaptionsBuffer = await fs.promises.readFile(composedWith);
 
-        // Compose split-screen for clip WITHOUT captions
+        // Compose split-screen for raw clip (no captions)
         const mainTempRaw = path.join(os.tmpdir(), `ss-main-raw-${nanoid()}.mp4`);
         const composedRaw = path.join(os.tmpdir(), `ss-out-raw-${nanoid()}.mp4`);
         tempPaths.push(mainTempRaw, composedRaw);
@@ -340,6 +347,33 @@ export class ClipGeneratorService {
           backgroundDuration: options.splitScreen.backgroundDuration,
         });
         clipWithoutCaptionsBuffer = await fs.promises.readFile(composedRaw);
+
+        // Now burn captions onto the composed video at the split point
+        if (deferCaptions && options.captions) {
+          const splitRatio = options.splitScreen.splitRatio;
+          const captionsAtSplitPoint: NonNullable<ClipGenerationOptions["captions"]> = {
+            ...options.captions,
+            style: {
+              ...options.captions.style,
+              position: "center" as const,
+              y: splitRatio,
+              x: options.captions.style?.x ?? 50,
+            },
+          };
+          this.logOperation("BURN_CAPTIONS_AT_SPLIT_POINT", {
+            clipId: options.clipId,
+            captionY: splitRatio,
+            splitRatio,
+          });
+          clipWithCaptionsBuffer = await this.burnSubtitlesOnBuffer(
+            clipWithCaptionsBuffer,
+            captionsAtSplitPoint,
+            width,
+            height,
+            options.introTitle,
+            options.emojis
+          );
+        }
 
         this.logOperation("SPLIT_SCREEN_COMPLETE", { clipId: options.clipId });
       } catch (ssError) {
@@ -381,6 +415,93 @@ export class ClipGeneratorService {
       height,
       fileSize: clipWithCaptionsBuffer.length,
     };
+  }
+
+  /**
+   * Burn ASS subtitles onto an existing video buffer using FFmpeg.
+   * Used to apply captions after split-screen composition.
+   */
+  private static async burnSubtitlesOnBuffer(
+    videoBuffer: Buffer,
+    captions: NonNullable<ClipGenerationOptions["captions"]>,
+    width: number,
+    height: number,
+    introTitle?: string,
+    emojis?: string
+  ): Promise<Buffer> {
+    const tempId = nanoid();
+    const tempDir = os.tmpdir();
+    const inputPath = path.join(tempDir, `burn-in-${tempId}.mp4`);
+    const outputPath = path.join(tempDir, `burn-out-${tempId}.mp4`);
+    const subsPath = path.join(tempDir, `burn-subs-${tempId}.ass`);
+
+    const cleanup = async () => {
+      for (const p of [inputPath, outputPath, subsPath]) {
+        try { if (fs.existsSync(p)) await fs.promises.unlink(p); } catch {}
+      }
+    };
+
+    // Write input video and ASS file
+    const assContent = this.generateASSSubtitles(
+      captions.words || [],
+      captions.style,
+      width,
+      height,
+      introTitle,
+      emojis
+    );
+    await Promise.all([
+      fs.promises.writeFile(inputPath, videoBuffer),
+      fs.promises.writeFile(subsPath, assContent),
+    ]);
+
+    this.logOperation("BURN_SUBTITLES_START", {
+      inputSize: videoBuffer.length,
+      wordCount: captions.words?.length || 0,
+      assLength: assContent.length,
+    });
+
+    const escapedSubsPath = subsPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+    const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+
+    const args = [
+      "-i", inputPath,
+      "-vf", `ass=${escapedSubsPath}:fontsdir=${escapedFontsDir}`,
+      "-c:v", "libx264",
+      "-preset", "medium",
+      "-crf", "18",
+      "-c:a", "copy",
+      "-movflags", "+faststart",
+      "-y",
+      outputPath,
+    ];
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn("ffmpeg", args);
+      let stderr = "";
+      proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+
+      proc.on("close", async (code) => {
+        try {
+          if (code === 0) {
+            const result = await fs.promises.readFile(outputPath);
+            this.logOperation("BURN_SUBTITLES_COMPLETE", { outputSize: result.length });
+            await cleanup();
+            resolve(result);
+          } else {
+            await cleanup();
+            reject(new Error(`burnSubtitlesOnBuffer failed (code ${code}): ${stderr.slice(-500)}`));
+          }
+        } catch (err) {
+          await cleanup();
+          reject(err);
+        }
+      });
+      proc.on("error", async (err) => {
+        await cleanup();
+        reject(err);
+      });
+    });
   }
 
   /**

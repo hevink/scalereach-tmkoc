@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { user, workspace, workspaceMember, video, viralClip, session, project, creditTransaction, videoExport } from "../db/schema";
-import { eq, sql, desc, gte, and, count } from "drizzle-orm";
+import { user, workspace, workspaceMember, video, viralClip, session, project, creditTransaction, videoExport, videoConfig } from "../db/schema";
+import { eq, sql, desc, gte, and, count, like, or, lte } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
 export interface DashboardStats {
@@ -39,6 +39,78 @@ export interface TopWorkspace {
   videoCount: number;
   clipCount: number;
   memberCount: number;
+}
+
+export interface AdminVideoFilters {
+  status?: string;
+  sourceType?: string;
+  search?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface AdminVideoItem {
+  id: string;
+  title: string | null;
+  status: string;
+  sourceType: string;
+  sourceUrl: string | null;
+  duration: number | null;
+  fileSize: number | null;
+  mimeType: string | null;
+  errorMessage: string | null;
+  creditsUsed: number;
+  thumbnailUrl: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  userName: string | null;
+  userEmail: string | null;
+  userId: string;
+  workspaceName: string | null;
+  workspaceSlug: string | null;
+  projectName: string | null;
+  clipCount: number;
+}
+
+export interface AdminVideoDetailResult {
+  video: AdminVideoItem & {
+    storageKey: string | null;
+    storageUrl: string | null;
+    transcript: string | null;
+    transcriptLanguage: string | null;
+    transcriptConfidence: number | null;
+    regenerationCount: number;
+    minutesConsumed: number;
+    metadata: any;
+    projectId: string | null;
+    workspaceId: string | null;
+  };
+  config: any | null;
+  clips: {
+    total: number;
+    detected: number;
+    generating: number;
+    ready: number;
+    failed: number;
+    items: Array<{
+      id: string;
+      title: string | null;
+      score: number;
+      status: string;
+      duration: number | null;
+      startTime: number;
+      endTime: number;
+      errorMessage: string | null;
+    }>;
+  };
+}
+
+export interface AdminVideoAnalyticsResult {
+  statusDistribution: Array<{ status: string; count: number }>;
+  sourceTypeDistribution: Array<{ sourceType: string; count: number }>;
+  avgProcessingTime: number;
+  errorRate: number;
+  dailyVideos: Array<{ date: string; total: number; completed: number; failed: number }>;
 }
 
 export class AdminModel {
@@ -721,6 +793,348 @@ export class AdminModel {
         limit,
         totalPages: 0,
       };
+    }
+  }
+
+  /**
+   * Get all videos with pagination and filters
+   */
+  static async getAllVideos(page: number = 1, limit: number = 20, filters: AdminVideoFilters = {}) {
+    this.logOperation("GET_ALL_VIDEOS", { page, limit, filters });
+    const startTime = performance.now();
+
+    try {
+      const offset = (page - 1) * limit;
+
+      const conditions: any[] = [];
+      if (filters.status) {
+        conditions.push(sql`v.status = ${filters.status}`);
+      }
+      if (filters.sourceType) {
+        conditions.push(sql`v.source_type = ${filters.sourceType}`);
+      }
+      if (filters.search) {
+        const search = `%${filters.search}%`;
+        conditions.push(sql`(v.title ILIKE ${search} OR u.name ILIKE ${search} OR u.email ILIKE ${search})`);
+      }
+      if (filters.dateFrom) {
+        conditions.push(sql`v.created_at >= ${filters.dateFrom}::timestamp`);
+      }
+      if (filters.dateTo) {
+        conditions.push(sql`v.created_at <= ${filters.dateTo}::timestamp`);
+      }
+
+      const whereClause = conditions.length > 0
+        ? sql`WHERE ${sql.join(conditions, sql` AND `)}`
+        : sql``;
+
+      const [videosResult, totalResult] = await Promise.all([
+        db.execute(sql`
+          SELECT
+            v.id, v.title, v.status, v.source_type, v.source_url,
+            v.duration, v.file_size, v.mime_type, v.error_message,
+            v.credits_used, v.thumbnail_url, v.created_at, v.updated_at,
+            v.user_id,
+            u.name as user_name, u.email as user_email,
+            w.name as workspace_name, w.slug as workspace_slug,
+            p.name as project_name,
+            COALESCE(cc.clip_count, 0) as clip_count
+          FROM video v
+          LEFT JOIN "user" u ON u.id = v.user_id
+          LEFT JOIN project p ON p.id = v.project_id
+          LEFT JOIN workspace w ON w.id = v.workspace_id
+          LEFT JOIN (
+            SELECT video_id, COUNT(*) as clip_count
+            FROM viral_clip
+            GROUP BY video_id
+          ) cc ON cc.video_id = v.id
+          ${whereClause}
+          ORDER BY v.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `),
+        db.execute(sql`
+          SELECT COUNT(*) as count
+          FROM video v
+          LEFT JOIN "user" u ON u.id = v.user_id
+          ${whereClause}
+        `),
+      ]);
+
+      const total = Number((totalResult.rows[0] as any)?.count ?? 0);
+      const duration = performance.now() - startTime;
+      console.log(`[ADMIN MODEL] GET_ALL_VIDEOS completed in ${duration.toFixed(2)}ms`);
+
+      return {
+        videos: (videosResult.rows as any[]).map(row => ({
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          sourceType: row.source_type,
+          sourceUrl: row.source_url,
+          duration: row.duration ? Number(row.duration) : null,
+          fileSize: row.file_size ? Number(row.file_size) : null,
+          mimeType: row.mime_type,
+          errorMessage: row.error_message,
+          creditsUsed: Number(row.credits_used || 0),
+          thumbnailUrl: row.thumbnail_url,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          userName: row.user_name,
+          userEmail: row.user_email,
+          userId: row.user_id,
+          workspaceName: row.workspace_name,
+          workspaceSlug: row.workspace_slug,
+          projectName: row.project_name,
+          clipCount: Number(row.clip_count),
+        })),
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(`[ADMIN MODEL] GET_ALL_VIDEOS failed after ${duration.toFixed(2)}ms:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get detailed video info with config and clips
+   */
+  static async getVideoDetail(videoId: string): Promise<AdminVideoDetailResult | null> {
+    this.logOperation("GET_VIDEO_DETAIL", { videoId });
+    const startTime = performance.now();
+
+    try {
+      const [videoResult, configResult, clipsResult] = await Promise.all([
+        db.execute(sql`
+          SELECT
+            v.*,
+            u.name as user_name, u.email as user_email,
+            w.name as workspace_name, w.slug as workspace_slug,
+            p.name as project_name
+          FROM video v
+          LEFT JOIN "user" u ON u.id = v.user_id
+          LEFT JOIN project p ON p.id = v.project_id
+          LEFT JOIN workspace w ON w.id = v.workspace_id
+          WHERE v.id = ${videoId}
+        `),
+        db.execute(sql`
+          SELECT * FROM video_config WHERE video_id = ${videoId}
+        `),
+        db.execute(sql`
+          SELECT id, title, score, status, duration, start_time, end_time, error_message
+          FROM viral_clip
+          WHERE video_id = ${videoId}
+          ORDER BY score DESC
+        `),
+      ]);
+
+      const row = videoResult.rows[0] as any;
+      if (!row) return null;
+
+      const clips = clipsResult.rows as any[];
+      const clipStatuses = { detected: 0, generating: 0, ready: 0, failed: 0 };
+      for (const clip of clips) {
+        if (clip.status === "detected") clipStatuses.detected++;
+        else if (clip.status === "generating") clipStatuses.generating++;
+        else if (clip.status === "ready") clipStatuses.ready++;
+        else if (clip.status === "failed") clipStatuses.failed++;
+      }
+
+      const duration = performance.now() - startTime;
+      console.log(`[ADMIN MODEL] GET_VIDEO_DETAIL completed in ${duration.toFixed(2)}ms`);
+
+      return {
+        video: {
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          sourceType: row.source_type,
+          sourceUrl: row.source_url,
+          duration: row.duration ? Number(row.duration) : null,
+          fileSize: row.file_size ? Number(row.file_size) : null,
+          mimeType: row.mime_type,
+          errorMessage: row.error_message,
+          creditsUsed: Number(row.credits_used || 0),
+          thumbnailUrl: row.thumbnail_url,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          userName: row.user_name,
+          userEmail: row.user_email,
+          userId: row.user_id,
+          workspaceName: row.workspace_name,
+          workspaceSlug: row.workspace_slug,
+          projectName: row.project_name,
+          clipCount: clips.length,
+          storageKey: row.storage_key,
+          storageUrl: row.storage_url,
+          transcript: row.transcript,
+          transcriptLanguage: row.transcript_language,
+          transcriptConfidence: row.transcript_confidence ? Number(row.transcript_confidence) : null,
+          regenerationCount: Number(row.regeneration_count || 0),
+          minutesConsumed: Number(row.minutes_consumed || 0),
+          metadata: row.metadata,
+          projectId: row.project_id,
+          workspaceId: row.workspace_id,
+        },
+        config: configResult.rows[0] ? {
+          clipModel: (configResult.rows[0] as any).clip_model,
+          genre: (configResult.rows[0] as any).genre,
+          clipDurationMin: (configResult.rows[0] as any).clip_duration_min,
+          clipDurationMax: (configResult.rows[0] as any).clip_duration_max,
+          language: (configResult.rows[0] as any).language,
+          aspectRatio: (configResult.rows[0] as any).aspect_ratio,
+          enableSplitScreen: (configResult.rows[0] as any).enable_split_screen,
+          splitRatio: (configResult.rows[0] as any).split_ratio,
+          enableCaptions: (configResult.rows[0] as any).enable_captions,
+          enableWatermark: (configResult.rows[0] as any).enable_watermark,
+          enableEmojis: (configResult.rows[0] as any).enable_emojis,
+          enableIntroTitle: (configResult.rows[0] as any).enable_intro_title,
+          captionTemplateId: (configResult.rows[0] as any).caption_template_id,
+          clipType: (configResult.rows[0] as any).clip_type,
+          customPrompt: (configResult.rows[0] as any).custom_prompt,
+        } : null,
+        clips: {
+          total: clips.length,
+          ...clipStatuses,
+          items: clips.map((c: any) => ({
+            id: c.id,
+            title: c.title,
+            score: Number(c.score),
+            status: c.status,
+            duration: c.duration ? Number(c.duration) : null,
+            startTime: Number(c.start_time),
+            endTime: Number(c.end_time),
+            errorMessage: c.error_message,
+          })),
+        },
+      };
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(`[ADMIN MODEL] GET_VIDEO_DETAIL failed after ${duration.toFixed(2)}ms:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get video analytics for the last N days
+   */
+  static async getVideoAnalytics(days: number = 30): Promise<AdminVideoAnalyticsResult> {
+    this.logOperation("GET_VIDEO_ANALYTICS", { days });
+    const startTime = performance.now();
+
+    try {
+      const [statusResult, sourceResult, avgTimeResult, dailyResult] = await Promise.all([
+        db.execute(sql`
+          SELECT status, COUNT(*) as count
+          FROM video
+          GROUP BY status
+          ORDER BY count DESC
+        `),
+        db.execute(sql`
+          SELECT source_type, COUNT(*) as count
+          FROM video
+          GROUP BY source_type
+          ORDER BY count DESC
+        `),
+        db.execute(sql`
+          SELECT
+            AVG(EXTRACT(EPOCH FROM (updated_at - created_at))) as avg_time,
+            COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
+            COUNT(*) as total_count
+          FROM video
+          WHERE created_at >= NOW() - INTERVAL '${sql.raw(days.toString())} days'
+        `),
+        db.execute(sql`
+          WITH dates AS (
+            SELECT generate_series(
+              CURRENT_DATE - INTERVAL '${sql.raw(days.toString())} days',
+              CURRENT_DATE,
+              '1 day'::interval
+            )::date as date
+          )
+          SELECT
+            d.date,
+            COALESCE(COUNT(v.id), 0) as total,
+            COALESCE(COUNT(v.id) FILTER (WHERE v.status = 'completed'), 0) as completed,
+            COALESCE(COUNT(v.id) FILTER (WHERE v.status = 'failed'), 0) as failed
+          FROM dates d
+          LEFT JOIN video v ON DATE(v.created_at) = d.date
+          GROUP BY d.date
+          ORDER BY d.date ASC
+        `),
+      ]);
+
+      const avgRow = avgTimeResult.rows[0] as any;
+      const totalCount = Number(avgRow?.total_count || 0);
+      const failedCount = Number(avgRow?.failed_count || 0);
+
+      const duration = performance.now() - startTime;
+      console.log(`[ADMIN MODEL] GET_VIDEO_ANALYTICS completed in ${duration.toFixed(2)}ms`);
+
+      return {
+        statusDistribution: (statusResult.rows as any[]).map(r => ({
+          status: r.status,
+          count: Number(r.count),
+        })),
+        sourceTypeDistribution: (sourceResult.rows as any[]).map(r => ({
+          sourceType: r.source_type,
+          count: Number(r.count),
+        })),
+        avgProcessingTime: Math.round(Number(avgRow?.avg_time || 0)),
+        errorRate: totalCount > 0 ? Math.round((failedCount / totalCount) * 10000) / 100 : 0,
+        dailyVideos: (dailyResult.rows as any[]).map(r => ({
+          date: r.date,
+          total: Number(r.total),
+          completed: Number(r.completed),
+          failed: Number(r.failed),
+        })),
+      };
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(`[ADMIN MODEL] GET_VIDEO_ANALYTICS failed after ${duration.toFixed(2)}ms:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Retry a failed video by resetting its status
+   */
+  static async retryVideo(videoId: string) {
+    this.logOperation("RETRY_VIDEO", { videoId });
+    const startTime = performance.now();
+
+    try {
+      // Verify video exists and is failed
+      const existing = await db.select({
+        id: video.id,
+        status: video.status,
+        sourceType: video.sourceType,
+        sourceUrl: video.sourceUrl,
+        projectId: video.projectId,
+        userId: video.userId,
+      }).from(video).where(eq(video.id, videoId));
+
+      if (!existing[0]) return null;
+      if (existing[0].status !== "failed") {
+        return { error: "Video is not in failed state" };
+      }
+
+      // Reset status to pending and clear error
+      await db.update(video)
+        .set({ status: "pending", errorMessage: null, updatedAt: new Date() })
+        .where(eq(video.id, videoId));
+
+      const duration = performance.now() - startTime;
+      console.log(`[ADMIN MODEL] RETRY_VIDEO completed in ${duration.toFixed(2)}ms`);
+
+      return existing[0];
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(`[ADMIN MODEL] RETRY_VIDEO failed after ${duration.toFixed(2)}ms:`, error);
+      throw error;
     }
   }
 }

@@ -1,5 +1,6 @@
 import { Context } from "hono";
 import { AdminModel } from "../models/admin.model";
+import { addVideoProcessingJob } from "../jobs/queue";
 
 export class AdminController {
   /**
@@ -225,6 +226,94 @@ export class AdminController {
     } catch (error) {
       console.error("[ADMIN] Failed to get credit transactions:", error);
       return c.json({ error: "Failed to get credit transactions" }, 500);
+    }
+  }
+
+  /**
+   * Get all videos with pagination and filters
+   * GET /api/admin/videos?page=1&limit=20&status=failed&sourceType=youtube&search=test
+   */
+  static async getAllVideos(c: Context) {
+    try {
+      const page = Math.max(1, parseInt(c.req.query("page") || "1", 10));
+      const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") || "20", 10)));
+      const filters = {
+        status: c.req.query("status") || undefined,
+        sourceType: c.req.query("sourceType") || undefined,
+        search: c.req.query("search") || undefined,
+        dateFrom: c.req.query("dateFrom") || undefined,
+        dateTo: c.req.query("dateTo") || undefined,
+      };
+      const data = await AdminModel.getAllVideos(page, limit, filters);
+      return c.json(data);
+    } catch (error) {
+      console.error("[ADMIN] Failed to get videos:", error);
+      return c.json({ error: "Failed to get videos" }, 500);
+    }
+  }
+
+  /**
+   * Get video detail
+   * GET /api/admin/videos/:id
+   */
+  static async getVideoDetail(c: Context) {
+    try {
+      const videoId = c.req.param("id");
+      const data = await AdminModel.getVideoDetail(videoId);
+      if (!data) {
+        return c.json({ error: "Video not found" }, 404);
+      }
+      return c.json(data);
+    } catch (error) {
+      console.error("[ADMIN] Failed to get video detail:", error);
+      return c.json({ error: "Failed to get video detail" }, 500);
+    }
+  }
+
+  /**
+   * Get video analytics
+   * GET /api/admin/videos/analytics?days=30
+   */
+  static async getVideoAnalytics(c: Context) {
+    try {
+      const days = Math.min(365, Math.max(1, parseInt(c.req.query("days") || "30", 10)));
+      const data = await AdminModel.getVideoAnalytics(days);
+      return c.json(data);
+    } catch (error) {
+      console.error("[ADMIN] Failed to get video analytics:", error);
+      return c.json({ error: "Failed to get video analytics" }, 500);
+    }
+  }
+
+  /**
+   * Retry a failed video
+   * POST /api/admin/videos/:id/retry
+   */
+  static async retryVideo(c: Context) {
+    try {
+      const videoId = c.req.param("id");
+      const result = await AdminModel.retryVideo(videoId);
+
+      if (!result) {
+        return c.json({ error: "Video not found" }, 404);
+      }
+      if ("error" in result) {
+        return c.json({ error: result.error }, 400);
+      }
+
+      // Re-queue the video for processing
+      await addVideoProcessingJob({
+        videoId: result.id,
+        projectId: result.projectId,
+        userId: result.userId,
+        sourceType: result.sourceType as "youtube" | "upload",
+        sourceUrl: result.sourceUrl || "",
+      });
+
+      return c.json({ success: true, message: "Video queued for retry" });
+    } catch (error) {
+      console.error("[ADMIN] Failed to retry video:", error);
+      return c.json({ error: "Failed to retry video" }, 500);
     }
   }
 }

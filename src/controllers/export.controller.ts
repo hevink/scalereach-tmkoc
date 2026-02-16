@@ -7,6 +7,7 @@ import { ClipCaptionModel } from "../models/clip-caption.model";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
 import { getPlanConfig } from "../config/plan-config";
 import { VideoConfigModel } from "../models/video-config.model";
+import { BackgroundVideoModel } from "../models/background-video.model";
 
 export class ExportController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -136,6 +137,30 @@ export class ExportController {
       const introTitleEnabled = false;
       const emojisEnabled = false;
 
+      // Resolve split-screen background video if enabled
+      let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+      if (videoConfig?.enableSplitScreen) {
+        try {
+          let bgVideo = null;
+          if (videoConfig.splitScreenBgVideoId) {
+            bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
+          } else if (videoConfig.splitScreenBgCategoryId) {
+            bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+          }
+          if (bgVideo) {
+            splitScreenData = {
+              backgroundVideoId: bgVideo.id,
+              backgroundStorageKey: bgVideo.storageKey,
+              backgroundDuration: bgVideo.duration,
+              splitRatio: videoConfig.splitRatio ?? 50,
+            };
+            console.log(`[EXPORT CONTROLLER] Split-screen enabled: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
+          }
+        } catch (bgError) {
+          console.warn(`[EXPORT CONTROLLER] Failed to resolve split-screen background:`, bgError);
+        }
+      }
+
       console.log(`[EXPORT CONTROLLER] Export job data: captionsEnabled=${captionsEnabled}, wordCount=${words.length}, hasStyle=${!!style}`);
 
       // Add job to queue for clip generation with caption data
@@ -159,6 +184,7 @@ export class ExportController {
           words,
           style: style || undefined,
         } : undefined,
+        splitScreen: splitScreenData,
       });
 
       // Update clip status to generating
@@ -331,6 +357,28 @@ export class ExportController {
         const batchIntroTitleEnabled = false;
         const batchEmojisEnabled = false;
 
+        // Resolve split-screen background video if enabled
+        let batchSplitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+        if (batchVideoConfig?.enableSplitScreen) {
+          try {
+            let bgVideo = null;
+            if (batchVideoConfig.splitScreenBgVideoId) {
+              bgVideo = await BackgroundVideoModel.getById(batchVideoConfig.splitScreenBgVideoId);
+            } else if (batchVideoConfig.splitScreenBgCategoryId) {
+              bgVideo = await BackgroundVideoModel.getRandomByCategory(batchVideoConfig.splitScreenBgCategoryId);
+            }
+            if (bgVideo) {
+              batchSplitScreenData = {
+                backgroundVideoId: bgVideo.id,
+                backgroundStorageKey: bgVideo.storageKey,
+                backgroundDuration: bgVideo.duration,
+                splitRatio: batchVideoConfig.splitRatio ?? 50,
+              };
+            }
+          } catch (bgError) {
+            console.warn(`[EXPORT CONTROLLER] Failed to resolve split-screen background for batch:`, bgError);
+          }
+        }
 
         // Add job to queue
         await addClipGenerationJob({
@@ -353,6 +401,7 @@ export class ExportController {
             words,
             style: style || undefined,
           } : undefined,
+          splitScreen: batchSplitScreenData,
         });
 
         await ClipModel.update(clipId, { status: "generating" });
