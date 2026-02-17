@@ -204,44 +204,63 @@ EMOJI ENHANCEMENT REQUIREMENTS:
       ? `\nCLIP TYPE FOCUS:\n${customPromptText}\n`
       : `\nCLIP TYPE FOCUS:\n${clipTypePrompt}\n`;
 
-    const systemPrompt = `You are an expert viral content analyst specializing in short-form video content for platforms like TikTok, Instagram Reels, and YouTube Shorts.
+    const systemPrompt = `You are an expert viral content analyst and video editor specializing in short-form video content for TikTok, Instagram Reels, and YouTube Shorts.
 
-Your task is to analyze video transcripts and identify the most viral-worthy segments that would perform well as standalone clips.
+Your task is to analyze video transcripts and extract clips that work as STANDALONE short videos. Each clip must tell a complete mini-story that makes sense on its own, without any context from the rest of the video.
 
-CRITICAL DURATION REQUIREMENTS:
-- Each clip MUST be between ${minDuration} and ${maxDuration} seconds long
-- Calculate duration as: endTime - startTime
-- If a moment is great but too short, EXTEND it to include more context
-- If a moment is great but too long, find the CORE viral moment within it
-- REJECT any clip that doesn't meet the duration requirement
+CRITICAL RULES FOR CLIP SELECTION:
+
+1. **COMPLETE CONTEXT** (Most Important):
+   - Every clip MUST start with enough context so a new viewer understands what's being discussed
+   - Every clip MUST end at a natural conclusion — a punchline, a completed thought, a resolved point, or a satisfying ending
+   - NEVER start a clip mid-sentence or mid-thought
+   - NEVER end a clip in the middle of an idea or before the payoff
+   - If someone watches ONLY this clip with zero knowledge of the full video, they must fully understand it
+
+2. **NARRATIVE STRUCTURE**:
+   - Each clip needs a clear SETUP → DEVELOPMENT → PAYOFF arc
+   - SETUP: The first few seconds must establish what the clip is about (the hook)
+   - DEVELOPMENT: The middle builds on the idea, adds detail or tension
+   - PAYOFF: The ending delivers the value — a conclusion, punchline, insight, or emotional peak
+   - Think of each clip as a complete mini-video, NOT a random excerpt
+
+3. **NATURAL BOUNDARIES**:
+   - Start clips at the beginning of a new topic, story, example, or argument
+   - End clips when that topic/story/example is fully resolved
+   - Look for natural paragraph-like breaks in speech
+   - Avoid cutting into transitions like "and another thing..." or "speaking of which..."
+
+4. **QUALITY OVER QUANTITY**:
+   - Only return clips that are genuinely compelling as standalone content
+   - A viewer should want to watch the entire clip, not scroll away after 3 seconds
+   - If the transcript only has 2 great moments, return 2 clips — don't pad with mediocre ones
+   - Every clip must score at least 60/100 on virality to be included
+
+DURATION: Each clip MUST be between ${minDuration} and ${maxDuration} seconds long.
 ${introTitleSection}${emojiSection}${clipTypeSection}
-VIRAL CONTENT CRITERIA:
-1. **Hook Factor**: Strong opening that grabs attention in first 3 seconds
-2. **Emotional Impact**: Evokes strong emotions (humor, shock, inspiration, curiosity)
-3. **Shareability**: Content people want to share with others
-4. **Relatability**: Universal experiences or feelings
-5. **Controversy/Hot Takes**: Bold opinions or unexpected perspectives
-6. **Story Arc**: Mini narrative with setup and payoff
-7. **Quotable Moments**: Memorable phrases or soundbites
-8. **Visual Potential**: Moments that would be engaging to watch
+WHAT MAKES A CLIP VIRAL:
+- Strong hook in the first 3 seconds that creates curiosity or emotion
+- Emotional peaks: humor, shock, inspiration, anger, awe
+- A clear "aha moment" or surprising reveal
+- Quotable statements or bold opinions
+- Relatable experiences that make viewers think "that's so true"
+- Complete stories with satisfying endings
 
-PLATFORM RECOMMENDATION GUIDELINES (REQUIRED FOR EVERY CLIP):
-You MUST recommend at least 2-3 platforms for each clip. Choose from:
-- **youtube_shorts**: Educational content, tutorials, storytelling, broader audience appeal, longer attention spans
-- **instagram_reels**: Lifestyle, aesthetic content, trending audio, visually appealing, aspirational content
-- **tiktok**: Trendy, humorous, raw/authentic, younger audience, fast-paced, meme-worthy content
-- **linkedin**: Professional insights, business tips, career advice, thought leadership, industry knowledge
-- **twitter**: Hot takes, controversial opinions, news commentary, quick wit, conversation starters
-- **facebook_reels**: Family-friendly, relatable everyday moments, broader age demographics, shareable stories
+WHAT MAKES A BAD CLIP (AVOID THESE):
+- Starting mid-conversation with no context ("...and that's why I think...")
+- Ending before the point is made ("so the reason is..." *clip ends*)
+- Random segments with no clear purpose or takeaway
+- Clips that require watching the full video to understand
+- Boring filler content with no emotional or intellectual value
+- Clips where the speaker is rambling without a clear point
 
-A clip can be recommended for multiple platforms if it fits well. NEVER leave recommendedPlatforms empty.
-
-GUIDELINES:
-- Clips should be self-contained and make sense without context
-- Prioritize moments with high energy, emotion, or insight
-- Look for natural start and end points (complete thoughts/sentences)
-- Consider what would make someone stop scrolling
-- Include enough context before and after the key moment`;
+PLATFORM RECOMMENDATIONS (required for every clip):
+- **youtube_shorts**: Educational, storytelling, broader appeal
+- **instagram_reels**: Lifestyle, aesthetic, trending, aspirational
+- **tiktok**: Trendy, humorous, raw/authentic, fast-paced
+- **linkedin**: Professional insights, business tips, thought leadership
+- **twitter**: Hot takes, controversial opinions, quick wit
+- **facebook_reels**: Family-friendly, relatable, shareable stories`;
 
     // Build dynamic user prompt based on options
     const introTitleInstruction = enableIntroTitle 
@@ -251,40 +270,35 @@ GUIDELINES:
       ? `${enableIntroTitle ? "5" : "4"}. The same transcript but with emojis added naturally (3-6 emojis, placed at emotional peaks)\n` 
       : "";
 
-    const userPrompt = `Analyze this transcript from the video "${videoTitle}" and identify ALL viral clip opportunities. Find as many worthy clips as the content supports — there is no upper limit. You must return at least 1 clip.
+    const userPrompt = `Analyze this transcript from the video "${videoTitle}" and extract clips that work as STANDALONE short-form videos.
 
-CRITICAL DURATION REQUIREMENTS:
-- Each clip MUST have a duration between ${minDuration}-${maxDuration} seconds
-- Duration = endTime - startTime
-- The startTime and endTime are in SECONDS (not minutes)
-- Example: startTime=30, endTime=60 means a 30-second clip
-- Double-check your math: if minDuration is 15, then endTime - startTime must be >= 15
-- If a moment is too short, EXTEND it by including more context before/after
-- If a moment is too long, find the CORE viral moment within it
+RULES:
+- Each clip MUST be a complete, self-contained mini-story (setup → development → payoff)
+- Each clip MUST make sense to someone who has NEVER seen the full video
+- Each clip MUST start at the beginning of a topic/point and end when that topic/point is fully resolved
+- Duration MUST be between ${minDuration}-${maxDuration} seconds (duration = endTime - startTime)
+- Times are in SECONDS (e.g., startTime=60, endTime=90 = 30 second clip)
+- Only include clips with virality score >= 60. Quality over quantity.
+- Return at least 1 clip if any worthy content exists.
+
+BEFORE ADDING A CLIP, ASK YOURSELF:
+1. Does this clip start with enough context for a new viewer? If not, extend the start.
+2. Does this clip end with a satisfying conclusion? If not, extend the end or pick a different endpoint.
+3. Would I actually watch this entire clip on TikTok without scrolling? If not, don't include it.
+4. Can someone understand and enjoy this clip without watching anything else? If not, add more context.
 
 TRANSCRIPT WITH TIMESTAMPS:
 ${formattedTranscript}
 
-For each viral clip, provide:
-1. A catchy title that would work as a video caption
-${introTitleInstruction}${enableIntroTitle ? "3" : "2"}. Exact start and end times IN SECONDS - MUST result in ${minDuration}-${maxDuration}s duration
-${enableIntroTitle ? "4" : "3"}. The transcript segment for that clip
-${emojiInstruction}${enableIntroTitle && enableEmojis ? "6" : enableIntroTitle || enableEmojis ? "5" : "4"}. A virality score (0-100) based on viral potential
-${enableIntroTitle && enableEmojis ? "7" : enableIntroTitle || enableEmojis ? "6" : "5"}. A detailed reason explaining why this clip would go viral
-${enableIntroTitle && enableEmojis ? "8" : enableIntroTitle || enableEmojis ? "7" : "6"}. Key hooks that grab attention
-${enableIntroTitle && enableEmojis ? "9" : enableIntroTitle || enableEmojis ? "8" : "7"}. Primary emotions the clip evokes
-${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "9" : "8"}. Recommended platforms (youtube_shorts, instagram_reels, tiktok, linkedin, twitter, facebook_reels)
-
-EXAMPLE OF CORRECT TIMING:
-If you want a 30-second clip starting at the 1-minute mark:
-- startTime: 60 (seconds)
-- endTime: 90 (seconds)
-- Duration: 90 - 60 = 30 seconds ✓
-
-REMEMBER: 
-- All times are in SECONDS, not minutes
-- Verify each clip is ${minDuration}-${maxDuration} seconds before including it
-- Focus on finding the absolute BEST moments that would perform well on social media`;
+For each clip provide:
+1. A catchy title for the video caption
+${introTitleInstruction}${enableIntroTitle ? "3" : "2"}. Exact start and end times in SECONDS
+${enableIntroTitle ? "4" : "3"}. The transcript segment
+${emojiInstruction}${enableIntroTitle && enableEmojis ? "6" : enableIntroTitle || enableEmojis ? "5" : "4"}. Virality score (0-100, only include if >= 60)
+${enableIntroTitle && enableEmojis ? "7" : enableIntroTitle || enableEmojis ? "6" : "5"}. Why this clip works as a standalone viral video
+${enableIntroTitle && enableEmojis ? "8" : enableIntroTitle || enableEmojis ? "7" : "6"}. Key hooks
+${enableIntroTitle && enableEmojis ? "9" : enableIntroTitle || enableEmojis ? "8" : "7"}. Emotions evoked
+${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "9" : "8"}. Recommended platforms`;
 
     try {
       console.log(`[VIRAL DETECTION] Calling Groq API...`);
@@ -346,6 +360,7 @@ REMEMBER:
       
       let sortedClips = allClipsWithDuration
         .filter((clip) => clip.duration >= toleranceMin && clip.duration <= toleranceMax)
+        .filter((clip) => clip.viralityScore >= 60) // Only keep genuinely viral clips
         .sort((a, b) => b.viralityScore - a.viralityScore);
 
       // Fallback: if strict filtering returns nothing, take the best clips anyway
