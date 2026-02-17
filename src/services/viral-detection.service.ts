@@ -114,20 +114,28 @@ export class ViralDetectionService {
    */
   static validateOptions(options: ViralDetectionOptions): ValidationResult {
     const {
-      minDuration = DEFAULT_MIN_DURATION,
-      maxDuration = DEFAULT_MAX_DURATION,
+      minDuration,
+      maxDuration,
     } = options;
 
-    // Requirement 6.4: Minimum duration must be at least 10 seconds
-    if (minDuration < MIN_DURATION_LIMIT) {
+    // Auto mode — no duration constraints, skip validation
+    if (minDuration === undefined && maxDuration === undefined) {
+      return { valid: true };
+    }
+
+    const min = minDuration ?? DEFAULT_MIN_DURATION;
+    const max = maxDuration ?? DEFAULT_MAX_DURATION;
+
+    // Requirement 6.4: Minimum duration must be at least 5 seconds
+    if (min < MIN_DURATION_LIMIT) {
       return {
         valid: false,
         error: `Minimum duration must be at least ${MIN_DURATION_LIMIT} seconds`,
       };
     }
 
-    // Requirement 6.5: Maximum duration must not exceed 90 seconds
-    if (maxDuration > MAX_DURATION_LIMIT) {
+    // Requirement 6.5: Maximum duration must not exceed 180 seconds
+    if (max > MAX_DURATION_LIMIT) {
       return {
         valid: false,
         error: `Maximum duration cannot exceed ${MAX_DURATION_LIMIT} seconds`,
@@ -135,7 +143,7 @@ export class ViralDetectionService {
     }
 
     // Requirement 6.6: Minimum duration must be less than maximum duration
-    if (minDuration >= maxDuration) {
+    if (min >= max) {
       return {
         valid: false,
         error: "Minimum duration must be less than maximum duration",
@@ -162,18 +170,20 @@ export class ViralDetectionService {
     }
 
     const {
-      minDuration = DEFAULT_MIN_DURATION,
-      maxDuration = DEFAULT_MAX_DURATION,
       videoTitle = "Unknown",
       clipType = "viral-clips",
       enableEmojis = false,
       enableIntroTitle = false,
     } = options;
 
+    const isAutoMode = options.minDuration === undefined && options.maxDuration === undefined;
+    const minDuration = options.minDuration ?? DEFAULT_MIN_DURATION;
+    const maxDuration = options.maxDuration ?? DEFAULT_MAX_DURATION;
+
     console.log(`[VIRAL DETECTION] Analyzing transcript for viral clips...`);
     console.log(`[VIRAL DETECTION] Using AI service (provider configured via env)`);
     console.log(`[VIRAL DETECTION] Transcript length: ${transcript.length} chars`);
-    console.log(`[VIRAL DETECTION] Options: clipType=${clipType}, enableEmojis=${enableEmojis}, enableIntroTitle=${enableIntroTitle}, minDuration=${minDuration}s, maxDuration=${maxDuration}s`);
+    console.log(`[VIRAL DETECTION] Options: clipType=${clipType}, enableEmojis=${enableEmojis}, enableIntroTitle=${enableIntroTitle}, duration=${isAutoMode ? 'AUTO' : `${minDuration}s-${maxDuration}s`}`);
 
     // Format transcript with timestamps for better context
     const formattedTranscript = this.formatTranscriptWithTimestamps(transcriptWords);
@@ -236,7 +246,9 @@ CRITICAL RULES FOR CLIP SELECTION:
    - If the transcript only has 2 great moments, return 2 clips — don't pad with mediocre ones
    - Every clip must score at least 60/100 on virality to be included
 
-DURATION: Each clip MUST be between ${minDuration} and ${maxDuration} seconds long.
+DURATION: ${isAutoMode 
+      ? `You decide the optimal duration for each clip. Each clip should be as long as it needs to be to tell a complete story — typically 15 seconds to 3 minutes. Short punchy moments can be 15-30s, detailed stories or explanations can be 1-3 minutes. Let the content dictate the length. Minimum 15 seconds per clip.`
+      : `Each clip MUST be between ${minDuration} and ${maxDuration} seconds long.`}
 ${introTitleSection}${emojiSection}${clipTypeSection}
 WHAT MAKES A CLIP VIRAL:
 - Strong hook in the first 3 seconds that creates curiosity or emotion
@@ -276,7 +288,9 @@ RULES:
 - Each clip MUST be a complete, self-contained mini-story (setup → development → payoff)
 - Each clip MUST make sense to someone who has NEVER seen the full video
 - Each clip MUST start at the beginning of a topic/point and end when that topic/point is fully resolved
-- Duration MUST be between ${minDuration}-${maxDuration} seconds (duration = endTime - startTime)
+${isAutoMode 
+      ? `- Duration: YOU decide the best length for each clip. Let the content dictate the duration (15s to 3 min). Short punchy moments = shorter clips, detailed stories = longer clips. Minimum 15 seconds.`
+      : `- Duration MUST be between ${minDuration}-${maxDuration} seconds (duration = endTime - startTime)`}
 - Times are in SECONDS (e.g., startTime=60, endTime=90 = 30 second clip)
 - Only include clips with virality score >= 60. Quality over quantity.
 - Return at least 1 clip if any worthy content exists.
@@ -354,23 +368,33 @@ ${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "
       ));
 
       // Filter clips by duration constraints and sort by virality score descending
-      // Allow 20% tolerance on duration to avoid losing all clips
-      const toleranceMin = minDuration * 0.8;
-      const toleranceMax = maxDuration * 1.2;
+      let sortedClips;
       
-      let sortedClips = allClipsWithDuration
-        .filter((clip) => clip.duration >= toleranceMin && clip.duration <= toleranceMax)
-        .filter((clip) => clip.viralityScore >= 60) // Only keep genuinely viral clips
-        .sort((a, b) => b.viralityScore - a.viralityScore);
-
-      // Fallback: if strict filtering returns nothing, take the best clips anyway
-      if (sortedClips.length === 0 && allClipsWithDuration.length > 0) {
-        console.log(`[VIRAL DETECTION] No clips within duration tolerance, returning best clips regardless`);
+      if (isAutoMode) {
+        // Auto mode: no duration filtering, just enforce minimum 15s and sort by score
         sortedClips = allClipsWithDuration
+          .filter((clip) => clip.duration >= 15)
+          .filter((clip) => clip.viralityScore >= 60)
           .sort((a, b) => b.viralityScore - a.viralityScore);
-      }
+      } else {
+        // Manual mode: filter by duration tolerance
+        const toleranceMin = minDuration * 0.8;
+        const toleranceMax = maxDuration * 1.2;
+        
+        sortedClips = allClipsWithDuration
+          .filter((clip) => clip.duration >= toleranceMin && clip.duration <= toleranceMax)
+          .filter((clip) => clip.viralityScore >= 60)
+          .sort((a, b) => b.viralityScore - a.viralityScore);
 
-      console.log(`[VIRAL DETECTION] After filtering: ${sortedClips.length} clips (tolerance: ${toleranceMin.toFixed(0)}-${toleranceMax.toFixed(0)}s)`);
+        // Fallback: if strict filtering returns nothing, take the best clips anyway
+        if (sortedClips.length === 0 && allClipsWithDuration.length > 0) {
+          console.log(`[VIRAL DETECTION] No clips within duration tolerance, returning best clips regardless`);
+          sortedClips = allClipsWithDuration
+            .sort((a, b) => b.viralityScore - a.viralityScore);
+        }
+        
+        console.log(`[VIRAL DETECTION] After filtering: ${sortedClips.length} clips (tolerance: ${toleranceMin.toFixed(0)}-${toleranceMax.toFixed(0)}s)`);
+      }
 
       return sortedClips;
     } catch (error) {

@@ -213,8 +213,8 @@ async function processYouTubeVideo(
       filteredTranscript,
       filteredWords,
       {
-        minDuration: videoConfig?.clipDurationMin ?? 15,
-        maxDuration: videoConfig?.clipDurationMax ?? 60,
+        minDuration: (videoConfig?.clipDurationMin && videoConfig.clipDurationMin > 0) ? videoConfig.clipDurationMin : undefined,
+        maxDuration: (videoConfig?.clipDurationMax && videoConfig.clipDurationMax > 0) ? videoConfig.clipDurationMax : undefined,
         videoTitle: videoInfo.title,
         genre: videoConfig?.genre ?? "Auto",
         clipType: videoConfig?.clipType ?? "viral-clips",
@@ -633,8 +633,8 @@ async function processUploadedVideo(
       filteredTranscript,
       filteredWords,
       {
-        minDuration: videoConfig?.clipDurationMin ?? 15,
-        maxDuration: videoConfig?.clipDurationMax ?? 60,
+        minDuration: (videoConfig?.clipDurationMin && videoConfig.clipDurationMin > 0) ? videoConfig.clipDurationMin : undefined,
+        maxDuration: (videoConfig?.clipDurationMax && videoConfig.clipDurationMax > 0) ? videoConfig.clipDurationMax : undefined,
         videoTitle: videoRecord[0].title || undefined,
         genre: videoConfig?.genre ?? "Auto",
         clipType: videoConfig?.clipType ?? "viral-clips",
