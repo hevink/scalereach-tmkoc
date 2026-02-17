@@ -162,7 +162,6 @@ export class ViralDetectionService {
     }
 
     const {
-      maxClips = DEFAULT_MAX_CLIPS,
       minDuration = DEFAULT_MIN_DURATION,
       maxDuration = DEFAULT_MAX_DURATION,
       videoTitle = "Unknown",
@@ -252,7 +251,7 @@ GUIDELINES:
       ? `${enableIntroTitle ? "5" : "4"}. The same transcript but with emojis added naturally (3-6 emojis, placed at emotional peaks)\n` 
       : "";
 
-    const userPrompt = `Analyze this transcript from the video "${videoTitle}" and identify up to ${maxClips} viral clip opportunities.
+    const userPrompt = `Analyze this transcript from the video "${videoTitle}" and identify ALL viral clip opportunities. Find as many worthy clips as the content supports — there is no upper limit. You must return at least 1 clip.
 
 CRITICAL DURATION REQUIREMENTS:
 - Each clip MUST have a duration between ${minDuration}-${maxDuration} seconds
@@ -347,15 +346,13 @@ REMEMBER:
       
       let sortedClips = allClipsWithDuration
         .filter((clip) => clip.duration >= toleranceMin && clip.duration <= toleranceMax)
-        .sort((a, b) => b.viralityScore - a.viralityScore)
-        .slice(0, maxClips);
+        .sort((a, b) => b.viralityScore - a.viralityScore);
 
       // Fallback: if strict filtering returns nothing, take the best clips anyway
       if (sortedClips.length === 0 && allClipsWithDuration.length > 0) {
         console.log(`[VIRAL DETECTION] No clips within duration tolerance, returning best clips regardless`);
         sortedClips = allClipsWithDuration
-          .sort((a, b) => b.viralityScore - a.viralityScore)
-          .slice(0, maxClips);
+          .sort((a, b) => b.viralityScore - a.viralityScore);
       }
 
       console.log(`[VIRAL DETECTION] After filtering: ${sortedClips.length} clips (tolerance: ${toleranceMin.toFixed(0)}-${toleranceMax.toFixed(0)}s)`);

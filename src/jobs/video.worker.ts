@@ -213,7 +213,6 @@ async function processYouTubeVideo(
       filteredTranscript,
       filteredWords,
       {
-        maxClips: 5,
         minDuration: videoConfig?.clipDurationMin ?? 15,
         maxDuration: videoConfig?.clipDurationMax ?? 60,
         videoTitle: videoInfo.title,
@@ -634,7 +633,6 @@ async function processUploadedVideo(
       filteredTranscript,
       filteredWords,
       {
-        maxClips: 5,
         minDuration: videoConfig?.clipDurationMin ?? 15,
         maxDuration: videoConfig?.clipDurationMax ?? 60,
         videoTitle: videoRecord[0].title || undefined,
