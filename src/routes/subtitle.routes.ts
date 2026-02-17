@@ -4,13 +4,10 @@ import { authMiddleware } from "../middleware/auth.middleware";
 
 const subtitleRouter = new Hono();
 
-// All subtitle routes require authentication
-subtitleRouter.use("/*", authMiddleware);
-
 // Video transcript download
-subtitleRouter.get("/videos/:id/transcript/download", SubtitleController.downloadVideoTranscript);
+subtitleRouter.get("/videos/:id/transcript/download", authMiddleware, SubtitleController.downloadVideoTranscript);
 
 // Clip captions download
-subtitleRouter.get("/clips/:id/captions/download", SubtitleController.downloadClipCaptions);
+subtitleRouter.get("/clips/:id/captions/download", authMiddleware, SubtitleController.downloadClipCaptions);
 
 export default subtitleRouter;
