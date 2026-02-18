@@ -7,6 +7,7 @@ import { TikTokService } from "../services/social/tiktok.service";
 import { InstagramService } from "../services/social/instagram.service";
 import { YouTubeShortsService } from "../services/social/youtube-shorts.service";
 import { TwitterService } from "../services/social/twitter.service";
+import { LinkedInService } from "../services/social/linkedin.service";
 import { db } from "../db";
 import { viralClip } from "../db/schema/project.schema";
 import { eq } from "drizzle-orm";
@@ -54,6 +55,9 @@ async function processPost(job: Job<SocialPostingJobData>) {
       break;
     case "twitter":
       result = await TwitterService.postVideo(accessToken, storageUrl, cap, tags);
+      break;
+    case "linkedin":
+      result = await LinkedInService.postVideo(accessToken, storageUrl, cap, tags);
       break;
     default:
       throw new Error(`Unsupported platform: ${platform}`);

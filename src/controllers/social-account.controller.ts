@@ -6,6 +6,7 @@ import { TikTokService } from "../services/social/tiktok.service";
 import { InstagramService } from "../services/social/instagram.service";
 import { YouTubeShortsService } from "../services/social/youtube-shorts.service";
 import { TwitterService, generatePKCE } from "../services/social/twitter.service";
+import { LinkedInService } from "../services/social/linkedin.service";
 
 const REDIRECT_BASE = process.env.SOCIAL_OAUTH_REDIRECT_BASE_URL || "";
 
@@ -74,6 +75,8 @@ export class SocialAccountController {
         authUrl = InstagramService.getAuthorizationUrl(state, redirectUri);
       } else if (platform === "youtube") {
         authUrl = YouTubeShortsService.getAuthorizationUrl(state, redirectUri);
+      } else if (platform === "linkedin") {
+        authUrl = LinkedInService.getAuthorizationUrl(state, redirectUri);
       } else {
         return c.json({ error: "Unsupported platform" }, 400);
       }
@@ -121,6 +124,9 @@ export class SocialAccountController {
         if (!codeVerifier) return c.json({ error: "Missing PKCE verifier" }, 400);
         tokens = await TwitterService.exchangeCode(code, redirectUri, codeVerifier);
         userInfo = await TwitterService.getUserInfo(tokens.accessToken);
+      } else if (platform === "linkedin") {
+        tokens = await LinkedInService.exchangeCode(code, redirectUri);
+        userInfo = await LinkedInService.getUserInfo(tokens.accessToken);
       } else {
         return c.json({ error: "Unsupported platform" }, 400);
       }

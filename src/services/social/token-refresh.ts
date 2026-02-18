@@ -3,6 +3,7 @@ import { TikTokService } from "./tiktok.service";
 import { InstagramService } from "./instagram.service";
 import { YouTubeShortsService } from "./youtube-shorts.service";
 import { TwitterService } from "./twitter.service";
+import { LinkedInService } from "./linkedin.service";
 import type { OAuthTokens } from "./types";
 
 interface AccountTokens {
@@ -46,6 +47,9 @@ export async function maybeRefreshToken(account: AccountTokens): Promise<{
       break;
     case "twitter":
       refreshed = await TwitterService.refreshAccessToken(plainRefresh);
+      break;
+    case "linkedin":
+      refreshed = await LinkedInService.refreshAccessToken(plainRefresh);
       break;
     default:
       return { accessToken: plainAccess };
