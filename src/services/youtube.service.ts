@@ -28,11 +28,10 @@ export interface ValidationResult {
 export const MAX_VIDEO_DURATION_SECONDS = 14400;
 
 /**
- * Determine the best output quality based on source video height and plan limit.
- * Pro plan: up to 4k. Free/Starter: capped at 1080p.
+ * Determine the best output quality based on source video height.
+ * Returns "4k" if source is >= 2160p, "1080p" otherwise (default).
  */
-export function getQualityFromHeight(videoHeight?: number, maxQuality: "1080p" | "4k" = "4k"): "720p" | "1080p" | "4k" {
-  if (maxQuality === "1080p") return "1080p";
+export function getQualityFromHeight(videoHeight?: number): "720p" | "1080p" | "4k" {
   if (videoHeight && videoHeight >= 2160) return "4k";
   return "1080p";
 }
