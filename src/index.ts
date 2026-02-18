@@ -25,6 +25,7 @@ import translationRouter from "./routes/translation.routes";
 import dubbingRouter from "./routes/dubbing.routes";
 import shareRouter from "./routes/share.routes";
 import backgroundVideoRouter from "./routes/background-video.routes";
+import socialRouter from "./routes/social.routes";
 import swaggerApp from "./docs/swagger-ui";
 import { openApiDocument } from "./docs/openapi";
 import type { AuthContext } from "./lib/auth";
@@ -113,6 +114,7 @@ app.route("/api/admin", adminRouter);
 app.route("/api/translations", translationRouter);
 app.route("/api/dubbing", dubbingRouter);
 app.route("/api/backgrounds", backgroundVideoRouter);
+app.route("/api/social", socialRouter);
 app.route("/api", shareRouter); // Share routes (includes /api/videos/:videoId/share and /api/share/:token/analytics)
 app.route("/health", healthRouter); // Enhanced health checks
 app.route("/api-docs", swaggerApp); // Swagger UI at api-docs path

@@ -11,3 +11,4 @@ export * from "./dubbing.schema";
 export * from "./share.schema";
 
 export * from "./background-video.schema";
+export * from "./social.schema";

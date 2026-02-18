@@ -53,7 +53,18 @@ redisConnection.on("error", (err) => {
 export const QUEUE_NAMES = {
   VIDEO_PROCESSING: "video-processing",
   CLIP_GENERATION: "clip-generation",
+  SOCIAL_POSTING: "social-posting",
 } as const;
+
+export interface SocialPostingJobData {
+  postId: string;
+  workspaceId: string;
+  clipId: string;
+  socialAccountId: string;
+  platform: string;
+  caption?: string;
+  hashtags?: string[];
+}
 
 export interface VideoProcessingJobData {
   videoId: string;
@@ -317,4 +328,30 @@ export async function getClipJobStatus(jobId: string) {
     processedOn: job.processedOn,
     finishedOn: job.finishedOn,
   };
+}
+
+export const socialPostingQueue = new Queue<SocialPostingJobData>(
+  QUEUE_NAMES.SOCIAL_POSTING,
+  {
+    connection: createRedisConnection(),
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 10000,
+      },
+      removeOnComplete: { count: 100, age: 24 * 60 * 60 },
+      removeOnFail: { count: 50, age: 7 * 24 * 60 * 60 },
+    },
+  }
+);
+
+export async function addSocialPostingJob(data: SocialPostingJobData, delayMs?: number) {
+  console.log(`[QUEUE] Adding social posting job for post: ${data.postId}`);
+  const job = await socialPostingQueue.add("post-to-social", data, {
+    jobId: `social-${data.postId}`,
+    delay: delayMs,
+  });
+  console.log(`[QUEUE] Social posting job added with ID: ${job.id}`);
+  return job;
 }
