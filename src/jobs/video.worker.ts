@@ -97,8 +97,20 @@ async function processYouTubeVideo(
       console.error(`[VIDEO WORKER] Failed to start YouTube stream: ${error.message}`);
       throw new Error(`YouTube download failed: ${error.message}`);
     }
-    
+
     const { stream, videoInfo, mimeType } = streamResult;
+
+    // Update title + thumbnail immediately so UI shows them during download
+    await updateVideoStatus(videoId, "downloading", {
+      title: videoInfo.title,
+      duration: Math.round(videoInfo.duration),
+      mimeType: mimeType,
+      metadata: {
+        youtubeId: videoInfo.id,
+        thumbnail: videoInfo.thumbnail,
+        channelName: videoInfo.channelName,
+      },
+    });
 
     // Determine best output quality based on source video resolution and plan
     const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
@@ -111,16 +123,7 @@ async function processYouTubeVideo(
     await job.updateProgress(30);
     console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
 
-    await updateVideoStatus(videoId, "uploading", {
-      title: videoInfo.title,
-      duration: Math.round(videoInfo.duration),
-      mimeType: mimeType,
-      metadata: {
-        youtubeId: videoInfo.id,
-        thumbnail: videoInfo.thumbnail,
-        channelName: videoInfo.channelName,
-      },
-    });
+    await updateVideoStatus(videoId, "uploading");
 
     const filename = `${videoInfo.id}.m4a`;
     // Use projectId if available, otherwise use userId for storage path
