@@ -96,11 +96,11 @@ function getOutputDimensions(
   const baseSize = qualityMap[quality];
 
   switch (aspectRatio) {
-    case "9:16": // Vertical (TikTok, Reels, Shorts)
-      return { width: Math.round(baseSize * (9 / 16)), height: baseSize };
+    case "9:16": // Vertical (TikTok, Reels, Shorts) — baseSize is the WIDTH (e.g. 1080→1080×1920)
+      return { width: baseSize, height: Math.round(baseSize * (16 / 9)) };
     case "1:1": // Square (Instagram feed)
       return { width: baseSize, height: baseSize };
-    case "16:9": // Horizontal (YouTube)
+    case "16:9": // Horizontal (YouTube) — baseSize is the HEIGHT (e.g. 1080→1920×1080)
       return { width: Math.round(baseSize * (16 / 9)), height: baseSize };
     default:
       return { width: 1920, height: 1080 };
@@ -611,11 +611,11 @@ export class ClipGeneratorService {
         }
       }
     } else {
-      // Fallback to legacy position preset
+      // Fallback to legacy position preset — scale margins proportionally with height
       const textAlign = style?.alignment || "center";
       const hAlign = textAlign === "left" ? 1 : textAlign === "right" ? 3 : 2;
       alignment = style?.position === "top" ? (6 + hAlign) : style?.position === "center" ? (3 + hAlign) : hAlign;
-      marginV = style?.position === "center" ? 0 : style?.position === "top" ? 60 : 120;
+      marginV = style?.position === "center" ? 0 : style?.position === "top" ? Math.round(height * 0.055) : Math.round(height * 0.11);
       // Apply maxWidth even in legacy mode
       const halfGap = Math.max(0, (100 - captionMaxWidth) / 2);
       marginL = Math.round((halfGap / 100) * width);
@@ -1520,10 +1520,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       `crop=${targetWidth}:${targetHeight},` +
       `gblur=sigma=20,` +
       `eq=brightness=-0.1[bg_blur];` +
-      // Foreground: scale to fit width, -2 ensures even height
-      `[fg]scale=${targetWidth}:-2,setsar=1[fg_scaled];` +
-      // Overlay foreground centered on blurred background
-      `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2`;
+      // Foreground: scale so height = targetWidth (56% of frame for 16:9 source)
+      // This reduces blur bars significantly vs fitting to width (31% fill → 56% fill)
+      // Sides wider than the frame are cropped by the overlay boundary
+      `[fg]scale=-2:${targetWidth},setsar=1[fg_scaled];` +
+      // Overlay foreground centered on blurred background, force square pixels
+      `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
   }
 
   /**
