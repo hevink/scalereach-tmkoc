@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { video } from "../db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
 export class VideoModel {
@@ -30,6 +30,11 @@ export class VideoModel {
       );
       throw error;
     }
+  }
+
+  static async getByIds(ids: string[]) {
+    if (ids.length === 0) return [];
+    return db.select().from(video).where(inArray(video.id, ids));
   }
 
   static async getByProjectId(projectId: string) {

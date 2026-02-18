@@ -174,36 +174,36 @@ export class MinutesModel {
       const minutesBefore = current.minutesRemaining;
       const minutesAfter = minutesBefore - params.amount;
 
-      // Update balance
-      await db
-        .update(workspaceMinutes)
-        .set({
-          minutesUsed: current.minutesUsed + params.amount,
-          minutesRemaining: minutesAfter,
-        })
-        .where(eq(workspaceMinutes.workspaceId, params.workspaceId));
-
-      // Update video minutes consumed
-      if (params.videoId) {
-        await db
-          .update(video)
+      // Wrap all three writes in a transaction — balance + video + transaction log must be atomic
+      await db.transaction(async (tx) => {
+        await tx
+          .update(workspaceMinutes)
           .set({
-            minutesConsumed: sql`${video.minutesConsumed} + ${params.amount}`,
+            minutesUsed: current.minutesUsed + params.amount,
+            minutesRemaining: minutesAfter,
           })
-          .where(eq(video.id, params.videoId));
-      }
+          .where(eq(workspaceMinutes.workspaceId, params.workspaceId));
 
-      // Log transaction
-      await db.insert(minuteTransaction).values({
-        id: this.generateId(),
-        workspaceId: params.workspaceId,
-        userId: params.userId,
-        videoId: params.videoId,
-        type: params.type,
-        minutesAmount: -params.amount,
-        minutesBefore,
-        minutesAfter,
-        description: `${params.type} video`,
+        if (params.videoId) {
+          await tx
+            .update(video)
+            .set({
+              minutesConsumed: sql`${video.minutesConsumed} + ${params.amount}`,
+            })
+            .where(eq(video.id, params.videoId));
+        }
+
+        await tx.insert(minuteTransaction).values({
+          id: this.generateId(),
+          workspaceId: params.workspaceId,
+          userId: params.userId,
+          videoId: params.videoId,
+          type: params.type,
+          minutesAmount: -params.amount,
+          minutesBefore,
+          minutesAfter,
+          description: `${params.type} video`,
+        });
       });
 
       const duration = performance.now() - startTime;
