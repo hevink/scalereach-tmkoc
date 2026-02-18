@@ -172,8 +172,8 @@ export class YouTubeService {
         "--js-runtimes", "deno",
         // Anti-bot detection measures
         "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        // Use web client when cookies are available, otherwise try android first
-        "--extractor-args", cookiesPath ? "youtube:player_client=web,android" : "youtube:player_client=android,web",
+        // Use android_vr first — it serves highest quality streams including 4K AV1
+        "--extractor-args", cookiesPath ? "youtube:player_client=web,android_vr,android" : "youtube:player_client=android_vr,web,android",
         "--extractor-retries", "5",
         url,
       ];
@@ -297,8 +297,8 @@ export class YouTubeService {
       "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "--add-header", "Accept-Language:en-us,en;q=0.5",
       "--add-header", "Sec-Fetch-Mode:navigate",
-      // Use web client when cookies are available, otherwise try android first
-      "--extractor-args", cookiesPath ? "youtube:player_client=web,android" : "youtube:player_client=android,web",
+      // Use android_vr first — it serves highest quality streams including 4K AV1
+      "--extractor-args", cookiesPath ? "youtube:player_client=web,android_vr,android" : "youtube:player_client=android_vr,web,android",
       "--extractor-retries", "5",
       "--fragment-retries", "5",
       "--retry-sleep", "2",

@@ -1046,8 +1046,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "--no-post-overwrites", // Prevent conflicts with concurrent processes
         // Enable Deno as primary JavaScript runtime (faster and more reliable)
         "--js-runtimes", "deno",
-        // Always prefer web client — android client serves degraded/low-res streams
-        "--extractor-args", "youtube:player_client=web,android",
+        // Use android_vr first — it serves highest quality streams including 4K AV1
+        "--extractor-args", "youtube:player_client=android_vr,web,android",
         url,
       ];
 

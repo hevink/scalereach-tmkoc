@@ -1,6 +1,7 @@
 // Initialize Sentry first (must be at the very top)
 import "./lib/sentry";
 
+import { startPotServer, stopPotServer } from "./lib/pot-server";
 import { startVideoWorker } from "./jobs/video.worker";
 import { startClipWorker } from "./jobs/clip.worker";
 import { startTranslationWorker, translationQueue } from "./jobs/translation.worker";
@@ -16,6 +17,8 @@ const WORKER_HEALTH_PORT = parseInt(process.env.WORKER_HEALTH_PORT || "3002", 10
 const DUBBING_WORKER_CONCURRENCY = parseInt(process.env.DUBBING_WORKER_CONCURRENCY || "1", 10);
 
 const startTime = Date.now();
+
+startPotServer();
 
 console.log("[WORKER] Starting video processing worker...");
 const videoWorker = startVideoWorker(VIDEO_WORKER_CONCURRENCY);
@@ -247,6 +250,7 @@ console.log(`[WORKER] Health check server running on http://localhost:${WORKER_H
 process.on("SIGTERM", async () => {
   console.log("[WORKER] Received SIGTERM, shutting down gracefully...");
   healthServer?.stop();
+  stopPotServer();
   await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close()]);
   process.exit(0);
 });
@@ -254,6 +258,7 @@ process.on("SIGTERM", async () => {
 process.on("SIGINT", async () => {
   console.log("[WORKER] Received SIGINT, shutting down gracefully...");
   healthServer?.stop();
+  stopPotServer();
   await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close()]);
   process.exit(0);
 });

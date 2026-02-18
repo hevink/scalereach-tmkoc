@@ -16,7 +16,7 @@ RUN bun install --no-save
 # Production stage
 FROM oven/bun:1-debian AS runner
 
-# Install runtime dependencies (libvips for sharp, ffmpeg, yt-dlp, deno)
+# Install runtime dependencies (libvips for sharp, ffmpeg, yt-dlp, deno, node for bgutil POT server)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -25,12 +25,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     unzip \
+    nodejs \
+    npm \
     fonts-noto-color-emoji \
     && pip3 install --upgrade yt-dlp yt-dlp-get-pot --break-system-packages \
     && curl -fsSL https://deno.land/install.sh | sh \
     && ln -s /root/.deno/bin/deno /usr/local/bin/deno \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* /root/.cache
+
+# Install bgutil POT server (pinned to v1.2.2)
+RUN curl -fsSL https://github.com/Brainicism/bgutil-ytdlp-pot-provider/archive/refs/tags/1.2.2.tar.gz \
+      | tar -xz -C /tmp && \
+    mv /tmp/bgutil-ytdlp-pot-provider-1.2.2/server /opt/bgutil-pot && \
+    npm install --prefix /opt/bgutil-pot && \
+    npx --prefix /opt/bgutil-pot tsc -p /opt/bgutil-pot/tsconfig.json && \
+    rm -rf /tmp/bgutil-ytdlp-pot-provider-1.2.2
+
+ENV BGUTIL_SERVER_PATH=/opt/bgutil-pot/build/main.js
 
 WORKDIR /app
 
@@ -43,6 +55,7 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy source
 COPY package.json ./
 COPY src ./src
+COPY assets ./assets
 COPY drizzle ./drizzle
 COPY drizzle.config.ts tsconfig.json ./
 
