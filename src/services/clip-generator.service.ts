@@ -1012,8 +1012,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       // Always download the highest quality available (no height limit)
-      // bestvideo + bestaudio merged, fallback to best single format
-      const formatSelector = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best";
+      // Do NOT restrict to ext=mp4 — YouTube serves 1080p+ in VP9/webm, not H.264/mp4.
+      // Restricting to mp4 causes yt-dlp to fall back to low-quality H.264 streams (often 480p or lower).
+      const formatSelector = "bestvideo+bestaudio/best";
 
       const downloadSection = formatYtDlpTimestamp(startTime, endTime);
 
@@ -1024,6 +1025,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "-f", formatSelector,
         "--download-sections", downloadSection,
         "--force-keyframes-at-cuts",
+        "--merge-output-format", "mp4", // Ensure output is always mp4 even when source is VP9/webm
         "-o", outputPath,
         "--no-playlist",
         "--quiet",
@@ -1031,8 +1033,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "--no-post-overwrites", // Prevent conflicts with concurrent processes
         // Enable Deno as primary JavaScript runtime (faster and more reliable)
         "--js-runtimes", "deno",
-        // Use web client when cookies are available, otherwise try android first
-        "--extractor-args", cookiesPath ? "youtube:player_client=web,android" : "youtube:player_client=android,web",
+        // Always prefer web client — android client serves degraded/low-res streams
+        "--extractor-args", "youtube:player_client=web,android",
         url,
       ];
 
