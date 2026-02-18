@@ -1539,11 +1539,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       `crop=${targetWidth}:${targetHeight},` +
       `gblur=sigma=20,` +
       `eq=brightness=-0.1[bg_blur];` +
-      // Foreground: scale so height = targetWidth (56% of frame for 16:9 source)
-      // This reduces blur bars significantly vs fitting to width (31% fill → 56% fill)
-      // Sides wider than the frame are cropped by the overlay boundary
-      `[fg]scale=-2:${targetWidth},setsar=1[fg_scaled];` +
-      // Overlay foreground centered on blurred background, force square pixels
+      // Foreground: scale to 1.5x width for a zoomed-in look, sides cropped by overlay boundary
+      `[fg]scale=${Math.round(targetWidth * 1.5)}:-2,setsar=1[fg_scaled];` +
+      // Overlay foreground centered on blurred background
       `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
   }
 
