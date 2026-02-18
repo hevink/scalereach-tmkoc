@@ -100,9 +100,13 @@ async function processYouTubeVideo(
     
     const { stream, videoInfo, mimeType } = streamResult;
 
-    // Determine best output quality based on source video resolution
-    const clipQuality = getQualityFromHeight(videoInfo.videoHeight);
-    console.log(`[VIDEO WORKER] Source video height: ${videoInfo.videoHeight ?? 'unknown'}p, clip quality: ${clipQuality}`);
+    // Determine best output quality based on source video resolution and plan
+    const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+    const planConfig = getPlanConfig(ws?.plan || "free");
+    // Split screen clips are always capped at 1080p regardless of plan (performance)
+    const effectiveMaxQuality = videoConfig?.enableSplitScreen ? "1080p" : planConfig.limits.maxClipQuality;
+    const clipQuality = getQualityFromHeight(videoInfo.videoHeight, effectiveMaxQuality);
+    console.log(`[VIDEO WORKER] Source video height: ${videoInfo.videoHeight ?? 'unknown'}p, plan: ${ws?.plan || 'free'}, splitScreen: ${!!videoConfig?.enableSplitScreen}, clip quality: ${clipQuality}`);
 
     await job.updateProgress(30);
     console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
@@ -332,8 +336,7 @@ async function processYouTubeVideo(
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
         // Queue clip generation with captions and intro title
-        const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
-        const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+        const applyWatermark = planConfig.limits.watermark;
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
         // Emojis and intro title disabled for now
@@ -539,9 +542,13 @@ async function processUploadedVideo(
       // Continue without metadata - we'll try to process anyway
     }
 
-    // Determine best output quality based on source video resolution
-    const uploadClipQuality = getQualityFromHeight(videoMetadata?.height);
-    console.log(`[VIDEO WORKER] Source video height: ${videoMetadata?.height ?? 'unknown'}p, clip quality: ${uploadClipQuality}`);
+    // Determine best output quality based on source video resolution and plan
+    const uploadWs = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+    const uploadPlanConfig = getPlanConfig(uploadWs?.plan || "free");
+    // Split screen clips are always capped at 1080p regardless of plan (performance)
+    const uploadEffectiveMaxQuality = videoConfig?.enableSplitScreen ? "1080p" : uploadPlanConfig.limits.maxClipQuality;
+    const uploadClipQuality = getQualityFromHeight(videoMetadata?.height, uploadEffectiveMaxQuality);
+    console.log(`[VIDEO WORKER] Source video height: ${videoMetadata?.height ?? 'unknown'}p, plan: ${uploadWs?.plan || 'free'}, splitScreen: ${!!videoConfig?.enableSplitScreen}, clip quality: ${uploadClipQuality}`);
 
     await job.updateProgress(20);
 
@@ -756,8 +763,7 @@ async function processUploadedVideo(
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
         // Queue clip generation with captions and intro title
-        const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
-        const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+        const applyWatermark = uploadPlanConfig.limits.watermark;
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
         // Emojis and intro title disabled for now
