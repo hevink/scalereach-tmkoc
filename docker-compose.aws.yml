@@ -34,5 +34,14 @@ services:
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
       - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
       - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - YT_DLP_GET_POT_BGUTIL_BASE_URL=http://bgutil-provider:4416
+    depends_on:
+      - bgutil-provider
     restart: unless-stopped
     command: ["bun", "run", "src/worker.ts"]
+
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    ports:
+      - "4416:4416"
+    restart: unless-stopped
