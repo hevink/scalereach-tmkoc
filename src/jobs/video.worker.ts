@@ -100,9 +100,11 @@ async function processYouTubeVideo(
     
     const { stream, videoInfo, mimeType } = streamResult;
 
-    // Determine best output quality based on source video resolution
-    const clipQuality = getQualityFromHeight(videoInfo.videoHeight);
-    console.log(`[VIDEO WORKER] Source video height: ${videoInfo.videoHeight ?? 'unknown'}p, clip quality: ${clipQuality}`);
+    // Determine best output quality based on source video resolution and plan
+    const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+    const maxClipQuality = getPlanConfig(ws?.plan || "free").limits.maxClipQuality;
+    const clipQuality = getQualityFromHeight(videoInfo.videoHeight, maxClipQuality);
+    console.log(`[VIDEO WORKER] Source video height: ${videoInfo.videoHeight ?? 'unknown'}p, plan: ${ws?.plan || 'free'}, clip quality: ${clipQuality}`);
 
     await job.updateProgress(30);
     console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
@@ -332,7 +334,6 @@ async function processYouTubeVideo(
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
         // Queue clip generation with captions and intro title
-        const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
         const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
@@ -539,9 +540,11 @@ async function processUploadedVideo(
       // Continue without metadata - we'll try to process anyway
     }
 
-    // Determine best output quality based on source video resolution
-    const uploadClipQuality = getQualityFromHeight(videoMetadata?.height);
-    console.log(`[VIDEO WORKER] Source video height: ${videoMetadata?.height ?? 'unknown'}p, clip quality: ${uploadClipQuality}`);
+    // Determine best output quality based on source video resolution and plan
+    const uploadWs = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+    const uploadMaxQuality = getPlanConfig(uploadWs?.plan || "free").limits.maxClipQuality;
+    const uploadClipQuality = getQualityFromHeight(videoMetadata?.height, uploadMaxQuality);
+    console.log(`[VIDEO WORKER] Source video height: ${videoMetadata?.height ?? 'unknown'}p, plan: ${uploadWs?.plan || 'free'}, clip quality: ${uploadClipQuality}`);
 
     await job.updateProgress(20);
 
@@ -756,8 +759,7 @@ async function processUploadedVideo(
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
         // Queue clip generation with captions and intro title
-        const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
-        const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+        const applyWatermark = getPlanConfig(uploadWs?.plan || "free").limits.watermark;
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
         // Emojis and intro title disabled for now
