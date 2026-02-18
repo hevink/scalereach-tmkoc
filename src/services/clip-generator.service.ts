@@ -1057,6 +1057,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
       this.logOperation("YT_DLP_DOWNLOAD", { args: args.join(" ") });
 
+      // Print clickable terminal link to the exact YouTube timestamp being downloaded
+      const startHMS = formatTimestamp(startTime);
+      const youtubeTimestampUrl = `${url}&t=${Math.floor(startTime)}`;
+      const termLink = `\u001b]8;;${youtubeTimestampUrl}\u001b\\${url} [${startHMS} → ${formatTimestamp(endTime)}]\u001b]8;;\u001b\\`;
+      console.log(`[CLIP GENERATOR] Downloading segment: ${termLink}`);
+
       const ytdlpProcess = spawn("yt-dlp", args);
 
       let stderr = "";
