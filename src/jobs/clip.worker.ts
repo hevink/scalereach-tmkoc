@@ -275,9 +275,11 @@ async function processClipGenerationJob(
       captureException(error, { clipId, videoId, aspectRatio, quality });
     }
 
-    // Update status to failed (Requirement 7.7 - after 3 retries)
-    // Note: BullMQ handles retries automatically, this is called on final failure
-    await updateClipStatus(clipId, "failed", { errorMessage });
+    // Only mark as failed on the last attempt — BullMQ retries before reaching here
+    const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1) - 1;
+    if (isLastAttempt) {
+      await updateClipStatus(clipId, "failed", { errorMessage });
+    }
 
     throw error; // Re-throw to trigger BullMQ retry logic
   }

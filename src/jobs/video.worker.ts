@@ -413,7 +413,11 @@ async function processYouTubeVideo(
       }
     }
 
-    await updateVideoStatus(videoId, "failed", { errorMessage });
+    // Only mark as failed on the last attempt
+    const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1) - 1;
+    if (isLastAttempt) {
+      await updateVideoStatus(videoId, "failed", { errorMessage });
+    }
 
     throw error;
   }
@@ -835,7 +839,11 @@ async function processUploadedVideo(
       }
     }
 
-    await updateVideoStatus(videoId, "failed", { errorMessage });
+    // Only mark as failed on the last attempt
+    const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1) - 1;
+    if (isLastAttempt) {
+      await updateVideoStatus(videoId, "failed", { errorMessage });
+    }
 
     throw error;
   }
