@@ -351,12 +351,14 @@ export class ClipGeneratorService {
         // Now burn captions onto the composed video at the split point
         if (deferCaptions && options.captions) {
           const splitRatio = options.splitScreen.splitRatio;
+          // Place captions just above the split line (bottom of main video area)
+          const captionY = splitRatio - 5;
           const captionsAtSplitPoint: NonNullable<ClipGenerationOptions["captions"]> = {
             ...options.captions,
             style: {
               ...options.captions.style,
               position: "center" as const,
-              y: splitRatio,
+              y: captionY,
               x: options.captions.style?.x ?? 50,
             },
           };
@@ -382,6 +384,17 @@ export class ClipGeneratorService {
           `[CLIP GENERATOR] Split-screen composition failed, falling back to single-video:`,
           ssError instanceof Error ? ssError.message : ssError
         );
+        // Captions were deferred — burn them onto the fallback clip so they're not lost
+        if (deferCaptions && options.captions) {
+          clipWithCaptionsBuffer = await this.burnSubtitlesOnBuffer(
+            clipWithCaptionsBuffer,
+            options.captions,
+            width,
+            height,
+            options.introTitle,
+            options.emojis
+          );
+        }
       } finally {
         await SplitScreenCompositorService.cleanup(tempPaths);
       }
