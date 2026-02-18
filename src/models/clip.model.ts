@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { viralClip, RecommendedPlatform } from "../db/schema";
-import { eq, and, gte, lte, desc, asc, inArray, SQL } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc, SQL } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
 /**
@@ -46,12 +46,6 @@ export class ClipModel {
       );
       throw error;
     }
-  }
-
-  static async getByIds(ids: string[]) {
-    if (ids.length === 0) return [];
-    const result = await db.select().from(viralClip).where(inArray(viralClip.id, ids));
-    return result;
   }
 
   /**
