@@ -33,15 +33,17 @@ export class SplitScreenCompositorService {
    */
   static buildFilterComplex(options: SplitScreenOptions): string {
     const topHeight = Math.round(options.targetHeight * (options.splitRatio / 100));
+    const bottomHeight = options.targetHeight - topHeight;
     const w = options.targetWidth;
-    const h = options.targetHeight;
 
-    // Background: scale to fill entire frame (1080x1920)
-    // Main video: scale to fit top portion, then overlay it
+    // Scale each video to only its own portion, then stack vertically.
+    // Previously the background was scaled to the full frame (1080×1920) and
+    // the main clip overlaid on top — this caused the background to be heavily
+    // upscaled/cropped even though only the bottom portion is visible.
     return [
-      `[1:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}[bg]`,
       `[0:v]scale=${w}:${topHeight}:force_original_aspect_ratio=increase,crop=${w}:${topHeight}[main]`,
-      `[bg][main]overlay=0:0[out]`,
+      `[1:v]scale=${w}:${bottomHeight}:force_original_aspect_ratio=increase,crop=${w}:${bottomHeight}[bg]`,
+      `[main][bg]vstack[out]`,
     ].join(";");
   }
 
