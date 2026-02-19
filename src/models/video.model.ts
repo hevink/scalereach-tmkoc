@@ -259,6 +259,18 @@ export class VideoModel {
     }
   }
 
+  static async getStorageKeysByWorkspaceId(workspaceId: string) {
+    const result = await db
+      .select({
+        storageKey: video.storageKey,
+        audioStorageKey: video.audioStorageKey,
+        thumbnailKey: video.thumbnailKey,
+      })
+      .from(video)
+      .where(eq(video.workspaceId, workspaceId));
+    return result;
+  }
+
   static async delete(id: string) {
     this.logOperation("DELETE_VIDEO", { id });
     const startTime = performance.now();

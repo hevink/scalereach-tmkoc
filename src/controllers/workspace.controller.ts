@@ -8,6 +8,9 @@ import {
   updateMemberRoleSchema,
   uploadLogoSchema,
 } from "../schemas/validation.schemas";
+import { R2Service } from "../services/r2.service";
+import { VideoModel } from "../models/video.model";
+import { ClipModel } from "../models/clip.model";
 
 export class WorkspaceController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -317,6 +320,58 @@ export class WorkspaceController {
         }, 400);
       }
 
+      // Clean up all R2 files before deleting workspace
+      const [videoKeys, clipKeys] = await Promise.all([
+        VideoModel.getStorageKeysByWorkspaceId(id),
+        ClipModel.getStorageKeysByWorkspaceId(id),
+      ]);
+
+      // Also get brand kit logo, export, and dubbing keys
+      const { db } = await import("../db");
+      const { brandKit, videoExport, voiceDubbing, dubbedClipAudio } = await import("../db/schema");
+      const { eq, inArray } = await import("drizzle-orm");
+
+      const brandKitRows = await db
+        .select({ logoStorageKey: brandKit.logoStorageKey })
+        .from(brandKit)
+        .where(eq(brandKit.workspaceId, id));
+
+      const { video, viralClip } = await import("../db/schema");
+
+      const exportRows = await db
+        .select({ storageKey: videoExport.storageKey })
+        .from(videoExport)
+        .innerJoin(viralClip, eq(videoExport.clipId, viralClip.id))
+        .innerJoin(video, eq(viralClip.videoId, video.id))
+        .where(eq(video.workspaceId, id));
+
+      const dubbingRows = await db
+        .select({ dubbedAudioKey: voiceDubbing.dubbedAudioKey, mixedAudioKey: voiceDubbing.mixedAudioKey, dubbingId: voiceDubbing.id })
+        .from(voiceDubbing)
+        .where(eq(voiceDubbing.workspaceId, id));
+
+      const dubbingIds = dubbingRows.map(d => d.dubbingId);
+      const clipAudioRows = dubbingIds.length > 0
+        ? await db.select({ audioKey: dubbedClipAudio.audioKey }).from(dubbedClipAudio).where(inArray(dubbedClipAudio.dubbingId, dubbingIds))
+        : [];
+
+      const r2Keys: string[] = [
+        ...videoKeys.flatMap((v) =>
+          [v.storageKey, v.audioStorageKey, v.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...clipKeys.flatMap((c) =>
+          [c.storageKey, c.rawStorageKey, c.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...brandKitRows.flatMap((b) =>
+          [b.logoStorageKey].filter(Boolean) as string[]
+        ),
+        ...exportRows.flatMap(e => [e.storageKey].filter(Boolean) as string[]),
+        ...dubbingRows.flatMap(d => [d.dubbedAudioKey, d.mixedAudioKey].filter(Boolean) as string[]),
+        ...clipAudioRows.flatMap(a => [a.audioKey].filter(Boolean) as string[]),
+      ];
+
+      await Promise.allSettled(r2Keys.map((key) => R2Service.deleteFile(key)));
+
       await WorkspaceModel.delete(id);
       console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE success - deleted workspace: ${id}${credits.balance > 0 ? ` (lost ${credits.balance} credits)` : ''}`);
       return c.json({ message: "Workspace deleted successfully", creditsLost: credits.balance });
@@ -555,6 +610,55 @@ export class WorkspaceController {
           requiresConfirmation: true
         }, 400);
       }
+
+      // Clean up all R2 files before deleting workspace
+      const [videoKeys, clipKeys] = await Promise.all([
+        VideoModel.getStorageKeysByWorkspaceId(workspace.id),
+        ClipModel.getStorageKeysByWorkspaceId(workspace.id),
+      ]);
+
+      const { db } = await import("../db");
+      const { brandKit, videoExport, voiceDubbing, dubbedClipAudio, video, viralClip } = await import("../db/schema");
+      const { eq, inArray } = await import("drizzle-orm");
+
+      const brandKitRows = await db
+        .select({ logoStorageKey: brandKit.logoStorageKey })
+        .from(brandKit)
+        .where(eq(brandKit.workspaceId, workspace.id));
+
+      const exportRows = await db
+        .select({ storageKey: videoExport.storageKey })
+        .from(videoExport)
+        .innerJoin(viralClip, eq(videoExport.clipId, viralClip.id))
+        .innerJoin(video, eq(viralClip.videoId, video.id))
+        .where(eq(video.workspaceId, workspace.id));
+
+      const dubbingRows = await db
+        .select({ dubbedAudioKey: voiceDubbing.dubbedAudioKey, mixedAudioKey: voiceDubbing.mixedAudioKey, dubbingId: voiceDubbing.id })
+        .from(voiceDubbing)
+        .where(eq(voiceDubbing.workspaceId, workspace.id));
+
+      const dubbingIds = dubbingRows.map(d => d.dubbingId);
+      const clipAudioRows = dubbingIds.length > 0
+        ? await db.select({ audioKey: dubbedClipAudio.audioKey }).from(dubbedClipAudio).where(inArray(dubbedClipAudio.dubbingId, dubbingIds))
+        : [];
+
+      const r2Keys: string[] = [
+        ...videoKeys.flatMap((v) =>
+          [v.storageKey, v.audioStorageKey, v.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...clipKeys.flatMap((c) =>
+          [c.storageKey, c.rawStorageKey, c.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...brandKitRows.flatMap((b) =>
+          [b.logoStorageKey].filter(Boolean) as string[]
+        ),
+        ...exportRows.flatMap(e => [e.storageKey].filter(Boolean) as string[]),
+        ...dubbingRows.flatMap(d => [d.dubbedAudioKey, d.mixedAudioKey].filter(Boolean) as string[]),
+        ...clipAudioRows.flatMap(a => [a.audioKey].filter(Boolean) as string[]),
+      ];
+
+      await Promise.allSettled(r2Keys.map((key) => R2Service.deleteFile(key)));
 
       await WorkspaceModel.delete(workspace.id);
       console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG success - deleted workspace: ${slug}${credits.balance > 0 ? ` (lost ${credits.balance} credits)` : ''}`);

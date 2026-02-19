@@ -237,4 +237,11 @@ export class DubbingModel {
       .from(dubbedClipAudio)
       .where(eq(dubbedClipAudio.clipId, clipId));
   }
+
+  static async getClipAudioKeysByDubbingId(dubbingId: string) {
+    return db
+      .select({ audioKey: dubbedClipAudio.audioKey })
+      .from(dubbedClipAudio)
+      .where(eq(dubbedClipAudio.dubbingId, dubbingId));
+  }
 }

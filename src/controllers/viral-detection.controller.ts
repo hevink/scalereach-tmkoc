@@ -15,6 +15,9 @@ import {
 import { R2Service } from "../services/r2.service";
 import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
 import { canRegenerateVideo } from "../services/minutes-validation.service";
+import { db } from "../db";
+import { videoExport, dubbedClipAudio } from "../db/schema";
+import { eq } from "drizzle-orm";
 
 /**
  * Controller for viral detection API endpoints
@@ -329,6 +332,27 @@ export class ViralDetectionController {
       if (!clip) {
         return c.json({ error: "Clip not found" }, 404);
       }
+
+      // Delete clip R2 files + export R2 files + dubbed audio
+      const exportKeys = await db
+        .select({ storageKey: videoExport.storageKey })
+        .from(videoExport)
+        .where(eq(videoExport.clipId, clipId));
+
+      const clipAudioRows = await db
+        .select({ audioKey: dubbedClipAudio.audioKey })
+        .from(dubbedClipAudio)
+        .where(eq(dubbedClipAudio.clipId, clipId));
+
+      await Promise.allSettled(
+        [
+          clip.storageKey, clip.rawStorageKey, clip.thumbnailKey,
+          ...exportKeys.map(e => e.storageKey),
+          ...clipAudioRows.map(a => a.audioKey),
+        ]
+          .filter(Boolean)
+          .map((key) => R2Service.deleteFile(key as string))
+      );
 
       await ClipModel.delete(clipId);
 

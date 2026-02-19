@@ -4,7 +4,7 @@ import { UserModel } from "../models/user.model";
 import { VideoModel } from "../models/video.model";
 import { R2Service } from "../services/r2.service";
 import { db } from "../db";
-import { viralClip, videoExport } from "../db/schema";
+import { viralClip, videoExport, voiceDubbing, dubbedClipAudio } from "../db/schema";
 import { auth } from "../lib/auth";
 
 export class UserController {
@@ -356,28 +356,45 @@ export class UserController {
       const storageKeysToDelete: string[] = [];
       
       for (const video of videos) {
-        // Add video file
-        if (video.storageKey) {
-          storageKeysToDelete.push(video.storageKey);
-        }
-        // Add audio file
-        if (video.audioStorageKey) {
-          storageKeysToDelete.push(video.audioStorageKey);
-        }
+        if (video.storageKey) storageKeysToDelete.push(video.storageKey);
+        if (video.audioStorageKey) storageKeysToDelete.push(video.audioStorageKey);
+        if (video.thumbnailKey) storageKeysToDelete.push(video.thumbnailKey);
       }
-      
+
       if (videos.length > 0) {
         const videoIds = videos.map(v => v.id);
-        
+
         // Get clips storage keys
         const clips = await db
-          .select({ storageKey: viralClip.storageKey })
+          .select({ storageKey: viralClip.storageKey, rawStorageKey: viralClip.rawStorageKey, thumbnailKey: viralClip.thumbnailKey })
           .from(viralClip)
           .where(inArray(viralClip.videoId, videoIds));
-        
+
         for (const clip of clips) {
-          if (clip.storageKey) {
-            storageKeysToDelete.push(clip.storageKey);
+          if (clip.storageKey) storageKeysToDelete.push(clip.storageKey);
+          if (clip.rawStorageKey) storageKeysToDelete.push(clip.rawStorageKey);
+          if (clip.thumbnailKey) storageKeysToDelete.push(clip.thumbnailKey);
+        }
+
+        // Get dubbing storage keys
+        const dubbingRows = await db
+          .select({ dubbedAudioKey: voiceDubbing.dubbedAudioKey, mixedAudioKey: voiceDubbing.mixedAudioKey, id: voiceDubbing.id })
+          .from(voiceDubbing)
+          .where(inArray(voiceDubbing.videoId, videoIds));
+
+        for (const d of dubbingRows) {
+          if (d.dubbedAudioKey) storageKeysToDelete.push(d.dubbedAudioKey);
+          if (d.mixedAudioKey) storageKeysToDelete.push(d.mixedAudioKey);
+        }
+
+        const dubbingIds = dubbingRows.map(d => d.id);
+        if (dubbingIds.length > 0) {
+          const clipAudioRows = await db
+            .select({ audioKey: dubbedClipAudio.audioKey })
+            .from(dubbedClipAudio)
+            .where(inArray(dubbedClipAudio.dubbingId, dubbingIds));
+          for (const a of clipAudioRows) {
+            if (a.audioKey) storageKeysToDelete.push(a.audioKey);
           }
         }
       }

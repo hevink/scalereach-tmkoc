@@ -1,6 +1,12 @@
 import { Context } from "hono";
 import { AdminModel } from "../models/admin.model";
 import { addVideoProcessingJob } from "../jobs/queue";
+import { VideoModel } from "../models/video.model";
+import { ClipModel } from "../models/clip.model";
+import { R2Service } from "../services/r2.service";
+import { db } from "../db";
+import { videoExport, voiceDubbing, dubbedClipAudio } from "../db/schema";
+import { inArray, eq } from "drizzle-orm";
 
 export class AdminController {
   /**
@@ -175,6 +181,42 @@ export class AdminController {
       if (userId === currentUser.id) {
         return c.json({ error: "Cannot delete your own account" }, 400);
       }
+
+      // Clean up R2 files before DB delete
+      const videos = await VideoModel.getByUserId(userId);
+      const videoIds = videos.map(v => v.id);
+
+      const clipKeys = videoIds.length > 0
+        ? await ClipModel.getStorageKeysByVideoIds(videoIds)
+        : [];
+
+      const exportRows = videoIds.length > 0
+        ? await db.select({ storageKey: videoExport.storageKey }).from(videoExport).where(eq(videoExport.userId, userId))
+        : [];
+
+      const dubbingRows = videoIds.length > 0
+        ? await db.select({ dubbedAudioKey: voiceDubbing.dubbedAudioKey, mixedAudioKey: voiceDubbing.mixedAudioKey, id: voiceDubbing.id })
+            .from(voiceDubbing).where(inArray(voiceDubbing.videoId, videoIds))
+        : [];
+
+      const dubbingIds = dubbingRows.map(d => d.id);
+      const clipAudioRows = dubbingIds.length > 0
+        ? await db.select({ audioKey: dubbedClipAudio.audioKey }).from(dubbedClipAudio).where(inArray(dubbedClipAudio.dubbingId, dubbingIds))
+        : [];
+
+      const r2Keys: string[] = [
+        ...videos.flatMap(v =>
+          [v.storageKey, v.audioStorageKey, v.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...clipKeys.flatMap(c =>
+          [c.storageKey, c.rawStorageKey, c.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...exportRows.flatMap(e => [e.storageKey].filter(Boolean) as string[]),
+        ...dubbingRows.flatMap(d => [d.dubbedAudioKey, d.mixedAudioKey].filter(Boolean) as string[]),
+        ...clipAudioRows.flatMap(a => [a.audioKey].filter(Boolean) as string[]),
+      ];
+
+      await Promise.allSettled(r2Keys.map(key => R2Service.deleteFile(key)));
 
       await AdminModel.deleteUser(userId);
       return c.json({ success: true, message: "User deleted successfully" });

@@ -7,6 +7,11 @@ import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.
 import { addVideoProcessingJob, getJobStatus } from "../jobs/queue";
 import { getPlanConfig, calculateMinuteConsumption, formatDuration } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
+import { R2Service } from "../services/r2.service";
+import { ClipModel } from "../models/clip.model";
+import { db } from "../db";
+import { videoExport, voiceDubbing, dubbedClipAudio } from "../db/schema";
+import { inArray } from "drizzle-orm";
 
 export class VideoController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -337,6 +342,42 @@ export class VideoController {
       } else if (video.userId !== user.id) {
         return c.json({ error: "Forbidden" }, 403);
       }
+
+      // Delete all clip R2 files before DB delete
+      const clips = await ClipModel.getByVideoId(id);
+      const clipIds = clips.map(c => c.id);
+
+      const exportKeys = clipIds.length > 0
+        ? await db.select({ storageKey: videoExport.storageKey }).from(videoExport).where(inArray(videoExport.clipId, clipIds))
+        : [];
+
+      const dubbingRows = await db
+        .select({ dubbedAudioKey: voiceDubbing.dubbedAudioKey, mixedAudioKey: voiceDubbing.mixedAudioKey, dubbingId: voiceDubbing.id })
+        .from(voiceDubbing)
+        .where(inArray(voiceDubbing.videoId, [id]));
+
+      const dubbingIds = dubbingRows.map(d => d.dubbingId);
+      const clipAudioRows = dubbingIds.length > 0
+        ? await db.select({ audioKey: dubbedClipAudio.audioKey }).from(dubbedClipAudio).where(inArray(dubbedClipAudio.dubbingId, dubbingIds))
+        : [];
+
+      await Promise.allSettled([
+        ...clips.flatMap((clip) =>
+          [clip.storageKey, clip.rawStorageKey, clip.thumbnailKey]
+            .filter(Boolean)
+            .map((key) => R2Service.deleteFile(key as string))
+        ),
+        ...exportKeys.filter(e => e.storageKey).map(e => R2Service.deleteFile(e.storageKey as string)),
+        ...dubbingRows.flatMap(d => [d.dubbedAudioKey, d.mixedAudioKey].filter(Boolean).map(k => R2Service.deleteFile(k as string))),
+        ...clipAudioRows.filter(a => a.audioKey).map(a => R2Service.deleteFile(a.audioKey as string)),
+      ]);
+
+      // Delete video R2 files
+      await Promise.allSettled(
+        [video.storageKey, video.audioStorageKey, video.thumbnailKey]
+          .filter(Boolean)
+          .map((key) => R2Service.deleteFile(key as string))
+      );
 
       await VideoModel.delete(id);
       return c.json({ message: "Video deleted successfully" });

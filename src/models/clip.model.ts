@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { viralClip, RecommendedPlatform } from "../db/schema";
+import { viralClip, video, RecommendedPlatform } from "../db/schema";
 import { eq, and, gte, lte, desc, asc, inArray, SQL } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
@@ -250,6 +250,32 @@ export class ClipModel {
   /**
    * Delete a clip
    */
+  static async getStorageKeysByWorkspaceId(workspaceId: string) {
+    const result = await db
+      .select({
+        storageKey: viralClip.storageKey,
+        rawStorageKey: viralClip.rawStorageKey,
+        thumbnailKey: viralClip.thumbnailKey,
+      })
+      .from(viralClip)
+      .innerJoin(video, eq(viralClip.videoId, video.id))
+      .where(eq(video.workspaceId, workspaceId));
+    return result;
+  }
+
+  static async getStorageKeysByVideoIds(videoIds: string[]) {
+    if (videoIds.length === 0) return [];
+    const result = await db
+      .select({
+        storageKey: viralClip.storageKey,
+        rawStorageKey: viralClip.rawStorageKey,
+        thumbnailKey: viralClip.thumbnailKey,
+      })
+      .from(viralClip)
+      .where(inArray(viralClip.videoId, videoIds));
+    return result;
+  }
+
   static async delete(id: string) {
     this.logOperation("DELETE_CLIP", { id });
     const startTime = performance.now();
