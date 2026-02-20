@@ -363,31 +363,34 @@ export const NEON_POP_TEMPLATE: CaptionTemplate = {
 
 /**
  * Gold Luxe Template
- * Luxurious gold with thick outline - premium creator aesthetic
+ * Premium gold shimmer with bold bounce - luxury creator aesthetic
  */
 export const GOLD_LUXE_TEMPLATE: CaptionTemplate = {
   id: "gold-luxe",
   name: "Gold Luxe",
-  description: "Luxurious gold with thick outline - premium creator aesthetic",
+  description: "Premium gold shimmer with bold bounce - luxury creator aesthetic",
   platform: "Universal",
   style: {
-    fontFamily: "Righteous",
+    fontFamily: "Bebas Neue",
     fontSize: 44,
-    textColor: "#FFFFFF",
+    textColor: "#FFE566",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     x: 50, y: 85,
     alignment: "center",
-    animation: "karaoke",
+    animation: "bounce",
     highlightColor: "#FFD700",
     highlightEnabled: true,
     shadow: true,
     outline: true,
-    outlineColor: "#8B6914",
-    outlineWidth: 5,
-    highlightScale: 125,
+    outlineColor: "#5C3D00",
+    outlineWidth: 6,
+    highlightScale: 135,
     textTransform: "uppercase",
     wordsPerLine: 3,
+    glowEnabled: true,
+    glowColor: "#FFD700",
+    glowIntensity: 10,
   },
   preview: "/templates/gold-luxe-preview.png",
   isNew: true,
