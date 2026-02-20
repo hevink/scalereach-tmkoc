@@ -14,7 +14,6 @@ protected_.use("*", authMiddleware);
 
 protected_.get("/accounts", SocialAccountController.listAccounts);
 protected_.get("/accounts/:platform/connect", SocialAccountController.initiateOAuth);
-protected_.get("/accounts/:platform/callback", SocialAccountController.handleOAuthCallback);
 protected_.delete("/accounts/:id", SocialAccountController.disconnectAccount);
 
 protected_.post("/posts", SocialPostController.schedulePost);
@@ -52,6 +51,9 @@ protected_.get("/clips", async (c) => {
 });
 
 socialRouter.route("/", protected_);
+
+// OAuth callback must be public — Google redirects without auth cookies
+socialRouter.get("/accounts/:platform/callback", SocialAccountController.handleOAuthCallback);
 
 export default socialRouter;
 
