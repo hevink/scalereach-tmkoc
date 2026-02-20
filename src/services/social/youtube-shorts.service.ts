@@ -9,7 +9,7 @@ export const YouTubeShortsService = {
       client_id: CLIENT_ID,
       redirect_uri: redirectUri,
       response_type: "code",
-      scope: "https://www.googleapis.com/auth/youtube.upload",
+      scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
       access_type: "offline",
       prompt: "consent",
       state,
@@ -66,6 +66,7 @@ export const YouTubeShortsService = {
     );
     const data = await res.json() as any;
     const channel = data.items?.[0];
+    if (!channel) throw new Error("No YouTube channel found for this account");
     return {
       platformAccountId: channel.id,
       accountName: channel.snippet.title,
