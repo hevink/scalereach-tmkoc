@@ -271,7 +271,7 @@ export class YouTubeService {
     });
   }
 
-  static async streamAudio(url: string): Promise<StreamResult> {
+  static async streamAudio(url: string, startTime?: number, endTime?: number): Promise<StreamResult> {
     console.log(`[YOUTUBE SERVICE] Starting audio stream: ${url}`);
 
     const videoId = this.extractVideoId(url);
@@ -307,6 +307,23 @@ export class YouTubeService {
       "--max-sleep-interval", "3",
       url,
     ];
+
+    // Download only the selected timeframe if specified
+    if (startTime !== undefined || endTime !== undefined) {
+      const start = startTime ?? 0;
+      const end = endTime ?? videoInfo.duration;
+      const formatTs = (s: number) => {
+        const h = Math.floor(s / 3600).toString().padStart(2, "0");
+        const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
+        const sec = (s % 60).toFixed(3).padStart(6, "0");
+        return `${h}:${m}:${sec}`;
+      };
+      args.splice(args.indexOf(url), 0,
+        "--download-sections", `*${formatTs(start)}-${formatTs(end)}`,
+        "--force-keyframes-at-cuts",
+      );
+      console.log(`[YOUTUBE SERVICE] Timeframe audio: ${formatTs(start)} → ${formatTs(end)}`);
+    }
 
     if (cookiesPath) {
       args.unshift("--cookies", cookiesPath);

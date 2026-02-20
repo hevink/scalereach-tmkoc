@@ -4,7 +4,7 @@ import { VideoModel } from "../models/video.model";
 import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
 import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
-import { addVideoProcessingJob, getJobStatus } from "../jobs/queue";
+import { addVideoProcessingJob, getJobStatus, removeVideoJob, removeClipJob } from "../jobs/queue";
 import { getPlanConfig, calculateMinuteConsumption, formatDuration } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
 import { R2Service } from "../services/r2.service";
@@ -378,6 +378,12 @@ export class VideoController {
           .filter(Boolean)
           .map((key) => R2Service.deleteFile(key as string))
       );
+
+      // Remove from processing queue if queued/active
+      await removeVideoJob(id);
+
+      // Remove any pending clip generation jobs
+      await Promise.allSettled(clipIds.map((clipId) => removeClipJob(clipId)));
 
       await VideoModel.delete(id);
       return c.json({ message: "Video deleted successfully" });

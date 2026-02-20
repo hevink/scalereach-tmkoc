@@ -189,6 +189,22 @@ export async function addVideoProcessingJob(data: VideoProcessingJobData) {
   return job;
 }
 
+export async function removeVideoJob(videoId: string) {
+  const job = await videoProcessingQueue.getJob(`video-${videoId}`);
+  if (job) {
+    await job.remove();
+    console.log(`[QUEUE] Removed video processing job for: ${videoId}`);
+  }
+}
+
+export async function removeClipJob(clipId: string) {
+  const job = await clipGenerationQueue.getJob(`clip-${clipId}`);
+  if (job) {
+    await job.remove();
+    console.log(`[QUEUE] Removed clip generation job for: ${clipId}`);
+  }
+}
+
 export async function getJobStatus(jobId: string) {
   const job = await videoProcessingQueue.getJob(jobId);
   if (!job) {

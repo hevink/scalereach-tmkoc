@@ -89,10 +89,16 @@ async function processYouTubeVideo(
     await updateVideoStatus(videoId, "downloading");
     await job.updateProgress(10);
 
-    // Get audio stream directly from YouTube
+    // Get audio stream directly from YouTube (only the selected timeframe)
+    const audioStart = videoConfig?.timeframeStart ?? 0;
+    const audioEnd = videoConfig?.timeframeEnd ?? undefined;
     let streamResult;
     try {
-      streamResult = await YouTubeService.streamAudio(sourceUrl);
+      streamResult = await YouTubeService.streamAudio(
+        sourceUrl,
+        audioStart > 0 ? audioStart : undefined,
+        audioEnd ?? undefined,
+      );
     } catch (error: any) {
       console.error(`[VIDEO WORKER] Failed to start YouTube stream: ${error.message}`);
       throw new Error(`YouTube download failed: ${error.message}`);
@@ -179,11 +185,18 @@ async function processYouTubeVideo(
 
     await job.updateProgress(70);
 
+    // If we downloaded a timeframe slice, Deepgram timestamps start from 0.
+    // Offset them back to original video time so clip timestamps are correct.
+    const timeframeStart = videoConfig?.timeframeStart ?? 0;
+    const timeframeEnd = videoConfig?.timeframeEnd ?? videoInfo.duration;
+    const offsetWords = timeframeStart > 0
+      ? transcriptResult.words.map((w) => ({ ...w, start: w.start + timeframeStart, end: w.end + timeframeStart }))
+      : transcriptResult.words;
+
     // Store transcript with language and confidence metadata
-    // Validates: Requirements 3.4, 3.8
     await updateVideoStatus(videoId, "analyzing", {
       transcript: transcriptResult.transcript,
-      transcriptWords: transcriptResult.words,
+      transcriptWords: offsetWords,
       transcriptLanguage: transcriptResult.language,
       transcriptConfidence: transcriptResult.confidence,
     });
@@ -201,20 +214,11 @@ async function processYouTubeVideo(
 
     // Detect viral clips using AI
     console.log(`[VIDEO WORKER] Detecting viral clips...`);
-    
-    // Apply timeframe filtering if configured
-    const timeframeStart = videoConfig?.timeframeStart ?? 0;
-    const timeframeEnd = videoConfig?.timeframeEnd ?? videoInfo.duration;
-    
-    // Filter transcript words to the configured timeframe
-    const filteredWords = transcriptResult.words.filter(
-      (w) => w.start >= timeframeStart && w.end <= timeframeEnd
-    );
-    
-    // Build filtered transcript text
-    const filteredTranscript = filteredWords.map((w) => w.word).join(" ");
-    
     console.log(`[VIDEO WORKER] Processing timeframe: ${timeframeStart}s - ${timeframeEnd}s`);
+
+    // All words are already within the timeframe (audio was sliced), just use them directly
+    const filteredWords = offsetWords;
+    const filteredTranscript = filteredWords.map((w) => w.word).join(" ");
     
     const viralClips = await ViralDetectionService.detectViralClips(
       filteredTranscript,
