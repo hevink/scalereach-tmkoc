@@ -124,39 +124,6 @@ export const BASKER_TEMPLATE: CaptionTemplate = {
 };
 
 /**
- * Bobby Template
- * Box highlight with cyan accent - Poppins 700
- */
-export const BOBBY_TEMPLATE: CaptionTemplate = {
-  id: "bobby",
-  name: "Bobby",
-  description: "Bold box highlight with vibrant cyan accent",
-  platform: "Universal",
-  style: {
-    fontFamily: "Poppins",
-    fontSize: 32,
-    textColor: "#FFFFFF",
-    backgroundColor: "#5cd3ff",
-    backgroundOpacity: 100,
-    x: 50, y: 85,
-    alignment: "center",
-    animation: "karaoke",
-    highlightColor: "#5cd3ff",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-    outlineWidth: 4,
-    highlightScale: 120,
-    textTransform: "none",
-    wordsPerLine: 3,
-  },
-  preview: "/templates/bobby-preview.png",
-  createdAt: new Date("2024-04-03"),
-  updatedAt: new Date("2024-04-03"),
-};
-
-/**
  * Billy Template
  * Lilita One font with purple highlight
  */
@@ -287,40 +254,6 @@ export const MRBEAST_PRO_TEMPLATE: CaptionTemplate = {
     glowIntensity: 12,
   },
   preview: "/templates/mrbeast-pro-preview.png",
-  isNew: true,
-  createdAt: new Date("2024-06-14"),
-  updatedAt: new Date("2024-06-14"),
-};
-
-/**
- * Clean Creator Template
- * Modern creator style - Iman Gadzhi inspired with cyan accent
- */
-export const CLEAN_CREATOR_TEMPLATE: CaptionTemplate = {
-  id: "clean-creator",
-  name: "Clean Creator",
-  description: "Modern minimalist style with cyan accents - perfect for educational content",
-  platform: "YouTube",
-  style: {
-    fontFamily: "Montserrat",
-    fontSize: 36,
-    textColor: "#FFFFFF",
-    backgroundColor: "#000000",
-    backgroundOpacity: 0,
-    x: 50, y: 85,
-    alignment: "center",
-    animation: "fade",
-    highlightColor: "#00D4FF",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-    outlineWidth: 4,
-    highlightScale: 120,
-    textTransform: "none",
-    wordsPerLine: 4,
-  },
-  preview: "/templates/clean-creator-preview.png",
   isNew: true,
   createdAt: new Date("2024-06-14"),
   updatedAt: new Date("2024-06-14"),
@@ -733,50 +666,15 @@ export const GEORGIA_ELEGANCE_TEMPLATE: CaptionTemplate = {
 };
 
 /**
- * Glassmorphism Template
- * Frosted glass background with soft white text - modern UI-inspired look
- */
-export const GLASSMORPHISM_TEMPLATE: CaptionTemplate = {
-  id: "glassmorphism",
-  name: "Glassmorphism",
-  description: "Frosted glass panel with soft glow and translucent backdrop - modern UI aesthetic",
-  platform: "Universal",
-  style: {
-    fontFamily: "Montserrat",
-    fontSize: 34,
-    textColor: "#FFFFFF",
-    backgroundColor: "#88AAFF",
-    backgroundOpacity: 25,
-    x: 50, y: 85,
-    alignment: "center",
-    animation: "fade",
-    highlightColor: "#E0E8FF",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "rgba(255,255,255,0.3)",
-    outlineWidth: 1,
-    textTransform: "none",
-    wordsPerLine: 5,
-  },
-  preview: "/templates/glassmorphism-preview.png",
-  isNew: true,
-  createdAt: new Date("2026-02-09"),
-  updatedAt: new Date("2026-02-09"),
-};
-
-/**
  * All built-in caption templates
  */
 export const CAPTION_TEMPLATES: CaptionTemplate[] = [
   CLASSIC_TEMPLATE,
   BASKER_TEMPLATE,
-  BOBBY_TEMPLATE,
   BILLY_TEMPLATE,
   SIMPLE_TEMPLATE,
   HORMOZI_TEMPLATE,
   MRBEAST_PRO_TEMPLATE,
-  CLEAN_CREATOR_TEMPLATE,
   GARYVEE_TEMPLATE,
   TIKTOK_NATIVE_TEMPLATE,
   NEON_POP_TEMPLATE,
@@ -788,7 +686,6 @@ export const CAPTION_TEMPLATES: CaptionTemplate[] = [
   CORAL_POP_TEMPLATE,
   MIDNIGHT_PURPLE_TEMPLATE,
   GEORGIA_ELEGANCE_TEMPLATE,
-  GLASSMORPHISM_TEMPLATE,
 ];
 
 /**

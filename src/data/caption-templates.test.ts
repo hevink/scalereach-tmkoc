@@ -31,8 +31,8 @@ describe("Caption Templates", () => {
       expect(CAPTION_TEMPLATES.length).toBeGreaterThanOrEqual(5);
     });
 
-    it("should have 22 templates including new viral templates", () => {
-      expect(CAPTION_TEMPLATES.length).toBe(22);
+    it("should have 19 templates including new viral templates", () => {
+      expect(CAPTION_TEMPLATES.length).toBe(19);
     });
   });
 
@@ -282,7 +282,7 @@ describe("Caption Templates", () => {
   describe("getAllTemplates", () => {
     it("should return all templates", () => {
       const templates = getAllTemplates();
-      expect(templates.length).toBe(22);
+      expect(templates.length).toBe(19);
     });
 
     it("should return templates with unique IDs", () => {
