@@ -220,27 +220,38 @@ Your task is to analyze video transcripts and extract clips that work as STANDAL
 
 CRITICAL RULES FOR CLIP SELECTION:
 
-1. **COMPLETE CONTEXT** (Most Important):
-   - Every clip MUST start with enough context so a new viewer understands what's being discussed
-   - Every clip MUST end at a natural conclusion — a punchline, a completed thought, a resolved point, or a satisfying ending
-   - NEVER start a clip mid-sentence or mid-thought
-   - NEVER end a clip in the middle of an idea or before the payoff
-   - If someone watches ONLY this clip with zero knowledge of the full video, they must fully understand it
+1. **STRONG OPENINGS** (Critical — this is where most clips lose viewers):
+   - The first sentence MUST immediately establish what the clip is about — no warm-up, no filler
+   - NEVER start mid-sentence, mid-answer, or mid-story where the viewer has no idea what's being discussed
+   - NEVER start with a response to something said earlier ("Yeah exactly", "That's a great point", "So as I was saying...")
+   - NEVER start with a question that was asked before the clip begins — if a question is the hook, the clip MUST include the question AND the answer
+   - If the speaker is answering a question, scroll back in the transcript to include the question itself as the opening
+   - If the clip starts with "So...", "Well...", "I mean...", "Like..." — check if there's a cleaner entry point a few seconds earlier
+   - Ideal openings: a bold statement, a surprising fact, a relatable setup, a direct question the speaker then answers, or a story that begins cleanly
+   - When in doubt, move the startTime a few seconds earlier to capture the natural lead-in
 
-2. **NARRATIVE STRUCTURE**:
+2. **STRONG ENDINGS** (Critical — this is where most clips fail):
+   - The last sentence of a clip must be a COMPLETE thought — never cut off mid-sentence
+   - Ideal endings: a punchline lands, a bold statement is made, a question is answered, a story resolves, or the speaker delivers a clear takeaway
+   - If the speaker says "so basically..." or "the point is..." — the clip MUST include what comes after that
+   - If the speaker trails off, transitions to a new topic, or says "anyway...", that is NOT a good ending — extend or trim to the last strong sentence before it
+   - A clip ending on filler words ("you know?", "right?", "like...") is a bad ending — go back to the last meaningful sentence
+   - When in doubt, extend the endTime by a few seconds to capture the natural conclusion
+
+3. **NARRATIVE STRUCTURE**:
    - Each clip needs a clear SETUP → DEVELOPMENT → PAYOFF arc
    - SETUP: The first few seconds must establish what the clip is about (the hook)
    - DEVELOPMENT: The middle builds on the idea, adds detail or tension
    - PAYOFF: The ending delivers the value — a conclusion, punchline, insight, or emotional peak
    - Think of each clip as a complete mini-video, NOT a random excerpt
 
-3. **NATURAL BOUNDARIES**:
+4. **NATURAL BOUNDARIES**:
    - Start clips at the beginning of a new topic, story, example, or argument
    - End clips when that topic/story/example is fully resolved
    - Look for natural paragraph-like breaks in speech
    - Avoid cutting into transitions like "and another thing..." or "speaking of which..."
 
-4. **QUALITY OVER QUANTITY**:
+5. **QUALITY OVER QUANTITY**:
    - Only return clips that are genuinely compelling as standalone content
    - A viewer should want to watch the entire clip, not scroll away after 3 seconds
    - If the transcript only has 2 great moments, return 2 clips — don't pad with mediocre ones
@@ -260,7 +271,13 @@ WHAT MAKES A CLIP VIRAL:
 
 WHAT MAKES A BAD CLIP (AVOID THESE):
 - Starting mid-conversation with no context ("...and that's why I think...")
+- Starting with a response to something outside the clip ("Yeah exactly", "That's right", "So as I was saying...")
+- Starting with an answer when the question that prompted it isn't in the clip
+- Starting with filler openers ("So...", "Well...", "I mean...") when a cleaner entry exists a few seconds earlier
 - Ending before the point is made ("so the reason is..." *clip ends*)
+- Ending mid-sentence or mid-thought — the viewer is left hanging
+- Ending on filler words ("you know?", "like...", "anyway...") — not a real conclusion
+- Ending right as the speaker transitions to a new topic — extend to capture the wrap-up
 - Random segments with no clear purpose or takeaway
 - Clips that require watching the full video to understand
 - Boring filler content with no emotional or intellectual value
@@ -296,10 +313,13 @@ ${isAutoMode
 - Return at least 1 clip if any worthy content exists.
 
 BEFORE ADDING A CLIP, ASK YOURSELF:
-1. Does this clip start with enough context for a new viewer? If not, extend the start.
-2. Does this clip end with a satisfying conclusion? If not, extend the end or pick a different endpoint.
-3. Would I actually watch this entire clip on TikTok without scrolling? If not, don't include it.
-4. Can someone understand and enjoy this clip without watching anything else? If not, add more context.
+1. Does this clip open with a clear, self-contained hook? Would a new viewer immediately understand what's being discussed, or are they dropped into the middle of something? If dropped in, move the startTime earlier.
+2. If the clip starts with an answer — is the question included? If not, scroll back and include it.
+3. Does the first sentence feel like a strong, clean opening, or does it start with filler ("So...", "Yeah...", "I mean...")? If filler, find a better entry point.
+4. Does this clip end with a COMPLETE, satisfying conclusion — a punchline, a clear takeaway, a resolved thought? If not, extend the endTime until you reach one.
+5. Does the last sentence feel like a natural stopping point, or does it feel cut off? If it feels cut off, keep reading the transcript and extend the end.
+6. Would I actually watch this entire clip on TikTok without scrolling? If not, don't include it.
+7. Can someone understand and enjoy this clip without watching anything else? If not, add more context.
 
 TRANSCRIPT WITH TIMESTAMPS:
 ${formattedTranscript}
