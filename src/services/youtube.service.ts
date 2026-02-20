@@ -11,6 +11,8 @@ export interface YouTubeVideoInfo {
   description: string;
   /** Best available video height (e.g. 720, 1080, 2160) — only set via yt-dlp */
   videoHeight?: number;
+  /** BCP-47 language code of the video's audio (e.g. "hi", "en") */
+  language?: string;
 }
 
 export interface StreamResult {
@@ -134,6 +136,7 @@ export class YouTubeService {
       thumbnail: snippet.thumbnails?.maxres?.url || snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
       channelName: snippet.channelTitle,
       description: snippet.description || "",
+      language: snippet.defaultAudioLanguage || snippet.defaultLanguage || undefined,
     };
   }
 
@@ -257,6 +260,7 @@ export class YouTubeService {
             channelName: info.channel || info.uploader,
             description: info.description,
             videoHeight: bestVideoHeight,
+            language: info.language || undefined,
           });
 
         } catch (e) {
