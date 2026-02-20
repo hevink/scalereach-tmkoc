@@ -35,7 +35,7 @@ export const RAINBOW_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Montserrat",
-    fontSize: 40,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -68,7 +68,7 @@ export const CLASSIC_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
-    fontSize: 32,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -101,7 +101,7 @@ export const BASKER_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Libre Baskerville",
-    fontSize: 32,
+    fontSize: 44,
     textColor: "#fffff5",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -167,7 +167,7 @@ export const SIMPLE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Inter",
-    fontSize: 36,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -199,7 +199,7 @@ export const HORMOZI_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Anton",
-    fontSize: 48,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -233,7 +233,7 @@ export const MRBEAST_PRO_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Bangers",
-    fontSize: 56,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -270,7 +270,7 @@ export const GARYVEE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Bebas Neue",
-    fontSize: 48,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -304,7 +304,7 @@ export const TIKTOK_NATIVE_TEMPLATE: CaptionTemplate = {
   platform: "TikTok",
   style: {
     fontFamily: "Poppins",
-    fontSize: 36,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -372,7 +372,7 @@ export const GOLD_LUXE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Righteous",
-    fontSize: 42,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -406,7 +406,7 @@ export const CINEMATIC_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Montserrat",
-    fontSize: 34,
+    fontSize: 44,
     textColor: "#F0E6D3",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -439,7 +439,7 @@ export const ELECTRIC_BLUE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Russo One",
-    fontSize: 46,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -473,7 +473,7 @@ export const SUNSET_FIRE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Bangers",
-    fontSize: 50,
+    fontSize: 44,
     textColor: "#FF6B35",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -532,31 +532,34 @@ export const ICE_COLD_TEMPLATE: CaptionTemplate = {
 
 /**
  * Coral Pop Template
- * Vibrant pink with bouncy animation - fun & feminine aesthetic
+ * Vibrant coral with bouncy animation - fun, energetic & eye-catching
  */
 export const CORAL_POP_TEMPLATE: CaptionTemplate = {
   id: "coral-pop",
   name: "Coral Pop",
-  description: "Vibrant pink with bouncy animation - fun & feminine aesthetic",
+  description: "Vibrant coral with bouncy animation - fun, energetic & eye-catching",
   platform: "Universal",
   style: {
-    fontFamily: "Poppins",
-    fontSize: 38,
+    fontFamily: "Lilita One",
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     x: 50, y: 85,
     alignment: "center",
     animation: "bounce",
-    highlightColor: "#FF1493",
+    highlightColor: "#FF6B6B",
     highlightEnabled: true,
     shadow: true,
     outline: true,
-    outlineColor: "#C71585",
-    outlineWidth: 4,
-    highlightScale: 120,
-    textTransform: "none",
+    outlineColor: "#8B0000",
+    outlineWidth: 5,
+    highlightScale: 130,
+    textTransform: "uppercase",
     wordsPerLine: 3,
+    glowEnabled: true,
+    glowColor: "#FF6B6B",
+    glowIntensity: 10,
   },
   preview: "/templates/coral-pop-preview.png",
   isNew: true,
@@ -609,7 +612,7 @@ export const TOXIC_GREEN_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Anton",
-    fontSize: 48,
+    fontSize: 44,
     textColor: "#00FF41",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -643,7 +646,7 @@ export const GEORGIA_ELEGANCE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Georgia",
-    fontSize: 36,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
