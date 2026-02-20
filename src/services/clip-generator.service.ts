@@ -1556,8 +1556,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       `crop=${targetWidth}:${targetHeight},` +
       `gblur=sigma=20,` +
       `eq=brightness=-0.1[bg_blur];` +
-      // Foreground: scale to 1.5x width for a zoomed-in look, sides cropped by overlay boundary
-      `[fg]scale=${Math.round(targetWidth * 1.5)}:-2,setsar=1[fg_scaled];` +
+      // Foreground: scale to 1.25x width for a zoomed-in look, sides cropped by overlay boundary
+      `[fg]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
       // Overlay foreground centered on blurred background
       `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
   }
