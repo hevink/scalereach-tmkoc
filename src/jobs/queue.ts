@@ -131,6 +131,9 @@ export interface ClipGenerationJobData {
       highlightScale?: number;
       textTransform?: "none" | "uppercase";
       wordsPerLine?: number;
+      glowEnabled?: boolean;
+      glowColor?: string;
+      glowIntensity?: number;
     };
   };
 }

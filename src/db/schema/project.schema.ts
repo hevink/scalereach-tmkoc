@@ -47,6 +47,9 @@ export interface CaptionStyleConfig {
   highlightScale?: number;      // 100-150, default 120
   textTransform?: "none" | "uppercase";
   wordsPerLine?: number;        // 3-7, default 5
+  glowEnabled?: boolean;        // Enable glow/bloom effect around text
+  glowColor?: string;           // Glow color (hex), defaults to textColor
+  glowIntensity?: number;       // 1-20, default 8
 }
 
 export const project = pgTable(

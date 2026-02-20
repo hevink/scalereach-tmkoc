@@ -63,6 +63,9 @@ export interface ClipGenerationOptions {
       highlightScale?: number;      // 100-150, default 125
       textTransform?: "none" | "uppercase";
       wordsPerLine?: number;        // 3-7, default 5
+      glowEnabled?: boolean;
+      glowColor?: string;
+      glowIntensity?: number;       // 1-20, default 8
     };
   };
 }
@@ -550,6 +553,9 @@ export class ClipGeneratorService {
     const textColor = this.hexToASSColor(style?.textColor || "#FFFFFF");
     const outlineColor = this.hexToASSColor(style?.outlineColor || "#000000");
     const highlightColor = this.hexToASSColor(style?.highlightColor || "#FFFF00");
+    const glowColor = this.hexToASSColor(style?.glowColor || style?.textColor || "#FFFFFF");
+    const glowIntensity = style?.glowIntensity ?? 8;
+    const glowEnabled = style?.glowEnabled ?? false;
 
     // Match frontend rendering:
     // - shadow=true → 8-direction 2px black stroke (acts as outline, not drop shadow)
@@ -676,6 +682,7 @@ Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColo
 Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},${backColour},1,0,0,0,${highlightScale},${highlightScale},0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
 Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,1,${Math.round(4 * scaleFactor)},${Math.round(3 * scaleFactor)},8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},1
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
+Style: Glow,${fontFamily},${fontSize},${glowColor},${glowColor},${glowColor},&H00000000,1,0,0,0,100,100,0,0,1,${Math.round(glowIntensity * scaleFactor)},0,${alignment},${marginL},${marginR},${marginV},1
 `;
 
     ass += `
@@ -719,6 +726,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     const highlightOpen = `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}}`;
     const highlightClose = `{\\fscx100\\fscy100\\c${textColor}}`;
 
+    // Helper: emit a glow layer (Layer -1) for a given line of text
+    const addGlowLine = (startTime: string, endTime: string, text: string) => {
+      if (!glowEnabled) return;
+      // Strip existing override tags from text for the glow layer, keep plain text
+      const plainText = text.replace(/\{[^}]*\}/g, "");
+      const blurAmount = Math.round(glowIntensity * scaleFactor * 0.8);
+      ass += `Dialogue: -1,${startTime},${endTime},Glow,,0,0,0,,{\\blur${blurAmount}}${plainText}\n`;
+    };
+
     if (style?.highlightEnabled && animation === "karaoke") {
       // Karaoke style: word-by-word highlighting
       // Each word gets its own dialogue line that shows highlighted during its time
@@ -741,6 +757,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           }
 
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+          addGlowLine(wordStart, wordEnd, text.trim());
         }
       }
     } else if (style?.highlightEnabled && animation === "word-by-word") {
@@ -764,6 +781,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           }
 
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+          addGlowLine(wordStart, wordEnd, text.trim());
         }
       }
     } else if (animation === "bounce") {
@@ -790,6 +808,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           }
 
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+          addGlowLine(wordStart, wordEnd, text.trim());
         }
       }
     } else if (animation === "fade") {
@@ -800,6 +819,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const text = line.words.map(w => transformWord(w.word)).join(" ");
         // Fade in over 200ms, no fade out
         ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,{\\fad(200,0)}${text}\n`;
+        addGlowLine(startTime, endTime, text);
       }
     } else if (style?.highlightEnabled) {
       // Default highlight without specific animation (legacy karaoke behavior)
@@ -821,6 +841,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           }
 
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+          addGlowLine(wordStart, wordEnd, text.trim());
         }
       }
     } else {
@@ -830,6 +851,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const endTime = this.formatASSTime(line.end);
         const text = line.words.map(w => transformWord(w.word)).join(" ");
         ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${text}\n`;
+        addGlowLine(startTime, endTime, text);
       }
     }
 
@@ -980,37 +1002,39 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     maxRetries: number = 3
   ): Promise<void> {
     let lastError: Error | null = null;
-    
+    let forceKeyframes = true;
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        await this.executeYtDlpDownload(url, startTime, endTime, outputPath);
+        await this.executeYtDlpDownload(url, startTime, endTime, outputPath, forceKeyframes);
         return; // Success
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        const isRetryableError = lastError.message.includes("ffmpeg exited with code 202") ||
+        const isCode222 = lastError.message.includes("ffmpeg exited with code 222");
+        const isRetryableError = isCode222 ||
+                                  lastError.message.includes("ffmpeg exited with code 202") ||
                                   lastError.message.includes("ffmpeg exited with code 1");
-        
+
         if (isRetryableError && attempt < maxRetries) {
-          // Wait before retry with exponential backoff (2s, 4s, 8s)
+          // code 222 is caused by --force-keyframes-at-cuts on certain streams — disable it on retry
+          if (isCode222) forceKeyframes = false;
+
           const delayMs = Math.pow(2, attempt) * 1000;
-          this.logOperation("YT_DLP_RETRY", { 
-            attempt, 
-            maxRetries, 
-            delayMs, 
-            error: lastError.message 
+          this.logOperation("YT_DLP_RETRY", {
+            attempt,
+            maxRetries,
+            delayMs,
+            forceKeyframes,
+            error: lastError.message,
           });
           await new Promise(resolve => setTimeout(resolve, delayMs));
-          
-          // Clean up partial file if it exists
           await this.cleanupTempFile(outputPath);
         } else if (!isRetryableError) {
-          // Non-retryable error, throw immediately
           throw lastError;
         }
       }
     }
-    
-    // All retries exhausted
+
     throw lastError || new Error("yt-dlp download failed after all retries");
   }
 
@@ -1021,32 +1045,25 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     url: string,
     startTime: number,
     endTime: number,
-    outputPath: string
+    outputPath: string,
+    forceKeyframes = true
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Always download the highest quality available (no height limit)
-      // Do NOT restrict to ext=mp4 — YouTube serves 1080p+ in VP9/webm, not H.264/mp4.
-      // Restricting to mp4 causes yt-dlp to fall back to low-quality H.264 streams (often 480p or lower).
       const formatSelector = "bestvideo+bestaudio/best";
-
       const downloadSection = formatYtDlpTimestamp(startTime, endTime);
-
-      // Add cookies if available
       const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
 
       const args = [
         "-f", formatSelector,
         "--download-sections", downloadSection,
-        "--force-keyframes-at-cuts",
-        "--merge-output-format", "mp4", // Ensure output is always mp4 even when source is VP9/webm
+        ...(forceKeyframes ? ["--force-keyframes-at-cuts"] : []),
+        "--merge-output-format", "mp4",
         "-o", outputPath,
         "--no-playlist",
         "--quiet",
         "--no-warnings",
-        "--no-post-overwrites", // Prevent conflicts with concurrent processes
-        // Enable Deno as primary JavaScript runtime (faster and more reliable)
+        "--no-post-overwrites",
         "--js-runtimes", "deno",
-        // Use android_vr first — it serves highest quality streams including 4K AV1
         "--extractor-args", "youtube:player_client=android_vr,web,android",
         url,
       ];
