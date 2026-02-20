@@ -258,7 +258,7 @@ CRITICAL RULES FOR CLIP SELECTION:
    - Every clip must score at least 60/100 on virality to be included
 
 DURATION: ${isAutoMode 
-      ? `You decide the optimal duration for each clip. Each clip should be as long as it needs to be to tell a complete story — typically 15 seconds to 3 minutes. Short punchy moments can be 15-30s, detailed stories or explanations can be 1-3 minutes. Let the content dictate the length. Minimum 15 seconds per clip.`
+      ? `You decide the optimal duration for each clip. Each clip should be as long as it needs to be to tell a complete story — typically 15 seconds to 3 minutes. Short punchy moments can be 15-30s, detailed stories or explanations can be 1-3 minutes. Let the content dictate the length. Minimum 15 seconds, maximum 180 seconds per clip.`
       : `Each clip MUST be between ${minDuration} and ${maxDuration} seconds long.`}
 ${introTitleSection}${emojiSection}${clipTypeSection}
 WHAT MAKES A CLIP VIRAL:
@@ -306,7 +306,7 @@ RULES:
 - Each clip MUST make sense to someone who has NEVER seen the full video
 - Each clip MUST start at the beginning of a topic/point and end when that topic/point is fully resolved
 ${isAutoMode 
-      ? `- Duration: YOU decide the best length for each clip. Let the content dictate the duration (15s to 3 min). Short punchy moments = shorter clips, detailed stories = longer clips. Minimum 15 seconds.`
+      ? `- Duration: YOU decide the best length for each clip. Let the content dictate the duration (15s to 180s max). Short punchy moments = shorter clips, detailed stories = longer clips. Minimum 15 seconds, maximum 180 seconds.`
       : `- Duration MUST be between ${minDuration}-${maxDuration} seconds (duration = endTime - startTime)`}
 - Times are in SECONDS (e.g., startTime=60, endTime=90 = 30 second clip)
 - Only include clips with virality score >= 60. Quality over quantity.
@@ -361,6 +361,7 @@ ${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "
         {
           systemPrompt,
           temperature: 0.7,
+          maxTokens: 16000,
           schema: schemaDescription,
         }
       );
@@ -391,9 +392,9 @@ ${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "
       let sortedClips;
       
       if (isAutoMode) {
-        // Auto mode: no duration filtering, just enforce minimum 15s and sort by score
+        // Auto mode: enforce min 15s and max 180s, sort by score
         sortedClips = allClipsWithDuration
-          .filter((clip) => clip.duration >= 15)
+          .filter((clip) => clip.duration >= 15 && clip.duration <= MAX_DURATION_LIMIT)
           .filter((clip) => clip.viralityScore >= 60)
           .sort((a, b) => b.viralityScore - a.viralityScore);
       } else {
