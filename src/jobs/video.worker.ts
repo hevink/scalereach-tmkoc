@@ -67,6 +67,7 @@ async function processYouTubeVideo(
   // Track minutes for refund on failure
   let minutesDeducted = 0;
   let workspaceId: string | undefined;
+  let storageKey: string | undefined; // Track for cleanup on failure
 
   try {
     // Get workspace ID from video record for potential refund
@@ -134,7 +135,7 @@ async function processYouTubeVideo(
     const filename = `${videoInfo.id}.m4a`;
     // Use projectId if available, otherwise use userId for storage path
     const storagePath = projectId || `user-${userId}`;
-    const storageKey = R2Service.generateVideoKey(storagePath, filename);
+    storageKey = R2Service.generateVideoKey(storagePath, filename);
 
     // Stream directly to R2 without saving to disk
     // Wrap in promise to catch stream errors
@@ -147,7 +148,7 @@ async function processYouTubeVideo(
           reject(new Error(`Stream failed: ${err.message}`));
         });
 
-        R2Service.uploadFromStream(storageKey, stream, mimeType)
+        R2Service.uploadFromStream(storageKey!, stream, mimeType)
           .then(resolve)
           .catch(reject);
       });
@@ -405,6 +406,16 @@ async function processYouTubeVideo(
     // Report to Sentry with context
     if (error instanceof Error) {
       captureException(error, { videoId, sourceUrl, sourceType: "youtube" });
+    }
+
+    // Clean up uploaded file on failure
+    if (storageKey) {
+      try {
+        await R2Service.deleteFile(storageKey);
+        console.log(`[VIDEO WORKER] Cleaned up storage file: ${storageKey}`);
+      } catch (cleanupError) {
+        console.warn(`[VIDEO WORKER] Failed to clean up storage file: ${storageKey}`);
+      }
     }
 
     // Refund minutes if they were deducted (YouTube minutes are deducted in controller)

@@ -15,7 +15,9 @@
     "reset:workspace": "bun run scripts/reset-workspace.ts",
     "clean:jobs": "bun run src/scripts/clean-stuck-jobs.ts",
     "inspect:job": "bun run src/scripts/inspect-job.ts",
-    "clear:queues": "bun run scripts/clear-queues.ts"
+    "clear:queues": "bun run scripts/clear-queues.ts",
+    "list:jobs": "bun run scripts/list-jobs.ts",
+    "cleanup:orphans": "bun run scripts/cleanup-orphaned-files.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.44",
