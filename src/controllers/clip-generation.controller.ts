@@ -117,10 +117,11 @@ export class ClipGenerationController {
 
       // Get current user
       const user = c.get("user");
-      const userId = user?.id;
+      const userId = user?.id || "";
 
       // Validate clip options
       const validation = ClipGeneratorService.validateOptions({
+        userId,
         videoId: clip.videoId,
         clipId,
         sourceType,

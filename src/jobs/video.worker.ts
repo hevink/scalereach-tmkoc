@@ -132,10 +132,8 @@ async function processYouTubeVideo(
 
     await updateVideoStatus(videoId, "uploading");
 
-    const filename = `${videoInfo.id}.m4a`;
-    // Use projectId if available, otherwise use userId for storage path
-    const storagePath = projectId || `user-${userId}`;
-    storageKey = R2Service.generateVideoKey(storagePath, filename);
+    // New hierarchical storage structure: {userId}/{videoId}/source.m4a
+    storageKey = R2Service.generateVideoStorageKey(userId, videoId, "m4a");
 
     // Stream directly to R2 without saving to disk
     // Wrap in promise to catch stream errors
@@ -571,8 +569,9 @@ async function processUploadedVideo(
     await job.updateProgress(20);
 
     // Generate thumbnail from first second of video
+    // New hierarchical structure: {userId}/{videoId}/thumbnail.jpg
     try {
-      const thumbnailKey = `thumbnails/${videoId}.jpg`;
+      const thumbnailKey = R2Service.generateVideoThumbnailKey(userId, videoId);
       const signedUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
       const { thumbnailKey: tKey, thumbnailUrl: tUrl } = await FFmpegService.generateThumbnail(
         signedUrl,
@@ -586,8 +585,9 @@ async function processUploadedVideo(
     }
 
     // Extract audio from the uploaded video
+    // New hierarchical structure: {userId}/{videoId}/audio.m4a
     console.log(`[VIDEO WORKER] Extracting audio from uploaded video...`);
-    const audioStorageKey = FFmpegService.generateAudioStorageKey(storageKey);
+    const audioStorageKey = R2Service.generateAudioStorageKey(userId, videoId);
 
     const audioResult = await FFmpegService.extractAudioToR2(
       storageKey,

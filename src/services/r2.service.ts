@@ -140,10 +140,54 @@ export class R2Service {
     return getSignedUrl(s3Client, command, { expiresIn });
   }
 
+  /**
+   * @deprecated Use generateVideoStorageKey instead for new hierarchical structure
+   */
   static generateVideoKey(projectId: string, filename: string): string {
     const timestamp = Date.now();
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
     return `videos/${projectId}/${timestamp}-${sanitizedFilename}`;
+  }
+
+  /**
+   * Generate storage key for video source files
+   * Structure: {userId}/{videoId}/source.{ext}
+   */
+  static generateVideoStorageKey(userId: string, videoId: string, extension: string = "m4a"): string {
+    return `${userId}/${videoId}/source.${extension}`;
+  }
+
+  /**
+   * Generate storage key for video thumbnails
+   * Structure: {userId}/{videoId}/thumbnail.jpg
+   */
+  static generateVideoThumbnailKey(userId: string, videoId: string): string {
+    return `${userId}/${videoId}/thumbnail.jpg`;
+  }
+
+  /**
+   * Generate storage key for clip files
+   * Structure: {userId}/{videoId}/clips/{clipId}-{aspectRatio}.mp4
+   */
+  static generateClipStorageKey(userId: string, videoId: string, clipId: string, aspectRatio: string, raw: boolean = false): string {
+    const suffix = raw ? "-raw" : "";
+    return `${userId}/${videoId}/clips/${clipId}-${aspectRatio.replace(":", "x")}${suffix}.mp4`;
+  }
+
+  /**
+   * Generate storage key for clip thumbnails
+   * Structure: {userId}/{videoId}/clips/{clipId}-thumb.jpg
+   */
+  static generateClipThumbnailKey(userId: string, videoId: string, clipId: string): string {
+    return `${userId}/${videoId}/clips/${clipId}-thumb.jpg`;
+  }
+
+  /**
+   * Generate storage key for extracted audio from uploaded videos
+   * Structure: {userId}/{videoId}/audio.m4a
+   */
+  static generateAudioStorageKey(userId: string, videoId: string): string {
+    return `${userId}/${videoId}/audio.m4a`;
   }
 
   // ==========================================

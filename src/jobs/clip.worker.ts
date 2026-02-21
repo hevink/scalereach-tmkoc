@@ -179,6 +179,7 @@ async function processClipGenerationJob(
 
     // Validate options
     const validation = ClipGeneratorService.validateOptions({
+      userId,
       videoId,
       clipId,
       sourceType,
@@ -199,6 +200,7 @@ async function processClipGenerationJob(
     // Generate the clip with captions and intro title
     console.log(`[CLIP WORKER] Starting clip generation...`);
     const generatedClip = await ClipGeneratorService.generateClip({
+      userId,
       videoId,
       clipId,
       sourceType,

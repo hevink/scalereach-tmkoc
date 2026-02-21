@@ -71,9 +71,11 @@ export class UploadController {
         }, 400);
       }
 
-      // Generate storage key
-      const storagePath = projectId || `user-${user.id}`;
-      const storageKey = R2Service.generateVideoKey(storagePath, filename);
+      // Generate storage key using new hierarchical structure
+      // Structure: {userId}/{videoId}/source.{ext}
+      const videoId = nanoid();
+      const extension = filename.split('.').pop()?.toLowerCase() || 'mp4';
+      const storageKey = R2Service.generateVideoStorageKey(user.id, videoId, extension);
 
       // Calculate number of parts
       const totalParts = Math.ceil(fileSize / CHUNK_SIZE);
@@ -83,7 +85,6 @@ export class UploadController {
       }
 
       // Create video record in pending state with workspaceId
-      const videoId = nanoid();
       await VideoModel.create({
         id: videoId,
         projectId: projectId || null,

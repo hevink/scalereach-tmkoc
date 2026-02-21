@@ -22,6 +22,7 @@ export type AspectRatio = "9:16" | "1:1" | "16:9";
 export type VideoQuality = "720p" | "1080p" | "4k";
 
 export interface ClipGenerationOptions {
+  userId: string;
   videoId: string;
   clipId: string;
   sourceType: "youtube" | "upload";
@@ -223,9 +224,10 @@ export class ClipGeneratorService {
     const { width, height } = getOutputDimensions(options.aspectRatio, options.quality);
     const duration = options.endTime - options.startTime;
 
-    // Generate storage keys for both versions
-    const storageKey = `clips/${options.videoId}/${options.clipId}-${options.aspectRatio.replace(":", "x")}.mp4`;
-    const rawStorageKey = `clips/${options.videoId}/${options.clipId}-${options.aspectRatio.replace(":", "x")}-raw.mp4`;
+    // Generate storage keys for both versions using new hierarchical structure
+    // Structure: {userId}/{videoId}/clips/{clipId}-{aspectRatio}.mp4
+    const storageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, false);
+    const rawStorageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, true);
 
     let clipWithCaptionsBuffer: Buffer;
     let clipWithoutCaptionsBuffer: Buffer;
@@ -1578,13 +1580,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
   /**
    * Generate a storage key for a clip
+   * @deprecated Use R2Service.generateClipStorageKey instead
    */
   static generateClipStorageKey(
+    userId: string,
     videoId: string,
     clipId: string,
     aspectRatio: AspectRatio
   ): string {
-    return `clips/${videoId}/${clipId}-${aspectRatio.replace(":", "x")}.mp4`;
+    return R2Service.generateClipStorageKey(userId, videoId, clipId, aspectRatio, false);
   }
 
   /**
