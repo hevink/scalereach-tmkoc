@@ -35,7 +35,7 @@ export const RAINBOW_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Montserrat",
-    fontSize: 40,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -68,7 +68,7 @@ export const CLASSIC_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Poppins",
-    fontSize: 32,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -101,7 +101,7 @@ export const BASKER_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Libre Baskerville",
-    fontSize: 32,
+    fontSize: 44,
     textColor: "#fffff5",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -119,39 +119,6 @@ export const BASKER_TEMPLATE: CaptionTemplate = {
     wordsPerLine: 3,
   },
   preview: "/templates/basker-preview.png",
-  createdAt: new Date("2024-04-03"),
-  updatedAt: new Date("2024-04-03"),
-};
-
-/**
- * Bobby Template
- * Box highlight with cyan accent - Poppins 700
- */
-export const BOBBY_TEMPLATE: CaptionTemplate = {
-  id: "bobby",
-  name: "Bobby",
-  description: "Bold box highlight with vibrant cyan accent",
-  platform: "Universal",
-  style: {
-    fontFamily: "Poppins",
-    fontSize: 32,
-    textColor: "#FFFFFF",
-    backgroundColor: "#5cd3ff",
-    backgroundOpacity: 100,
-    x: 50, y: 85,
-    alignment: "center",
-    animation: "karaoke",
-    highlightColor: "#5cd3ff",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-    outlineWidth: 4,
-    highlightScale: 120,
-    textTransform: "none",
-    wordsPerLine: 3,
-  },
-  preview: "/templates/bobby-preview.png",
   createdAt: new Date("2024-04-03"),
   updatedAt: new Date("2024-04-03"),
 };
@@ -200,7 +167,7 @@ export const SIMPLE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Inter",
-    fontSize: 36,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -232,7 +199,7 @@ export const HORMOZI_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Anton",
-    fontSize: 48,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -266,7 +233,7 @@ export const MRBEAST_PRO_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Bangers",
-    fontSize: 56,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -282,42 +249,11 @@ export const MRBEAST_PRO_TEMPLATE: CaptionTemplate = {
     highlightScale: 130,
     textTransform: "uppercase",
     wordsPerLine: 3,
+    glowEnabled: true,
+    glowColor: "#00FF00",
+    glowIntensity: 12,
   },
   preview: "/templates/mrbeast-pro-preview.png",
-  isNew: true,
-  createdAt: new Date("2024-06-14"),
-  updatedAt: new Date("2024-06-14"),
-};
-
-/**
- * Clean Creator Template
- * Modern creator style - Iman Gadzhi inspired with cyan accent
- */
-export const CLEAN_CREATOR_TEMPLATE: CaptionTemplate = {
-  id: "clean-creator",
-  name: "Clean Creator",
-  description: "Modern minimalist style with cyan accents - perfect for educational content",
-  platform: "YouTube",
-  style: {
-    fontFamily: "Montserrat",
-    fontSize: 36,
-    textColor: "#FFFFFF",
-    backgroundColor: "#000000",
-    backgroundOpacity: 0,
-    x: 50, y: 85,
-    alignment: "center",
-    animation: "fade",
-    highlightColor: "#00D4FF",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#000000",
-    outlineWidth: 4,
-    highlightScale: 120,
-    textTransform: "none",
-    wordsPerLine: 4,
-  },
-  preview: "/templates/clean-creator-preview.png",
   isNew: true,
   createdAt: new Date("2024-06-14"),
   updatedAt: new Date("2024-06-14"),
@@ -334,7 +270,7 @@ export const GARYVEE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Bebas Neue",
-    fontSize: 48,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -368,7 +304,7 @@ export const TIKTOK_NATIVE_TEMPLATE: CaptionTemplate = {
   platform: "TikTok",
   style: {
     fontFamily: "Poppins",
-    fontSize: 36,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -416,8 +352,6 @@ export const NEON_POP_TEMPLATE: CaptionTemplate = {
     outlineColor: "#000000",
     outlineWidth: 5,
     highlightScale: 125,
-    glowEnabled: true,
-    glowIntensity: 3,
     textTransform: "uppercase",
     wordsPerLine: 3,
   },
@@ -429,34 +363,34 @@ export const NEON_POP_TEMPLATE: CaptionTemplate = {
 
 /**
  * Gold Luxe Template
- * Luxurious gold glow with thick outline - premium creator aesthetic
+ * Premium gold shimmer with bold bounce - luxury creator aesthetic
  */
 export const GOLD_LUXE_TEMPLATE: CaptionTemplate = {
   id: "gold-luxe",
   name: "Gold Luxe",
-  description: "Luxurious gold glow with thick outline - premium creator aesthetic",
+  description: "Premium gold shimmer with bold bounce - luxury creator aesthetic",
   platform: "Universal",
   style: {
-    fontFamily: "Righteous",
-    fontSize: 42,
-    textColor: "#FFFFFF",
+    fontFamily: "Bebas Neue",
+    fontSize: 44,
+    textColor: "#FFE566",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     x: 50, y: 85,
     alignment: "center",
-    animation: "karaoke",
+    animation: "bounce",
     highlightColor: "#FFD700",
     highlightEnabled: true,
     shadow: true,
     outline: true,
-    outlineColor: "#8B6914",
-    outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#FFD700",
-    glowIntensity: 3,
-    highlightScale: 125,
+    outlineColor: "#5C3D00",
+    outlineWidth: 6,
+    highlightScale: 135,
     textTransform: "uppercase",
     wordsPerLine: 3,
+    glowEnabled: true,
+    glowColor: "#FFD700",
+    glowIntensity: 10,
   },
   preview: "/templates/gold-luxe-preview.png",
   isNew: true,
@@ -475,7 +409,7 @@ export const CINEMATIC_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Montserrat",
-    fontSize: 34,
+    fontSize: 44,
     textColor: "#F0E6D3",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -499,16 +433,16 @@ export const CINEMATIC_TEMPLATE: CaptionTemplate = {
 
 /**
  * Electric Blue Template
- * High-voltage cyan glow with deep blue outline - gaming & tech aesthetic
+ * High-voltage cyan with deep blue outline - gaming & tech aesthetic
  */
 export const ELECTRIC_BLUE_TEMPLATE: CaptionTemplate = {
   id: "electric-blue",
   name: "Electric Blue",
-  description: "High-voltage cyan glow with deep blue outline - gaming & tech aesthetic",
+  description: "High-voltage cyan with deep blue outline - gaming & tech aesthetic",
   platform: "Universal",
   style: {
     fontFamily: "Russo One",
-    fontSize: 46,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -521,9 +455,6 @@ export const ELECTRIC_BLUE_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#001133",
     outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#0066FF",
-    glowIntensity: 4,
     highlightScale: 130,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -545,7 +476,7 @@ export const SUNSET_FIRE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Bangers",
-    fontSize: 50,
+    fontSize: 44,
     textColor: "#FF6B35",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -558,9 +489,6 @@ export const SUNSET_FIRE_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#8B0000",
     outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#FF6B35",
-    glowIntensity: 3,
     highlightScale: 125,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -595,9 +523,6 @@ export const ICE_COLD_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#2C5F7C",
     outlineWidth: 4,
-    glowEnabled: true,
-    glowColor: "#00FFFF",
-    glowIntensity: 3,
     highlightScale: 120,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -610,34 +535,34 @@ export const ICE_COLD_TEMPLATE: CaptionTemplate = {
 
 /**
  * Coral Pop Template
- * Vibrant pink glow with bouncy animation - fun & feminine aesthetic
+ * Vibrant coral with bouncy animation - fun, energetic & eye-catching
  */
 export const CORAL_POP_TEMPLATE: CaptionTemplate = {
   id: "coral-pop",
   name: "Coral Pop",
-  description: "Vibrant pink glow with bouncy animation - fun & feminine aesthetic",
+  description: "Vibrant coral with bouncy animation - fun, energetic & eye-catching",
   platform: "Universal",
   style: {
-    fontFamily: "Poppins",
-    fontSize: 38,
+    fontFamily: "Lilita One",
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
     x: 50, y: 85,
     alignment: "center",
     animation: "bounce",
-    highlightColor: "#FF1493",
+    highlightColor: "#FF6B6B",
     highlightEnabled: true,
     shadow: true,
     outline: true,
-    outlineColor: "#C71585",
-    outlineWidth: 4,
-    glowEnabled: true,
-    glowColor: "#FF69B4",
-    glowIntensity: 3,
-    highlightScale: 120,
-    textTransform: "none",
+    outlineColor: "#8B0000",
+    outlineWidth: 5,
+    highlightScale: 130,
+    textTransform: "uppercase",
     wordsPerLine: 3,
+    glowEnabled: true,
+    glowColor: "#FF6B6B",
+    glowIntensity: 10,
   },
   preview: "/templates/coral-pop-preview.png",
   isNew: true,
@@ -647,12 +572,12 @@ export const CORAL_POP_TEMPLATE: CaptionTemplate = {
 
 /**
  * Midnight Purple Template
- * Deep purple glow with lavender text - mysterious & stylish karaoke
+ * Deep purple with lavender text - mysterious & stylish karaoke
  */
 export const MIDNIGHT_PURPLE_TEMPLATE: CaptionTemplate = {
   id: "midnight-purple",
   name: "Midnight Purple",
-  description: "Deep purple glow with lavender text - mysterious & stylish karaoke",
+  description: "Deep purple with lavender text - mysterious & stylish karaoke",
   platform: "Universal",
   style: {
     fontFamily: "Oswald",
@@ -669,9 +594,6 @@ export const MIDNIGHT_PURPLE_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#2D0A4E",
     outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#8B00FF",
-    glowIntensity: 3,
     highlightScale: 125,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -684,16 +606,16 @@ export const MIDNIGHT_PURPLE_TEMPLATE: CaptionTemplate = {
 
 /**
  * Toxic Green Template
- * Radioactive neon green glow with dark outline - bold & attention-grabbing
+ * Radioactive neon green with dark outline - bold & attention-grabbing
  */
 export const TOXIC_GREEN_TEMPLATE: CaptionTemplate = {
   id: "toxic-green",
   name: "Toxic Green",
-  description: "Radioactive neon green glow with dark outline - bold & attention-grabbing",
+  description: "Radioactive neon green with dark outline - bold & attention-grabbing",
   platform: "Universal",
   style: {
     fontFamily: "Anton",
-    fontSize: 48,
+    fontSize: 44,
     textColor: "#00FF41",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -706,9 +628,6 @@ export const TOXIC_GREEN_TEMPLATE: CaptionTemplate = {
     outline: true,
     outlineColor: "#003300",
     outlineWidth: 5,
-    glowEnabled: true,
-    glowColor: "#00FF41",
-    glowIntensity: 4,
     highlightScale: 130,
     textTransform: "uppercase",
     wordsPerLine: 3,
@@ -730,7 +649,7 @@ export const GEORGIA_ELEGANCE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Georgia",
-    fontSize: 36,
+    fontSize: 44,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -753,53 +672,15 @@ export const GEORGIA_ELEGANCE_TEMPLATE: CaptionTemplate = {
 };
 
 /**
- * Glassmorphism Template
- * Frosted glass background with soft white text - modern UI-inspired look
- */
-export const GLASSMORPHISM_TEMPLATE: CaptionTemplate = {
-  id: "glassmorphism",
-  name: "Glassmorphism",
-  description: "Frosted glass panel with soft glow and translucent backdrop - modern UI aesthetic",
-  platform: "Universal",
-  style: {
-    fontFamily: "Montserrat",
-    fontSize: 34,
-    textColor: "#FFFFFF",
-    backgroundColor: "#88AAFF",
-    backgroundOpacity: 25,
-    x: 50, y: 85,
-    alignment: "center",
-    animation: "fade",
-    highlightColor: "#E0E8FF",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "rgba(255,255,255,0.3)",
-    outlineWidth: 1,
-    glowEnabled: true,
-    glowColor: "#AACCFF",
-    glowIntensity: 2,
-    textTransform: "none",
-    wordsPerLine: 5,
-  },
-  preview: "/templates/glassmorphism-preview.png",
-  isNew: true,
-  createdAt: new Date("2026-02-09"),
-  updatedAt: new Date("2026-02-09"),
-};
-
-/**
  * All built-in caption templates
  */
 export const CAPTION_TEMPLATES: CaptionTemplate[] = [
   CLASSIC_TEMPLATE,
   BASKER_TEMPLATE,
-  BOBBY_TEMPLATE,
   BILLY_TEMPLATE,
   SIMPLE_TEMPLATE,
   HORMOZI_TEMPLATE,
   MRBEAST_PRO_TEMPLATE,
-  CLEAN_CREATOR_TEMPLATE,
   GARYVEE_TEMPLATE,
   TIKTOK_NATIVE_TEMPLATE,
   NEON_POP_TEMPLATE,
@@ -811,7 +692,6 @@ export const CAPTION_TEMPLATES: CaptionTemplate[] = [
   CORAL_POP_TEMPLATE,
   MIDNIGHT_PURPLE_TEMPLATE,
   GEORGIA_ELEGANCE_TEMPLATE,
-  GLASSMORPHISM_TEMPLATE,
 ];
 
 /**

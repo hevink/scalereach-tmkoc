@@ -1,13 +1,13 @@
 # Render Blueprint - https://render.com/docs/blueprint-spec
+# API only — worker runs on EC2
 services:
-  # Main API Server (no ffmpeg/yt-dlp - uses YouTube Data API v3 for video info)
   - type: web
     name: scalereach-api
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
     region: oregon
-    plan: starter # $7/month
+    plan: starter
     healthCheckPath: /health
     envVars:
       - key: PORT
@@ -47,4 +47,10 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: SENTRY_DSN
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: POLAR_ACCESS_TOKEN
+        sync: false
+      - key: DODO_PAYMENTS_API_KEY
         sync: false

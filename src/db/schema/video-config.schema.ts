@@ -39,6 +39,7 @@ export const videoConfig = pgTable(
 
     // AI Settings
     enableAutoHook: boolean("enable_auto_hook").default(true),
+    clipType: text("clip_type").default("viral-clips"),
     customPrompt: text("custom_prompt"),
     topicKeywords: text("topic_keywords").array(),
 
@@ -49,8 +50,14 @@ export const videoConfig = pgTable(
 
     // Editing Options
     enableCaptions: boolean("enable_captions").default(true),
-    enableEmojis: boolean("enable_emojis").default(true),
-    enableIntroTitle: boolean("enable_intro_title").default(true),
+    enableEmojis: boolean("enable_emojis").default(false),
+    enableIntroTitle: boolean("enable_intro_title").default(false),
+
+    // Split-Screen Options
+    enableSplitScreen: boolean("enable_split_screen").default(false),
+    splitScreenBgVideoId: text("split_screen_bg_video_id"),
+    splitScreenBgCategoryId: text("split_screen_bg_category_id"),
+    splitRatio: integer("split_ratio").default(50),
 
     // Timestamps
     createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -26,8 +26,8 @@ const ERROR_MESSAGES: Record<string, Record<string, string>> = {
     pro: "Your file exceeds the 4GB limit.",
   },
   INSUFFICIENT_MINUTES: {
-    free: "You don't have enough minutes. Free plan includes 50 one-time minutes. Upgrade to Starter (200/month) or Pro (300/month) for more.",
-    starter: "You've used all your minutes for this month. They'll reset on your renewal date. Upgrade to Pro for 50% more minutes.",
+    free: "You don't have enough minutes. Free plan includes 50 one-time minutes. Upgrade to Starter (200/month) or Pro (500/month) for more.",
+    starter: "You've used all your minutes for this month. They'll reset on your renewal date. Upgrade to Pro for 150% more minutes.",
     pro: "You've used all your minutes for this month. They'll reset on your renewal date.",
   },
   REGENERATION_LIMIT_REACHED: {
@@ -46,11 +46,12 @@ export function canUploadVideo(
   planConfig: PlanConfig,
   durationInSeconds: number,
   sizeInBytes: number,
-  minutesRemaining: number
+  minutesRemaining: number,
+  effectiveDurationInSeconds?: number
 ): ValidationResult {
   const plan = planConfig.plan;
 
-  // Check 1: Video length limit
+  // Check 1: Video length limit (always check full video duration)
   if (durationInSeconds > planConfig.limits.videoLength) {
     return {
       allowed: false,
@@ -70,8 +71,9 @@ export function canUploadVideo(
     };
   }
 
-  // Check 3: Available minutes
-  const minutesNeeded = calculateMinuteConsumption(durationInSeconds);
+  // Check 3: Available minutes (use effective/timeframe duration if provided)
+  const billingDuration = effectiveDurationInSeconds ?? durationInSeconds;
+  const minutesNeeded = calculateMinuteConsumption(billingDuration);
   if (minutesRemaining < minutesNeeded) {
     return {
       allowed: false,

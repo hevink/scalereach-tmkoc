@@ -247,4 +247,65 @@ export class FFmpegService {
     const basePath = videoStorageKey.replace(/\.[^/.]+$/, "");
     return `${basePath}-audio.aac`;
   }
+
+  /**
+   * Generate a thumbnail from a video at a specific timestamp
+   * Extracts a single frame and uploads it to R2
+   */
+  static async generateThumbnail(
+    videoUrl: string,
+    thumbnailStorageKey: string,
+    timestampSeconds: number = 1
+  ): Promise<{ thumbnailKey: string; thumbnailUrl: string }> {
+    console.log(`[FFMPEG SERVICE] Generating thumbnail at ${timestampSeconds}s for: ${thumbnailStorageKey}`);
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-ss", timestampSeconds.toString(),
+        "-i", videoUrl,
+        "-vframes", "1",
+        "-q:v", "2",
+        "-f", "image2pipe",
+        "-vcodec", "mjpeg",
+        "-",
+      ];
+
+      const ffmpegProcess = spawn("ffmpeg", args);
+      const chunks: Buffer[] = [];
+      let stderr = "";
+
+      ffmpegProcess.stdout?.on("data", (data) => {
+        chunks.push(data);
+      });
+
+      ffmpegProcess.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      ffmpegProcess.on("error", (err) => {
+        reject(new Error(`FFmpeg thumbnail failed: ${err.message}`));
+      });
+
+      ffmpegProcess.on("close", async (code) => {
+        if (code !== 0) {
+          reject(new Error(`FFmpeg thumbnail failed with code ${code}: ${stderr.slice(-500)}`));
+          return;
+        }
+
+        const buffer = Buffer.concat(chunks);
+        if (buffer.length < 1000) {
+          reject(new Error(`Thumbnail too small (${buffer.length} bytes), likely no frames extracted`));
+          return;
+        }
+
+        try {
+          const { url } = await R2Service.uploadFile(thumbnailStorageKey, buffer, "image/jpeg");
+          console.log(`[FFMPEG SERVICE] Thumbnail uploaded: ${thumbnailStorageKey} (${buffer.length} bytes)`);
+          resolve({ thumbnailKey: thumbnailStorageKey, thumbnailUrl: url });
+        } catch (uploadErr) {
+          reject(new Error(`Failed to upload thumbnail: ${uploadErr}`));
+        }
+      });
+    });
+  }
 }

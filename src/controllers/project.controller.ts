@@ -8,6 +8,12 @@ import {
   type CreateProjectInput,
   type UpdateProjectInput,
 } from "../schemas/validation.schemas";
+import { VideoModel } from "../models/video.model";
+import { ClipModel } from "../models/clip.model";
+import { R2Service } from "../services/r2.service";
+import { db } from "../db";
+import { videoExport, voiceDubbing, dubbedClipAudio, viralClip } from "../db/schema";
+import { inArray, eq } from "drizzle-orm";
 
 export class ProjectController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -150,6 +156,45 @@ export class ProjectController {
     ProjectController.logRequest(c, "DELETE_PROJECT", { id });
 
     try {
+      const videos = await VideoModel.getByProjectId(id);
+      const videoIds = videos.map(v => v.id);
+
+      const clipKeys = videoIds.length > 0
+        ? await ClipModel.getStorageKeysByVideoIds(videoIds)
+        : [];
+
+      const clipIds = clipKeys.length > 0
+        ? (await db.select({ id: viralClip.id }).from(viralClip).where(inArray(viralClip.videoId, videoIds))).map(r => r.id)
+        : [];
+
+      const exportRows = clipIds.length > 0
+        ? await db.select({ storageKey: videoExport.storageKey }).from(videoExport).where(inArray(videoExport.clipId, clipIds))
+        : [];
+
+      const dubbingRows = videoIds.length > 0
+        ? await db.select({ dubbedAudioKey: voiceDubbing.dubbedAudioKey, mixedAudioKey: voiceDubbing.mixedAudioKey, id: voiceDubbing.id })
+            .from(voiceDubbing).where(inArray(voiceDubbing.videoId, videoIds))
+        : [];
+
+      const dubbingIds = dubbingRows.map(d => d.id);
+      const clipAudioRows = dubbingIds.length > 0
+        ? await db.select({ audioKey: dubbedClipAudio.audioKey }).from(dubbedClipAudio).where(inArray(dubbedClipAudio.dubbingId, dubbingIds))
+        : [];
+
+      const r2Keys: string[] = [
+        ...videos.flatMap(v =>
+          [v.storageKey, v.audioStorageKey, v.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...clipKeys.flatMap(c =>
+          [c.storageKey, c.rawStorageKey, c.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...exportRows.flatMap(e => [e.storageKey].filter(Boolean) as string[]),
+        ...dubbingRows.flatMap(d => [d.dubbedAudioKey, d.mixedAudioKey].filter(Boolean) as string[]),
+        ...clipAudioRows.flatMap(a => [a.audioKey].filter(Boolean) as string[]),
+      ];
+
+      await Promise.allSettled(r2Keys.map(key => R2Service.deleteFile(key)));
+
       await ProjectModel.delete(id);
       return c.json({ message: "Project deleted successfully" });
     } catch (error) {

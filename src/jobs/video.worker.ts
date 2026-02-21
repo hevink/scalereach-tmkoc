@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { db } from "../db";
 import { video, viralClip } from "../db/schema";
-import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
+import { YouTubeService, MAX_VIDEO_DURATION_SECONDS, getQualityFromHeight } from "../services/youtube.service";
 import { R2Service } from "../services/r2.service";
 import { DeepgramService } from "../services/deepgram.service";
 import { ViralDetectionService } from "../services/viral-detection.service";
@@ -17,6 +17,7 @@ import { WorkspaceModel } from "../models/workspace.model";
 import { emailService } from "../services/email.service";
 import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
+import { BackgroundVideoModel } from "../models/background-video.model";
 import { captureException } from "../lib/sentry";
 import {
   createWorker,
@@ -66,6 +67,7 @@ async function processYouTubeVideo(
   // Track minutes for refund on failure
   let minutesDeducted = 0;
   let workspaceId: string | undefined;
+  let storageKey: string | undefined; // Track for cleanup on failure
 
   try {
     // Get workspace ID from video record for potential refund
@@ -88,21 +90,25 @@ async function processYouTubeVideo(
     await updateVideoStatus(videoId, "downloading");
     await job.updateProgress(10);
 
-    // Get audio stream directly from YouTube
+    // Get audio stream directly from YouTube (only the selected timeframe)
+    const audioStart = videoConfig?.timeframeStart ?? 0;
+    const audioEnd = videoConfig?.timeframeEnd ?? undefined;
     let streamResult;
     try {
-      streamResult = await YouTubeService.streamAudio(sourceUrl);
+      streamResult = await YouTubeService.streamAudio(
+        sourceUrl,
+        audioStart > 0 ? audioStart : undefined,
+        audioEnd ?? undefined,
+      );
     } catch (error: any) {
       console.error(`[VIDEO WORKER] Failed to start YouTube stream: ${error.message}`);
       throw new Error(`YouTube download failed: ${error.message}`);
     }
-    
+
     const { stream, videoInfo, mimeType } = streamResult;
 
-    await job.updateProgress(30);
-    console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
-
-    await updateVideoStatus(videoId, "uploading", {
+    // Update title + thumbnail immediately so UI shows them during download
+    await updateVideoStatus(videoId, "downloading", {
       title: videoInfo.title,
       duration: Math.round(videoInfo.duration),
       mimeType: mimeType,
@@ -113,10 +119,21 @@ async function processYouTubeVideo(
       },
     });
 
-    const filename = `${videoInfo.id}.m4a`;
-    // Use projectId if available, otherwise use userId for storage path
-    const storagePath = projectId || `user-${userId}`;
-    const storageKey = R2Service.generateVideoKey(storagePath, filename);
+    // Determine best output quality based on source video resolution and plan
+    const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+    const planConfig = getPlanConfig(ws?.plan || "free");
+    // Split screen clips are always capped at 1080p regardless of plan (performance)
+    const effectiveMaxQuality = videoConfig?.enableSplitScreen ? "1080p" : planConfig.limits.maxClipQuality;
+    const clipQuality = getQualityFromHeight(videoInfo.videoHeight, effectiveMaxQuality);
+    console.log(`[VIDEO WORKER] Source video height: ${videoInfo.videoHeight ?? 'unknown'}p, plan: ${ws?.plan || 'free'}, splitScreen: ${!!videoConfig?.enableSplitScreen}, clip quality: ${clipQuality}`);
+
+    await job.updateProgress(30);
+    console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
+
+    await updateVideoStatus(videoId, "uploading");
+
+    // New hierarchical storage structure: {userId}/{videoId}/source.m4a
+    storageKey = R2Service.generateVideoStorageKey(userId, videoId, "m4a");
 
     // Stream directly to R2 without saving to disk
     // Wrap in promise to catch stream errors
@@ -129,7 +146,7 @@ async function processYouTubeVideo(
           reject(new Error(`Stream failed: ${err.message}`));
         });
 
-        R2Service.uploadFromStream(storageKey, stream, mimeType)
+        R2Service.uploadFromStream(storageKey!, stream, mimeType)
           .then(resolve)
           .catch(reject);
       });
@@ -167,11 +184,18 @@ async function processYouTubeVideo(
 
     await job.updateProgress(70);
 
+    // If we downloaded a timeframe slice, Deepgram timestamps start from 0.
+    // Offset them back to original video time so clip timestamps are correct.
+    const timeframeStart = videoConfig?.timeframeStart ?? 0;
+    const timeframeEnd = videoConfig?.timeframeEnd ?? videoInfo.duration;
+    const offsetWords = timeframeStart > 0
+      ? transcriptResult.words.map((w) => ({ ...w, start: w.start + timeframeStart, end: w.end + timeframeStart }))
+      : transcriptResult.words;
+
     // Store transcript with language and confidence metadata
-    // Validates: Requirements 3.4, 3.8
     await updateVideoStatus(videoId, "analyzing", {
       transcript: transcriptResult.transcript,
-      transcriptWords: transcriptResult.words,
+      transcriptWords: offsetWords,
       transcriptLanguage: transcriptResult.language,
       transcriptConfidence: transcriptResult.confidence,
     });
@@ -189,38 +213,55 @@ async function processYouTubeVideo(
 
     // Detect viral clips using AI
     console.log(`[VIDEO WORKER] Detecting viral clips...`);
-    
-    // Apply timeframe filtering if configured
-    const timeframeStart = videoConfig?.timeframeStart ?? 0;
-    const timeframeEnd = videoConfig?.timeframeEnd ?? videoInfo.duration;
-    
-    // Filter transcript words to the configured timeframe
-    const filteredWords = transcriptResult.words.filter(
-      (w) => w.start >= timeframeStart && w.end <= timeframeEnd
-    );
-    
-    // Build filtered transcript text
-    const filteredTranscript = filteredWords.map((w) => w.word).join(" ");
-    
     console.log(`[VIDEO WORKER] Processing timeframe: ${timeframeStart}s - ${timeframeEnd}s`);
+
+    // All words are already within the timeframe (audio was sliced), just use them directly
+    const filteredWords = offsetWords;
+    const filteredTranscript = filteredWords.map((w) => w.word).join(" ");
     
     const viralClips = await ViralDetectionService.detectViralClips(
       filteredTranscript,
       filteredWords,
       {
-        maxClips: 5,
-        minDuration: videoConfig?.clipDurationMin ?? 15,
-        maxDuration: videoConfig?.clipDurationMax ?? 60,
+        minDuration: (videoConfig?.clipDurationMin && videoConfig.clipDurationMin >= 5) ? videoConfig.clipDurationMin : undefined,
+        maxDuration: (videoConfig?.clipDurationMax && videoConfig.clipDurationMax > 0) ? videoConfig.clipDurationMax : undefined,
         videoTitle: videoInfo.title,
         genre: videoConfig?.genre ?? "Auto",
+        clipType: videoConfig?.clipType ?? "viral-clips",
         customPrompt: videoConfig?.customPrompt ?? undefined,
         // Editing options from video config
-        enableEmojis: videoConfig?.enableEmojis ?? true,
-        enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
+        enableEmojis: false,
+        enableIntroTitle: false,
       }
     );
 
     await job.updateProgress(90);
+
+    // Resolve split-screen background video if enabled (shared across all clips)
+    let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+    if (videoConfig?.enableSplitScreen) {
+      try {
+        let bgVideo = null;
+        if (videoConfig.splitScreenBgVideoId) {
+          bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
+        } else if (videoConfig.splitScreenBgCategoryId) {
+          bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+        }
+        if (bgVideo) {
+          splitScreenData = {
+            backgroundVideoId: bgVideo.id,
+            backgroundStorageKey: bgVideo.storageKey,
+            backgroundDuration: bgVideo.duration,
+            splitRatio: videoConfig.splitRatio ?? 50,
+          };
+          console.log(`[VIDEO WORKER] Split-screen enabled: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
+        } else {
+          console.warn(`[VIDEO WORKER] Split-screen enabled but no background video found, skipping`);
+        }
+      } catch (bgError) {
+        console.warn(`[VIDEO WORKER] Failed to resolve split-screen background:`, bgError);
+      }
+    }
 
     // Save viral clips to database and queue clip generation with captions
     // Validates: Requirements 5.3, 5.4, 5.5, 5.8, 5.9
@@ -242,6 +283,7 @@ async function processYouTubeVideo(
         hooks: clip.hooks,                     // Store hooks array as JSONB
         emotions: clip.emotions,               // Store emotions array as JSONB
         recommendedPlatforms: clip.recommendedPlatforms, // Store recommended platforms
+        clipType: videoConfig?.clipType ?? "viral-clips", // Store clip type used for detection
         status: "detected" as const,           // Initial status is 'detected'
       }));
 
@@ -283,9 +325,6 @@ async function processYouTubeVideo(
           outline: template.style.outline,
           outlineColor: template.style.outlineColor,
           outlineWidth: template.style.outlineWidth,
-          glowEnabled: template.style.glowEnabled,
-          glowColor: template.style.glowColor,
-          glowIntensity: template.style.glowIntensity,
           highlightScale: template.style.highlightScale,
           textTransform: template.style.textTransform,
           wordsPerLine: template.style.wordsPerLine,
@@ -303,12 +342,12 @@ async function processYouTubeVideo(
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
         // Queue clip generation with captions and intro title
-        const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
-        const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+        const applyWatermark = planConfig.limits.watermark;
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
-        const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-        const emojisEnabled = videoConfig?.enableEmojis ?? true;
+        // Emojis and intro title disabled for now
+        const introTitleEnabled = false;
+        const emojisEnabled = false;
 
         await addClipGenerationJob({
           clipId: clipRecord.id,
@@ -321,7 +360,7 @@ async function processYouTubeVideo(
           startTime: clipRecord.startTime,
           endTime: clipRecord.endTime,
           aspectRatio: aspectRatio,
-          quality: "1080p",
+          quality: clipQuality,
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
           introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
@@ -329,9 +368,10 @@ async function processYouTubeVideo(
             words: adjustedWords,
             style: captionStyle,
           } : undefined,
+          splitScreen: splitScreenData,
         });
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ' (split-screen)' : ''}`);
       }
     }
 
@@ -341,21 +381,21 @@ async function processYouTubeVideo(
     console.log(`[VIDEO WORKER] Video processing complete: ${videoId}, found ${viralClips.length} viral clips (generation queued)`);
 
     // Send email notification when video processing is done
-    try {
-      const user = await UserModel.getById(userId);
-      if (user?.email) {
-        await emailService.sendVideoProcessedNotification({
-          to: user.email,
-          userName: user.name || user.email.split("@")[0],
-          videoTitle: videoInfo.title,
-          clipCount: viralClips.length,
-          videoId: videoId,
-        });
-        console.log(`[VIDEO WORKER] Email notification sent to: ${user.email}`);
-      }
-    } catch (emailError) {
-      console.error(`[VIDEO WORKER] Failed to send email notification:`, emailError);
-    }
+    // try {
+    //   const user = await UserModel.getById(userId);
+    //   if (user?.email) {
+    //     await emailService.sendVideoProcessedNotification({
+    //       to: user.email,
+    //       userName: user.name || user.email.split("@")[0],
+    //       videoTitle: videoInfo.title,
+    //       clipCount: viralClips.length,
+    //       videoId: videoId,
+    //     });
+    //     console.log(`[VIDEO WORKER] Email notification sent to: ${user.email}`);
+    //   }
+    // } catch (emailError) {
+    //   console.error(`[VIDEO WORKER] Failed to send email notification:`, emailError);
+    // }
   } catch (error) {
     console.error(`[VIDEO WORKER] Error processing video ${videoId}:`, error);
 
@@ -364,6 +404,16 @@ async function processYouTubeVideo(
     // Report to Sentry with context
     if (error instanceof Error) {
       captureException(error, { videoId, sourceUrl, sourceType: "youtube" });
+    }
+
+    // Clean up uploaded file on failure
+    if (storageKey) {
+      try {
+        await R2Service.deleteFile(storageKey);
+        console.log(`[VIDEO WORKER] Cleaned up storage file: ${storageKey}`);
+      } catch (cleanupError) {
+        console.warn(`[VIDEO WORKER] Failed to clean up storage file: ${storageKey}`);
+      }
     }
 
     // Refund minutes if they were deducted (YouTube minutes are deducted in controller)
@@ -382,7 +432,11 @@ async function processYouTubeVideo(
       }
     }
 
-    await updateVideoStatus(videoId, "failed", { errorMessage });
+    // Only mark as failed on the last attempt
+    const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1) - 1;
+    if (isLastAttempt) {
+      await updateVideoStatus(videoId, "failed", { errorMessage });
+    }
 
     throw error;
   }
@@ -462,19 +516,25 @@ async function processUploadedVideo(
         const planConfig = getPlanConfig(plan);
         const minutesBalance = await MinutesModel.getBalance(workspaceId);
 
+        // Calculate effective processing duration based on timeframe
+        const timeframeStart = videoConfig?.timeframeStart ?? 0;
+        const timeframeEnd = videoConfig?.timeframeEnd ?? videoMetadata.duration;
+        const effectiveDuration = timeframeEnd - timeframeStart;
+
         const uploadValidation = canUploadVideo(
           planConfig,
-          videoMetadata.duration,
+          videoMetadata.duration, // Full duration for plan limit check
           0,
-          minutesBalance.minutesRemaining
+          minutesBalance.minutesRemaining,
+          effectiveDuration // Timeframe duration for minutes check
         );
 
         if (!uploadValidation.allowed) {
           throw new Error(uploadValidation.message || `Upload validation failed: ${uploadValidation.reason}`);
         }
 
-        // Deduct minutes
-        const minutesToDeduct = calculateMinuteConsumption(videoMetadata.duration);
+        // Deduct minutes based on selected timeframe, not full video duration
+        const minutesToDeduct = calculateMinuteConsumption(effectiveDuration);
         await MinutesModel.deductMinutes({
           workspaceId,
           userId,
@@ -483,7 +543,7 @@ async function processUploadedVideo(
           type: "upload",
         });
         minutesDeducted = minutesToDeduct;
-        console.log(`[VIDEO WORKER] Deducted ${minutesToDeduct} minutes for uploaded video ${videoId}`);
+        console.log(`[VIDEO WORKER] Deducted ${minutesToDeduct} minutes for uploaded video ${videoId} (timeframe: ${timeframeStart}s-${timeframeEnd}s of ${videoMetadata.duration}s total)`);
       }
     } catch (metadataError) {
       console.warn(`[VIDEO WORKER] Could not get video metadata: ${metadataError}`);
@@ -498,11 +558,36 @@ async function processUploadedVideo(
       // Continue without metadata - we'll try to process anyway
     }
 
+    // Determine best output quality based on source video resolution and plan
+    const uploadWs = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
+    const uploadPlanConfig = getPlanConfig(uploadWs?.plan || "free");
+    // Split screen clips are always capped at 1080p regardless of plan (performance)
+    const uploadEffectiveMaxQuality = videoConfig?.enableSplitScreen ? "1080p" : uploadPlanConfig.limits.maxClipQuality;
+    const uploadClipQuality = getQualityFromHeight(videoMetadata?.height, uploadEffectiveMaxQuality);
+    console.log(`[VIDEO WORKER] Source video height: ${videoMetadata?.height ?? 'unknown'}p, plan: ${uploadWs?.plan || 'free'}, splitScreen: ${!!videoConfig?.enableSplitScreen}, clip quality: ${uploadClipQuality}`);
+
     await job.updateProgress(20);
 
+    // Generate thumbnail from first second of video
+    // New hierarchical structure: {userId}/{videoId}/thumbnail.jpg
+    try {
+      const thumbnailKey = R2Service.generateVideoThumbnailKey(userId, videoId);
+      const signedUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
+      const { thumbnailKey: tKey, thumbnailUrl: tUrl } = await FFmpegService.generateThumbnail(
+        signedUrl,
+        thumbnailKey,
+        1
+      );
+      await db.update(video).set({ thumbnailKey: tKey, thumbnailUrl: tUrl, updatedAt: new Date() }).where(eq(video.id, videoId));
+      console.log(`[VIDEO WORKER] Thumbnail generated for uploaded video: ${videoId}`);
+    } catch (thumbErr) {
+      console.warn(`[VIDEO WORKER] Thumbnail generation failed (non-fatal): ${thumbErr}`);
+    }
+
     // Extract audio from the uploaded video
+    // New hierarchical structure: {userId}/{videoId}/audio.m4a
     console.log(`[VIDEO WORKER] Extracting audio from uploaded video...`);
-    const audioStorageKey = FFmpegService.generateAudioStorageKey(storageKey);
+    const audioStorageKey = R2Service.generateAudioStorageKey(userId, videoId);
 
     const audioResult = await FFmpegService.extractAudioToR2(
       storageKey,
@@ -577,19 +662,45 @@ async function processUploadedVideo(
       filteredTranscript,
       filteredWords,
       {
-        maxClips: 5,
-        minDuration: videoConfig?.clipDurationMin ?? 15,
-        maxDuration: videoConfig?.clipDurationMax ?? 60,
+        minDuration: (videoConfig?.clipDurationMin && videoConfig.clipDurationMin >= 5) ? videoConfig.clipDurationMin : undefined,
+        maxDuration: (videoConfig?.clipDurationMax && videoConfig.clipDurationMax > 0) ? videoConfig.clipDurationMax : undefined,
         videoTitle: videoRecord[0].title || undefined,
         genre: videoConfig?.genre ?? "Auto",
+        clipType: videoConfig?.clipType ?? "viral-clips",
         customPrompt: videoConfig?.customPrompt ?? undefined,
         // Editing options from video config
-        enableEmojis: videoConfig?.enableEmojis ?? true,
-        enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
+        enableEmojis: false,
+        enableIntroTitle: false,
       }
     );
 
     await job.updateProgress(90);
+
+    // Resolve split-screen background video if enabled (shared across all clips)
+    let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+    if (videoConfig?.enableSplitScreen) {
+      try {
+        let bgVideo = null;
+        if (videoConfig.splitScreenBgVideoId) {
+          bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
+        } else if (videoConfig.splitScreenBgCategoryId) {
+          bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+        }
+        if (bgVideo) {
+          splitScreenData = {
+            backgroundVideoId: bgVideo.id,
+            backgroundStorageKey: bgVideo.storageKey,
+            backgroundDuration: bgVideo.duration,
+            splitRatio: videoConfig.splitRatio ?? 50,
+          };
+          console.log(`[VIDEO WORKER] Split-screen enabled: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
+        } else {
+          console.warn(`[VIDEO WORKER] Split-screen enabled but no background video found, skipping`);
+        }
+      } catch (bgError) {
+        console.warn(`[VIDEO WORKER] Failed to resolve split-screen background:`, bgError);
+      }
+    }
 
     // Save viral clips to database and queue clip generation with captions
     // Validates: Requirements 5.3, 5.4, 5.5, 5.8, 5.9
@@ -611,6 +722,7 @@ async function processUploadedVideo(
         hooks: clip.hooks,                     // Store hooks array as JSONB
         emotions: clip.emotions,               // Store emotions array as JSONB
         recommendedPlatforms: clip.recommendedPlatforms, // Store recommended platforms
+        clipType: videoConfig?.clipType ?? "viral-clips", // Store clip type used for detection
         status: "detected" as const,           // Initial status is 'detected'
       }));
 
@@ -652,9 +764,6 @@ async function processUploadedVideo(
           outline: template.style.outline,
           outlineColor: template.style.outlineColor,
           outlineWidth: template.style.outlineWidth,
-          glowEnabled: template.style.glowEnabled,
-          glowColor: template.style.glowColor,
-          glowIntensity: template.style.glowIntensity,
           highlightScale: template.style.highlightScale,
           textTransform: template.style.textTransform,
           wordsPerLine: template.style.wordsPerLine,
@@ -672,12 +781,12 @@ async function processUploadedVideo(
         const aspectRatio = (videoConfig?.aspectRatio ?? "9:16") as "9:16" | "16:9" | "1:1";
 
         // Queue clip generation with captions and intro title
-        const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
-        const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
+        const applyWatermark = uploadPlanConfig.limits.watermark;
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
-        const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-        const emojisEnabled = videoConfig?.enableEmojis ?? true;
+        // Emojis and intro title disabled for now
+        const introTitleEnabled = false;
+        const emojisEnabled = false;
 
         await addClipGenerationJob({
           clipId: clipRecord.id,
@@ -690,7 +799,7 @@ async function processUploadedVideo(
           startTime: clipRecord.startTime,
           endTime: clipRecord.endTime,
           aspectRatio: aspectRatio,
-          quality: "1080p",
+          quality: uploadClipQuality,
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
           introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
@@ -698,9 +807,10 @@ async function processUploadedVideo(
             words: adjustedWords,
             style: captionStyle,
           } : undefined,
+          splitScreen: splitScreenData,
         });
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ' (split-screen)' : ''}`);
       }
     }
 
@@ -711,22 +821,22 @@ async function processUploadedVideo(
       `[VIDEO WORKER] Uploaded video processing complete: ${videoId}, found ${viralClips.length} viral clips (generation queued)`
     );
 
-    // Send email notification when video processing is done
-    try {
-      const user = await UserModel.getById(userId);
-      if (user?.email) {
-        await emailService.sendVideoProcessedNotification({
-          to: user.email,
-          userName: user.name || user.email.split("@")[0],
-          videoTitle: videoRecord[0].title || "Your video",
-          clipCount: viralClips.length,
-          videoId: videoId,
-        });
-        console.log(`[VIDEO WORKER] Email notification sent to: ${user.email}`);
-      }
-    } catch (emailError) {
-      console.error(`[VIDEO WORKER] Failed to send email notification:`, emailError);
-    }
+    // // Send email notification when video processing is done
+    // try {
+    //   const user = await UserModel.getById(userId);
+    //   if (user?.email) {
+    //     await emailService.sendVideoProcessedNotification({
+    //       to: user.email,
+    //       userName: user.name || user.email.split("@")[0],
+    //       videoTitle: videoRecord[0].title || "Your video",
+    //       clipCount: viralClips.length,
+    //       videoId: videoId,
+    //     });
+    //     console.log(`[VIDEO WORKER] Email notificationnt to: ${user.email}`);
+    //   }
+    // } catch (emailError) {
+    //   console.error(`[VIDEO WORKER] Failed to send email notification:`, emailError);
+    // }
   } catch (error) {
     console.error(`[VIDEO WORKER] Error processing uploaded video ${videoId}:`, error);
 
@@ -753,7 +863,11 @@ async function processUploadedVideo(
       }
     }
 
-    await updateVideoStatus(videoId, "failed", { errorMessage });
+    // Only mark as failed on the last attempt
+    const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1) - 1;
+    if (isLastAttempt) {
+      await updateVideoStatus(videoId, "failed", { errorMessage });
+    }
 
     throw error;
   }

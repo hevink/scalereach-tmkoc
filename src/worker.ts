@@ -1,11 +1,13 @@
 // Initialize Sentry first (must be at the very top)
 import "./lib/sentry";
 
+import { startPotServer, stopPotServer } from "./lib/pot-server";
 import { startVideoWorker } from "./jobs/video.worker";
 import { startClipWorker } from "./jobs/clip.worker";
 import { startTranslationWorker, translationQueue } from "./jobs/translation.worker";
 import { startDubbingWorker, dubbingQueue } from "./jobs/dubbing.worker";
-import { redisConnection, videoProcessingQueue, clipGenerationQueue } from "./jobs/queue";
+import { startSocialWorker } from "./jobs/social.worker";
+import { redisConnection, videoProcessingQueue, clipGenerationQueue, socialPostingQueue } from "./jobs/queue";
 
 // Worker concurrency configuration via environment variables
 // Note: CLIP_WORKER_CONCURRENCY default is 2 to balance speed vs stability
@@ -16,6 +18,8 @@ const WORKER_HEALTH_PORT = parseInt(process.env.WORKER_HEALTH_PORT || "3002", 10
 const DUBBING_WORKER_CONCURRENCY = parseInt(process.env.DUBBING_WORKER_CONCURRENCY || "1", 10);
 
 const startTime = Date.now();
+
+startPotServer();
 
 console.log("[WORKER] Starting video processing worker...");
 const videoWorker = startVideoWorker(VIDEO_WORKER_CONCURRENCY);
@@ -28,6 +32,9 @@ const translationWorker = startTranslationWorker();
 
 console.log("[WORKER] Starting dubbing worker...");
 const dubbingWorker = startDubbingWorker(DUBBING_WORKER_CONCURRENCY);
+
+console.log("[WORKER] Starting social posting worker...");
+const socialWorker = startSocialWorker();
 
 /**
  * Worker health check server
@@ -80,31 +87,19 @@ async function getQueueStats() {
       dubbingQueue.getFailedCount(),
     ]);
 
+    const [socialWaiting, socialActive, socialCompleted, socialFailed] = await Promise.all([
+      socialPostingQueue.getWaitingCount(),
+      socialPostingQueue.getActiveCount(),
+      socialPostingQueue.getCompletedCount(),
+      socialPostingQueue.getFailedCount(),
+    ]);
+
     return {
-      videoProcessing: {
-        waiting: videoWaiting,
-        active: videoActive,
-        completed: videoCompleted,
-        failed: videoFailed,
-      },
-      clipGeneration: {
-        waiting: clipWaiting,
-        active: clipActive,
-        completed: clipCompleted,
-        failed: clipFailed,
-      },
-      translation: {
-        waiting: translationWaiting,
-        active: translationActive,
-        completed: translationCompleted,
-        failed: translationFailed,
-      },
-      dubbing: {
-        waiting: dubbingWaiting,
-        active: dubbingActive,
-        completed: dubbingCompleted,
-        failed: dubbingFailed,
-      },
+      videoProcessing: { waiting: videoWaiting, active: videoActive, completed: videoCompleted, failed: videoFailed },
+      clipGeneration: { waiting: clipWaiting, active: clipActive, completed: clipCompleted, failed: clipFailed },
+      translation: { waiting: translationWaiting, active: translationActive, completed: translationCompleted, failed: translationFailed },
+      dubbing: { waiting: dubbingWaiting, active: dubbingActive, completed: dubbingCompleted, failed: dubbingFailed },
+      socialPosting: { waiting: socialWaiting, active: socialActive, completed: socialCompleted, failed: socialFailed },
     };
   } catch {
     return null;
@@ -125,6 +120,7 @@ healthServer = Bun.serve({
       const isClipRunning = clipWorker.isRunning();
       const isTranslationRunning = translationWorker.isRunning();
       const isDubbingRunning = dubbingWorker.isRunning();
+      const isSocialRunning = socialWorker.isRunning();
 
       const isHealthy =
         redisHealth.status === "healthy" && isVideoRunning && isClipRunning && isTranslationRunning && isDubbingRunning;
@@ -134,22 +130,11 @@ healthServer = Bun.serve({
         timestamp: new Date().toISOString(),
         uptime: Math.floor((Date.now() - startTime) / 1000),
         workers: {
-          videoWorker: {
-            running: isVideoRunning,
-            concurrency: VIDEO_WORKER_CONCURRENCY,
-          },
-          clipWorker: {
-            running: isClipRunning,
-            concurrency: CLIP_WORKER_CONCURRENCY,
-          },
-          translationWorker: {
-            running: isTranslationRunning,
-            concurrency: 1,
-          },
-          dubbingWorker: {
-            running: isDubbingRunning,
-            concurrency: DUBBING_WORKER_CONCURRENCY,
-          },
+          videoWorker: { running: isVideoRunning, concurrency: VIDEO_WORKER_CONCURRENCY },
+          clipWorker: { running: isClipRunning, concurrency: CLIP_WORKER_CONCURRENCY },
+          translationWorker: { running: isTranslationRunning, concurrency: 1 },
+          dubbingWorker: { running: isDubbingRunning, concurrency: DUBBING_WORKER_CONCURRENCY },
+          socialWorker: { running: isSocialRunning, concurrency: 2 },
         },
         redis: redisHealth,
       };
@@ -168,6 +153,7 @@ healthServer = Bun.serve({
       const isClipRunning = clipWorker.isRunning();
       const isTranslationRunning = translationWorker.isRunning();
       const isDubbingRunning = dubbingWorker.isRunning();
+      const isSocialRunning2 = socialWorker.isRunning();
 
       const isHealthy =
         redisHealth.status === "healthy" && isVideoRunning && isClipRunning && isTranslationRunning && isDubbingRunning;
@@ -177,22 +163,11 @@ healthServer = Bun.serve({
         timestamp: new Date().toISOString(),
         uptime: Math.floor((Date.now() - startTime) / 1000),
         workers: {
-          videoWorker: {
-            running: isVideoRunning,
-            concurrency: VIDEO_WORKER_CONCURRENCY,
-          },
-          clipWorker: {
-            running: isClipRunning,
-            concurrency: CLIP_WORKER_CONCURRENCY,
-          },
-          translationWorker: {
-            running: isTranslationRunning,
-            concurrency: 1,
-          },
-          dubbingWorker: {
-            running: isDubbingRunning,
-            concurrency: DUBBING_WORKER_CONCURRENCY,
-          },
+          videoWorker: { running: isVideoRunning, concurrency: VIDEO_WORKER_CONCURRENCY },
+          clipWorker: { running: isClipRunning, concurrency: CLIP_WORKER_CONCURRENCY },
+          translationWorker: { running: isTranslationRunning, concurrency: 1 },
+          dubbingWorker: { running: isDubbingRunning, concurrency: DUBBING_WORKER_CONCURRENCY },
+          socialWorker: { running: isSocialRunning2, concurrency: 2 },
         },
         redis: redisHealth,
         queues: queueStats,
@@ -219,9 +194,10 @@ healthServer = Bun.serve({
       const isClipRunning = clipWorker.isRunning();
       const isTranslationRunning = translationWorker.isRunning();
       const isDubbingRunning = dubbingWorker.isRunning();
+      const isSocialRunning3 = socialWorker.isRunning();
 
       const isReady =
-        redisHealth.status === "healthy" && isVideoRunning && isClipRunning && isTranslationRunning && isDubbingRunning;
+        redisHealth.status === "healthy" && isVideoRunning && isClipRunning && isTranslationRunning && isDubbingRunning && isSocialRunning3;
 
       return new Response(
         JSON.stringify({
@@ -247,14 +223,16 @@ console.log(`[WORKER] Health check server running on http://localhost:${WORKER_H
 process.on("SIGTERM", async () => {
   console.log("[WORKER] Received SIGTERM, shutting down gracefully...");
   healthServer?.stop();
-  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close()]);
+  stopPotServer();
+  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close()]);
   process.exit(0);
 });
 
 process.on("SIGINT", async () => {
   console.log("[WORKER] Received SIGINT, shutting down gracefully...");
   healthServer?.stop();
-  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close()]);
+  stopPotServer();
+  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close()]);
   process.exit(0);
 });
 

@@ -15,6 +15,7 @@ export interface VideoConfigInput {
   // Language Settings
   language?: string | null; // null = auto-detect, or ISO code like 'en', 'es', 'hi', etc.
   enableAutoHook?: boolean;
+  clipType?: string;
   customPrompt?: string;
   topicKeywords?: string[];
   captionTemplateId?: string;
@@ -24,6 +25,11 @@ export interface VideoConfigInput {
   enableCaptions?: boolean;
   enableEmojis?: boolean;
   enableIntroTitle?: boolean;
+  // Split-Screen Options
+  enableSplitScreen?: boolean;
+  splitScreenBgVideoId?: string | null;
+  splitScreenBgCategoryId?: string | null;
+  splitRatio?: number;
 }
 
 export class VideoConfigModel {

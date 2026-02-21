@@ -9,6 +9,10 @@ export interface YouTubeVideoInfo {
   thumbnail: string;
   channelName: string;
   description: string;
+  /** Best available video height (e.g. 720, 1080, 2160) — only set via yt-dlp */
+  videoHeight?: number;
+  /** BCP-47 language code of the video's audio (e.g. "hi", "en") */
+  language?: string;
 }
 
 export interface StreamResult {
@@ -24,6 +28,16 @@ export interface ValidationResult {
 
 // Maximum video duration: 4 hours in seconds
 export const MAX_VIDEO_DURATION_SECONDS = 14400;
+
+/**
+ * Determine the best output quality based on source video height and plan limit.
+ * Pro plan: up to 4k. Free/Starter: capped at 1080p.
+ */
+export function getQualityFromHeight(videoHeight?: number, maxQuality: "1080p" | "4k" = "4k"): "720p" | "1080p" | "4k" {
+  if (maxQuality === "1080p") return "1080p";
+  if (videoHeight && videoHeight >= 2160) return "4k";
+  return "1080p";
+}
 
 export class YouTubeService {
   /**
@@ -122,6 +136,7 @@ export class YouTubeService {
       thumbnail: snippet.thumbnails?.maxres?.url || snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
       channelName: snippet.channelTitle,
       description: snippet.description || "",
+      language: snippet.defaultAudioLanguage || snippet.defaultLanguage || undefined,
     };
   }
 
@@ -161,8 +176,8 @@ export class YouTubeService {
         "--js-runtimes", "deno",
         // Anti-bot detection measures
         "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        // Use web client when cookies are available, otherwise try android first
-        "--extractor-args", cookiesPath ? "youtube:player_client=web,android" : "youtube:player_client=android,web",
+        // Use android_vr first — it serves highest quality streams including 4K AV1
+        "--extractor-args", cookiesPath ? "youtube:player_client=web,android_vr,android" : "youtube:player_client=android_vr,web,android",
         "--extractor-retries", "5",
         url,
       ];
@@ -224,6 +239,17 @@ export class YouTubeService {
           }
 
           // ===============================
+          // Detect best available video height (for quality selection)
+          // ===============================
+          const bestVideoHeight = info.formats
+            ?.filter((f: any) => f.vcodec && f.vcodec !== "none" && f.height)
+            ?.reduce((max: number, f: any) => Math.max(max, f.height), 0) || undefined;
+
+          if (bestVideoHeight) {
+            console.log(`[YOUTUBE SERVICE] Best available video height: ${bestVideoHeight}p`);
+          }
+
+          // ===============================
           // EXISTING RETURN
           // ===============================
           resolve({
@@ -233,6 +259,8 @@ export class YouTubeService {
             thumbnail: info.thumbnail,
             channelName: info.channel || info.uploader,
             description: info.description,
+            videoHeight: bestVideoHeight,
+            language: info.language || undefined,
           });
 
         } catch (e) {
@@ -247,7 +275,7 @@ export class YouTubeService {
     });
   }
 
-  static async streamAudio(url: string): Promise<StreamResult> {
+  static async streamAudio(url: string, startTime?: number, endTime?: number): Promise<StreamResult> {
     console.log(`[YOUTUBE SERVICE] Starting audio stream: ${url}`);
 
     const videoId = this.extractVideoId(url);
@@ -274,8 +302,8 @@ export class YouTubeService {
       "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "--add-header", "Accept-Language:en-us,en;q=0.5",
       "--add-header", "Sec-Fetch-Mode:navigate",
-      // Use web client when cookies are available, otherwise try android first
-      "--extractor-args", cookiesPath ? "youtube:player_client=web,android" : "youtube:player_client=android,web",
+      // Use android_vr first — it serves highest quality streams including 4K AV1
+      "--extractor-args", cookiesPath ? "youtube:player_client=web,android_vr,android" : "youtube:player_client=android_vr,web,android",
       "--extractor-retries", "5",
       "--fragment-retries", "5",
       "--retry-sleep", "2",
@@ -283,6 +311,23 @@ export class YouTubeService {
       "--max-sleep-interval", "3",
       url,
     ];
+
+    // Download only the selected timeframe if specified
+    if (startTime !== undefined || endTime !== undefined) {
+      const start = startTime ?? 0;
+      const end = endTime ?? videoInfo.duration;
+      const formatTs = (s: number) => {
+        const h = Math.floor(s / 3600).toString().padStart(2, "0");
+        const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
+        const sec = (s % 60).toFixed(3).padStart(6, "0");
+        return `${h}:${m}:${sec}`;
+      };
+      args.splice(args.indexOf(url), 0,
+        "--download-sections", `*${formatTs(start)}-${formatTs(end)}`,
+        "--force-keyframes-at-cuts",
+      );
+      console.log(`[YOUTUBE SERVICE] Timeframe audio: ${formatTs(start)} → ${formatTs(end)}`);
+    }
 
     if (cookiesPath) {
       args.unshift("--cookies", cookiesPath);

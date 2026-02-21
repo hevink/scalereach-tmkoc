@@ -18,6 +18,7 @@ import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
 import { R2Service } from "../services/r2.service";
 import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
 import { canRegenerateVideo } from "../services/minutes-validation.service";
+import { BackgroundVideoModel } from "../models/background-video.model";
 
 export class ClipGenerationController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -116,10 +117,11 @@ export class ClipGenerationController {
 
       // Get current user
       const user = c.get("user");
-      const userId = user?.id;
+      const userId = user?.id || "";
 
       // Validate clip options
       const validation = ClipGeneratorService.validateOptions({
+        userId,
         videoId: clip.videoId,
         clipId,
         sourceType,
@@ -139,11 +141,38 @@ export class ClipGenerationController {
       const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
       const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
-      // Load video config to check enableCaptions/enableIntroTitle/enableEmojis flags
+      // Load video config to check enableCaptions flag
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
       const captionsEnabled = videoConfig?.enableCaptions ?? true;
-      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-      const emojisEnabled = videoConfig?.enableEmojis ?? true;
+      // Emojis and intro title disabled for now
+      const introTitleEnabled = false;
+      const emojisEnabled = false;
+
+      // Resolve split-screen background video if enabled
+      let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+      if (videoConfig?.enableSplitScreen) {
+        try {
+          let bgVideo = null;
+          if (videoConfig.splitScreenBgVideoId) {
+            bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
+          } else if (videoConfig.splitScreenBgCategoryId) {
+            bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+          }
+          if (bgVideo) {
+            splitScreenData = {
+              backgroundVideoId: bgVideo.id,
+              backgroundStorageKey: bgVideo.storageKey,
+              backgroundDuration: bgVideo.duration,
+              splitRatio: videoConfig.splitRatio ?? 50,
+            };
+            console.log(`[CLIP GENERATION CONTROLLER] Split-screen enabled: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
+          } else {
+            console.warn(`[CLIP GENERATION CONTROLLER] Split-screen enabled but no background video found, skipping`);
+          }
+        } catch (bgError) {
+          console.warn(`[CLIP GENERATION CONTROLLER] Failed to resolve split-screen background:`, bgError);
+        }
+      }
 
       // Get saved captions from database
       const savedCaptions = await ClipCaptionModel.getByClipId(clipId);
@@ -180,6 +209,7 @@ export class ClipGenerationController {
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
+        splitScreen: splitScreenData,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Job queued: ${job.id}`);
@@ -319,11 +349,36 @@ export class ClipGenerationController {
       // Get saved captions from database
       const savedCaptions = await ClipCaptionModel.getByClipId(clipId);
 
-      // Load video config to check enableCaptions/enableIntroTitle flags
+      // Load video config to check enableCaptions flag
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
       const captionsEnabled = videoConfig?.enableCaptions ?? true;
-      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-      const emojisEnabled = videoConfig?.enableEmojis ?? true;
+      // Emojis and intro title disabled for now
+      const introTitleEnabled = false;
+      const emojisEnabled = false;
+
+      // Resolve split-screen background video if enabled
+      let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+      if (videoConfig?.enableSplitScreen) {
+        try {
+          let bgVideo = null;
+          if (videoConfig.splitScreenBgVideoId) {
+            bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
+          } else if (videoConfig.splitScreenBgCategoryId) {
+            bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+          }
+          if (bgVideo) {
+            splitScreenData = {
+              backgroundVideoId: bgVideo.id,
+              backgroundStorageKey: bgVideo.storageKey,
+              backgroundDuration: bgVideo.duration,
+              splitRatio: videoConfig.splitRatio ?? 50,
+            };
+            console.log(`[CLIP GENERATION CONTROLLER] Split-screen enabled for regenerate: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
+          }
+        } catch (bgError) {
+          console.warn(`[CLIP GENERATION CONTROLLER] Failed to resolve split-screen background:`, bgError);
+        }
+      }
 
       // Build captions object for job
       let captions: any = undefined;
@@ -361,6 +416,7 @@ export class ClipGenerationController {
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
+        splitScreen: splitScreenData,
       });
 
       console.log(`[CLIP GENERATION CONTROLLER] Regeneration job queued: ${job.id}`);

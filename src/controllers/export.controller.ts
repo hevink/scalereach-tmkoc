@@ -7,6 +7,7 @@ import { ClipCaptionModel } from "../models/clip-caption.model";
 import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
 import { getPlanConfig } from "../config/plan-config";
 import { VideoConfigModel } from "../models/video-config.model";
+import { BackgroundVideoModel } from "../models/background-video.model";
 
 export class ExportController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -129,11 +130,36 @@ export class ExportController {
       const ws = exportWorkspaceId ? await WorkspaceModel.getById(exportWorkspaceId) : null;
       const applyWatermark = getPlanConfig(ws?.plan || "free").limits.watermark;
 
-      // Load video config to check enableCaptions/enableIntroTitle flags
+      // Load video config to check enableCaptions flag
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
       const captionsEnabled = videoConfig?.enableCaptions ?? true;
-      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
-      const emojisEnabled = videoConfig?.enableEmojis ?? true;
+      // Emojis and intro title disabled for now
+      const introTitleEnabled = false;
+      const emojisEnabled = false;
+
+      // Resolve split-screen background video if enabled
+      let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+      if (videoConfig?.enableSplitScreen) {
+        try {
+          let bgVideo = null;
+          if (videoConfig.splitScreenBgVideoId) {
+            bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
+          } else if (videoConfig.splitScreenBgCategoryId) {
+            bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+          }
+          if (bgVideo) {
+            splitScreenData = {
+              backgroundVideoId: bgVideo.id,
+              backgroundStorageKey: bgVideo.storageKey,
+              backgroundDuration: bgVideo.duration,
+              splitRatio: videoConfig.splitRatio ?? 50,
+            };
+            console.log(`[EXPORT CONTROLLER] Split-screen enabled: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
+          }
+        } catch (bgError) {
+          console.warn(`[EXPORT CONTROLLER] Failed to resolve split-screen background:`, bgError);
+        }
+      }
 
       console.log(`[EXPORT CONTROLLER] Export job data: captionsEnabled=${captionsEnabled}, wordCount=${words.length}, hasStyle=${!!style}`);
 
@@ -158,6 +184,7 @@ export class ExportController {
           words,
           style: style || undefined,
         } : undefined,
+        splitScreen: splitScreenData,
       });
 
       // Update clip status to generating
@@ -270,6 +297,42 @@ export class ExportController {
       }
 
       const batchId = nanoid();
+
+      // Batch fetch all clips and videos upfront — avoids N+1 queries in the loop
+      const clips = await ClipModel.getByIds(clipIds);
+      const clipMap = new Map(clips.map(c => [c.id, c]));
+
+      const videoIds = [...new Set(clips.map(c => c.videoId))];
+      const videos = await VideoModel.getByIds(videoIds);
+      const videoMap = new Map(videos.map(v => [v.id, v]));
+
+      // Fetch workspace once
+      const firstVideo = videos[0];
+      const batchWorkspaceId = (firstVideo as any)?.workspaceId || "";
+      const batchWs = batchWorkspaceId ? await WorkspaceModel.getById(batchWorkspaceId) : null;
+      const batchWatermark = getPlanConfig(batchWs?.plan || "free").limits.watermark;
+
+      // Fetch video configs for all unique videoIds at once
+      const videoConfigs = await Promise.all(videoIds.map(id => VideoConfigModel.getByVideoId(id)));
+      const videoConfigMap = new Map(videoIds.map((id, i) => [id, videoConfigs[i]]));
+
+      // Pre-resolve split-screen background videos per videoId
+      const bgVideoMap = new Map<string, any>();
+      for (const [vid, config] of videoConfigMap) {
+        if (!config?.enableSplitScreen) continue;
+        try {
+          let bgVideo = null;
+          if (config.splitScreenBgVideoId) {
+            bgVideo = await BackgroundVideoModel.getById(config.splitScreenBgVideoId);
+          } else if (config.splitScreenBgCategoryId) {
+            bgVideo = await BackgroundVideoModel.getRandomByCategory(config.splitScreenBgCategoryId);
+          }
+          if (bgVideo) bgVideoMap.set(vid, bgVideo);
+        } catch (bgError) {
+          console.warn(`[EXPORT CONTROLLER] Failed to resolve split-screen background for video ${vid}:`, bgError);
+        }
+      }
+
       const exports = [];
 
       // Map resolution to quality format expected by ClipGenerationJobData
@@ -280,10 +343,10 @@ export class ExportController {
       };
 
       for (const clipId of clipIds) {
-        const clip = await ClipModel.getById(clipId);
+        const clip = clipMap.get(clipId);
         if (!clip) continue;
 
-        const video = await VideoModel.getById(clip.videoId);
+        const video = videoMap.get(clip.videoId);
         if (!video) continue;
 
         const exportId = nanoid();
@@ -318,17 +381,25 @@ export class ExportController {
           style = undefined;
         }
 
-        // Determine watermark based on workspace plan
-        const batchWorkspaceId = (video as any).workspaceId || "";
-        const batchWs = batchWorkspaceId ? await WorkspaceModel.getById(batchWorkspaceId) : null;
-        const batchWatermark = getPlanConfig(batchWs?.plan || "free").limits.watermark;
-
-        // Load video config to check enableCaptions/enableIntroTitle flags
-        const batchVideoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
+        // Use pre-fetched video config and background video (avoids per-clip DB queries)
+        const batchVideoConfig = videoConfigMap.get(clip.videoId);
         const batchCaptionsEnabled = batchVideoConfig?.enableCaptions ?? true;
-        const batchIntroTitleEnabled = batchVideoConfig?.enableIntroTitle ?? true;
-        const batchEmojisEnabled = batchVideoConfig?.enableEmojis ?? true;
+        const batchIntroTitleEnabled = false;
+        const batchEmojisEnabled = false;
 
+        // Resolve split-screen from pre-fetched map
+        let batchSplitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+        if (batchVideoConfig?.enableSplitScreen) {
+          const bgVideo = bgVideoMap.get(clip.videoId);
+          if (bgVideo) {
+            batchSplitScreenData = {
+              backgroundVideoId: bgVideo.id,
+              backgroundStorageKey: bgVideo.storageKey,
+              backgroundDuration: bgVideo.duration,
+              splitRatio: batchVideoConfig.splitRatio ?? 50,
+            };
+          }
+        }
 
         // Add job to queue
         await addClipGenerationJob({
@@ -351,6 +422,7 @@ export class ExportController {
             words,
             style: style || undefined,
           } : undefined,
+          splitScreen: batchSplitScreenData,
         });
 
         await ClipModel.update(clipId, { status: "generating" });

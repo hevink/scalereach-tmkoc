@@ -7,6 +7,7 @@
 
 import { spawn } from "child_process";
 import { R2Service } from "./r2.service";
+import { SplitScreenCompositorService } from "./split-screen-compositor.service";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -14,10 +15,14 @@ import { nanoid } from "nanoid";
 import sharp from "sharp";
 import { extractEmojiTimings } from "../utils/emoji-timing";
 
+// Path to bundled fonts for ASS subtitle rendering
+const FONTS_DIR = path.resolve(__dirname, "../../assets/fonts");
+
 export type AspectRatio = "9:16" | "1:1" | "16:9";
 export type VideoQuality = "720p" | "1080p" | "4k";
 
 export interface ClipGenerationOptions {
+  userId: string;
   videoId: string;
   clipId: string;
   sourceType: "youtube" | "upload";
@@ -30,6 +35,11 @@ export interface ClipGenerationOptions {
   watermark?: boolean;
   emojis?: string;
   introTitle?: string;
+  splitScreen?: {
+    backgroundStorageKey: string;
+    backgroundDuration: number;
+    splitRatio: number;
+  };
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;
     style?: {
@@ -51,12 +61,12 @@ export interface ClipGenerationOptions {
       outlineColor?: string;
       // Enhanced options for viral caption rendering
       outlineWidth?: number;        // 1-8, default 3
-      glowEnabled?: boolean;        // Add glow effect
-      glowColor?: string;           // Glow color
-      glowIntensity?: number;       // 1-5 blur strength
       highlightScale?: number;      // 100-150, default 125
       textTransform?: "none" | "uppercase";
       wordsPerLine?: number;        // 3-7, default 5
+      glowEnabled?: boolean;
+      glowColor?: string;
+      glowIntensity?: number;       // 1-20, default 8
     };
   };
 }
@@ -90,11 +100,11 @@ function getOutputDimensions(
   const baseSize = qualityMap[quality];
 
   switch (aspectRatio) {
-    case "9:16": // Vertical (TikTok, Reels, Shorts)
-      return { width: Math.round(baseSize * (9 / 16)), height: baseSize };
+    case "9:16": // Vertical (TikTok, Reels, Shorts) — baseSize is the WIDTH (e.g. 1080→1080×1920)
+      return { width: baseSize, height: Math.round(baseSize * (16 / 9)) };
     case "1:1": // Square (Instagram feed)
       return { width: baseSize, height: baseSize };
-    case "16:9": // Horizontal (YouTube)
+    case "16:9": // Horizontal (YouTube) — baseSize is the HEIGHT (e.g. 1080→1920×1080)
       return { width: Math.round(baseSize * (16 / 9)), height: baseSize };
     default:
       return { width: 1920, height: 1080 };
@@ -214,15 +224,22 @@ export class ClipGeneratorService {
     const { width, height } = getOutputDimensions(options.aspectRatio, options.quality);
     const duration = options.endTime - options.startTime;
 
-    // Generate storage keys for both versions
-    const storageKey = `clips/${options.videoId}/${options.clipId}-${options.aspectRatio.replace(":", "x")}.mp4`;
-    const rawStorageKey = `clips/${options.videoId}/${options.clipId}-${options.aspectRatio.replace(":", "x")}-raw.mp4`;
+    // Generate storage keys for both versions using new hierarchical structure
+    // Structure: {userId}/{videoId}/clips/{clipId}-{aspectRatio}.mp4
+    const storageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, false);
+    const rawStorageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, true);
 
     let clipWithCaptionsBuffer: Buffer;
     let clipWithoutCaptionsBuffer: Buffer;
 
+    // When split screen is enabled, we generate clips WITHOUT captions first,
+    // compose the split screen, then burn captions onto the composed video
+    // so captions appear at the dividing line between main video and gameplay.
+    const deferCaptions = !!options.splitScreen && !!options.captions?.words?.length;
+    const captionsForGeneration = deferCaptions ? undefined : options.captions;
+
     if (options.sourceType === "youtube" && options.sourceUrl) {
-      // Generate clip WITH captions
+      // Generate clip WITH captions (or without if deferred for split screen)
       onProgress?.(25);
       clipWithCaptionsBuffer = await this.downloadYouTubeSegment(
         options.sourceUrl,
@@ -230,7 +247,7 @@ export class ClipGeneratorService {
         options.endTime,
         options.aspectRatio,
         options.quality,
-        options.captions,
+        captionsForGeneration,
         options.introTitle,
         options.watermark,
         options.emojis
@@ -250,7 +267,7 @@ export class ClipGeneratorService {
         undefined  // No emojis
       );
     } else if (options.sourceType === "upload" && options.storageKey) {
-      // Generate clip WITH captions
+      // Generate clip WITH captions (or without if deferred for split screen)
       onProgress?.(25);
       clipWithCaptionsBuffer = await this.extractSegmentFromFile(
         options.storageKey,
@@ -258,7 +275,7 @@ export class ClipGeneratorService {
         options.endTime,
         options.aspectRatio,
         options.quality,
-        options.captions,
+        captionsForGeneration,
         options.introTitle,
         options.watermark,
         options.emojis
@@ -279,6 +296,113 @@ export class ClipGeneratorService {
       );
     } else {
       throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
+    }
+
+    // Apply split-screen composition if enabled
+    if (options.splitScreen) {
+      this.logOperation("SPLIT_SCREEN_COMPOSE", {
+        clipId: options.clipId,
+        splitRatio: options.splitScreen.splitRatio,
+        bgDuration: options.splitScreen.backgroundDuration,
+        deferCaptions,
+      });
+
+      let bgTempPath: string | undefined;
+      const tempPaths: string[] = [];
+
+      try {
+        // Download background video
+        bgTempPath = await SplitScreenCompositorService.downloadBackground(
+          options.splitScreen.backgroundStorageKey
+        );
+        tempPaths.push(bgTempPath);
+
+        // Compose split-screen for main clip (no captions yet if deferred)
+        const mainTempWith = path.join(os.tmpdir(), `ss-main-with-${nanoid()}.mp4`);
+        const composedWith = path.join(os.tmpdir(), `ss-out-with-${nanoid()}.mp4`);
+        tempPaths.push(mainTempWith, composedWith);
+        await fs.promises.writeFile(mainTempWith, clipWithCaptionsBuffer);
+
+        await SplitScreenCompositorService.compose({
+          mainClipPath: mainTempWith,
+          backgroundVideoPath: bgTempPath,
+          outputPath: composedWith,
+          splitRatio: options.splitScreen.splitRatio,
+          targetWidth: width,
+          targetHeight: height,
+          clipDuration: duration,
+          backgroundDuration: options.splitScreen.backgroundDuration,
+        });
+        clipWithCaptionsBuffer = await fs.promises.readFile(composedWith);
+
+        // Compose split-screen for raw clip (no captions)
+        const mainTempRaw = path.join(os.tmpdir(), `ss-main-raw-${nanoid()}.mp4`);
+        const composedRaw = path.join(os.tmpdir(), `ss-out-raw-${nanoid()}.mp4`);
+        tempPaths.push(mainTempRaw, composedRaw);
+        await fs.promises.writeFile(mainTempRaw, clipWithoutCaptionsBuffer);
+
+        await SplitScreenCompositorService.compose({
+          mainClipPath: mainTempRaw,
+          backgroundVideoPath: bgTempPath,
+          outputPath: composedRaw,
+          splitRatio: options.splitScreen.splitRatio,
+          targetWidth: width,
+          targetHeight: height,
+          clipDuration: duration,
+          backgroundDuration: options.splitScreen.backgroundDuration,
+        });
+        clipWithoutCaptionsBuffer = await fs.promises.readFile(composedRaw);
+
+        // Now burn captions onto the composed video at the split point
+        if (deferCaptions && options.captions) {
+          const splitRatio = options.splitScreen.splitRatio;
+          // Place captions just above the split line (bottom of main video area)
+          const captionY = splitRatio - 5;
+          const captionsAtSplitPoint: NonNullable<ClipGenerationOptions["captions"]> = {
+            ...options.captions,
+            style: {
+              ...options.captions.style,
+              position: "center" as const,
+              y: captionY,
+              x: options.captions.style?.x ?? 50,
+            },
+          };
+          this.logOperation("BURN_CAPTIONS_AT_SPLIT_POINT", {
+            clipId: options.clipId,
+            captionY: splitRatio,
+            splitRatio,
+          });
+          clipWithCaptionsBuffer = await this.burnSubtitlesOnBuffer(
+            clipWithCaptionsBuffer,
+            captionsAtSplitPoint,
+            width,
+            height,
+            options.introTitle,
+            options.emojis
+          );
+        }
+
+        this.logOperation("SPLIT_SCREEN_COMPLETE", { clipId: options.clipId });
+      } catch (ssError) {
+        // Fall back to single-video pipeline on failure
+        console.warn(
+          `[CLIP GENERATOR] Split-screen composition failed, falling back to single-video:`,
+          ssError instanceof Error ? ssError.message : ssError
+        );
+        // Captions were deferred — burn them onto the fallback clip so they're not lost
+        if (deferCaptions && options.captions) {
+          clipWithCaptionsBuffer = await this.burnSubtitlesOnBuffer(
+            clipWithCaptionsBuffer,
+            options.captions,
+            width,
+            height,
+            options.introTitle,
+            options.emojis
+          );
+        }
+      } finally {
+        await SplitScreenCompositorService.cleanup(tempPaths);
+      }
     }
 
     // Upload clip WITH captions to R2
@@ -312,6 +436,93 @@ export class ClipGeneratorService {
   }
 
   /**
+   * Burn ASS subtitles onto an existing video buffer using FFmpeg.
+   * Used to apply captions after split-screen composition.
+   */
+  private static async burnSubtitlesOnBuffer(
+    videoBuffer: Buffer,
+    captions: NonNullable<ClipGenerationOptions["captions"]>,
+    width: number,
+    height: number,
+    introTitle?: string,
+    emojis?: string
+  ): Promise<Buffer> {
+    const tempId = nanoid();
+    const tempDir = os.tmpdir();
+    const inputPath = path.join(tempDir, `burn-in-${tempId}.mp4`);
+    const outputPath = path.join(tempDir, `burn-out-${tempId}.mp4`);
+    const subsPath = path.join(tempDir, `burn-subs-${tempId}.ass`);
+
+    const cleanup = async () => {
+      for (const p of [inputPath, outputPath, subsPath]) {
+        try { if (fs.existsSync(p)) await fs.promises.unlink(p); } catch {}
+      }
+    };
+
+    // Write input video and ASS file
+    const assContent = this.generateASSSubtitles(
+      captions.words || [],
+      captions.style,
+      width,
+      height,
+      introTitle,
+      emojis
+    );
+    await Promise.all([
+      fs.promises.writeFile(inputPath, videoBuffer),
+      fs.promises.writeFile(subsPath, assContent),
+    ]);
+
+    this.logOperation("BURN_SUBTITLES_START", {
+      inputSize: videoBuffer.length,
+      wordCount: captions.words?.length || 0,
+      assLength: assContent.length,
+    });
+
+    const escapedSubsPath = subsPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+    const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+
+    const args = [
+      "-i", inputPath,
+      "-vf", `ass=${escapedSubsPath}:fontsdir=${escapedFontsDir}`,
+      "-c:v", "libx264",
+      "-preset", "medium",
+      "-crf", "18",
+      "-c:a", "copy",
+      "-movflags", "+faststart",
+      "-y",
+      outputPath,
+    ];
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn("ffmpeg", args);
+      let stderr = "";
+      proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+
+      proc.on("close", async (code) => {
+        try {
+          if (code === 0) {
+            const result = await fs.promises.readFile(outputPath);
+            this.logOperation("BURN_SUBTITLES_COMPLETE", { outputSize: result.length });
+            await cleanup();
+            resolve(result);
+          } else {
+            await cleanup();
+            reject(new Error(`burnSubtitlesOnBuffer failed (code ${code}): ${stderr.slice(-500)}`));
+          }
+        } catch (err) {
+          await cleanup();
+          reject(err);
+        }
+      });
+      proc.on("error", async (err) => {
+        await cleanup();
+        reject(err);
+      });
+    });
+  }
+
+  /**
    * Generate ASS subtitle content from caption words
    * Supports word-by-word karaoke effect with scaling animation
    * Optionally includes intro title overlay for first 3 seconds
@@ -327,10 +538,10 @@ export class ClipGeneratorService {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
     
-    // Scale font size from frontend design space (480×854) to actual output resolution.
-    // The frontend canvas editor uses a fixed 480×854 internal canvas, so all font sizes
-    // from the style are relative to that space. We scale by height ratio to match.
-    const DESIGN_HEIGHT = 854;
+    // Scale font size from frontend design space to actual output resolution.
+    // Use 700 as the reference height so that font sizes chosen in the editor
+    // look correct at typical output resolutions (720p, 1080p, etc.).
+    const DESIGN_HEIGHT = 700;
     const scaleFactor = height / DESIGN_HEIGHT;
     const fontSize = Math.round((style?.fontSize || 32) * scaleFactor);
 
@@ -344,24 +555,32 @@ export class ClipGeneratorService {
     const textColor = this.hexToASSColor(style?.textColor || "#FFFFFF");
     const outlineColor = this.hexToASSColor(style?.outlineColor || "#000000");
     const highlightColor = this.hexToASSColor(style?.highlightColor || "#FFFF00");
-    const shadow = style?.shadow ? Math.round(2 * scaleFactor) : 0;
-    // Use custom outline width if provided, otherwise default based on outline toggle
-    const rawOutline = style?.outlineWidth ?? (style?.outline ? 3 : 2);
-    const outline = Math.round(rawOutline * scaleFactor);
-
-    // Enhanced style options
+    const glowColor = this.hexToASSColor(style?.glowColor || style?.textColor || "#FFFFFF");
+    const glowIntensity = style?.glowIntensity ?? 8;
     const glowEnabled = style?.glowEnabled ?? false;
-    const glowColor = style?.glowColor ? this.hexToASSColor(style.glowColor) : highlightColor;
-    const glowIntensity = style?.glowIntensity ?? 2;
-    const highlightScale = style?.highlightScale ?? 125;
-    const textTransform = style?.textTransform ?? "none";
+
+    // Match frontend rendering:
+    // - shadow=true → 8-direction 2px black stroke (acts as outline, not drop shadow)
+    // - outline=true → WebkitTextStroke at ~3px
+    // In ASS, \bord is the outline thickness, \shad is drop shadow.
+    // Frontend has no drop shadow, so \shad=0 always.
+    // Use outlineWidth from style if set, otherwise: outline=true uses 3px, shadow=true uses 2px
+    // NOTE: Don't scale outline by full scaleFactor — ASS \bord renders thicker than CSS stroke.
+    // Use a dampened scale to keep it visually close to the frontend preview.
+    let rawOutline = 0;
+    if (style?.outline) rawOutline = style?.outlineWidth ?? 3;
+    else if (style?.shadow) rawOutline = 2;
+    const outline = Math.round(rawOutline * Math.sqrt(scaleFactor));
+    const shadow = 0; // Frontend has no drop shadow
+
+    // Enhanced style options — match frontend exactly
+    // Frontend defaults to 110%: (style.highlightScale ?? 110) / 100
+    const highlightScale = style?.highlightScale ?? 110;
     const maxWordsPerLine = style?.wordsPerLine ?? 5;
 
-    // Helper to apply text transform
-    const transformWord = (word: string) => {
-      if (textTransform === "uppercase") return word.toUpperCase();
-      return word;
-    };
+    // Helper — apply textTransform from style (matching frontend)
+    const transformWord = (word: string) => 
+      style?.textTransform === "uppercase" ? word.toUpperCase() : word;
 
     // Determine positioning from x/y percentages or fallback to position preset
     // Frontend: x (0-100) = horizontal center, y (0-100) = vertical center
@@ -413,11 +632,11 @@ export class ClipGeneratorService {
         }
       }
     } else {
-      // Fallback to legacy position preset
+      // Fallback to legacy position preset — scale margins proportionally with height
       const textAlign = style?.alignment || "center";
       const hAlign = textAlign === "left" ? 1 : textAlign === "right" ? 3 : 2;
       alignment = style?.position === "top" ? (6 + hAlign) : style?.position === "center" ? (3 + hAlign) : hAlign;
-      marginV = style?.position === "center" ? 0 : style?.position === "top" ? 60 : 120;
+      marginV = style?.position === "center" ? 0 : style?.position === "top" ? Math.round(height * 0.055) : Math.round(height * 0.11);
       // Apply maxWidth even in legacy mode
       const halfGap = Math.max(0, (100 - captionMaxWidth) / 2);
       marginL = Math.round((halfGap / 100) * width);
@@ -438,19 +657,34 @@ export class ClipGeneratorService {
     // NOTE: ASS format uses commas as field delimiters, so font name must be a single name.
     // libass/fontconfig handles font fallback automatically for emoji characters.
     
+    // Calculate BackColour from backgroundOpacity (ASS alpha: 00=opaque, FF=transparent)
+    const bgOpacity = style?.backgroundOpacity ?? 0;
+    const bgColor = style?.backgroundColor?.replace("#", "") || "000000";
+    // Convert 0-100 opacity to ASS alpha (inverted: 0% opacity = FF, 100% opacity = 00)
+    const assAlpha = Math.round(((100 - bgOpacity) / 100) * 255).toString(16).toUpperCase().padStart(2, "0");
+    // ASS BackColour format: &HAABBGGRR
+    const bgR = bgColor.substring(0, 2);
+    const bgG = bgColor.substring(2, 4);
+    const bgB = bgColor.substring(4, 6);
+    const backColour = `&H${assAlpha}${bgB}${bgG}${bgR}`;
+    // BorderStyle: 1 = outline+shadow (no box), 3 = opaque box behind text
+    const borderStyle = bgOpacity > 0 ? 3 : 1;
+    
     let ass = `[Script Info]
 Title: Generated Captions
 ScriptType: v4.00+
 PlayResX: ${width}
 PlayResY: ${height}
+ScaledBorderAndShadow: yes
 WrapStyle: 0
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},&H80000000,1,0,0,0,${highlightScale},${highlightScale},0,0,1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},&H80000000,1,0,0,0,100,100,0,0,1,${Math.round(4 * scaleFactor)},${Math.round(3 * scaleFactor)},8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},1
+Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},${backColour},1,0,0,0,${highlightScale},${highlightScale},0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,1,${Math.round(4 * scaleFactor)},${Math.round(3 * scaleFactor)},8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},1
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
+Style: Glow,${fontFamily},${fontSize},${glowColor},${glowColor},${glowColor},&H00000000,1,0,0,0,100,100,0,0,1,${Math.round(glowIntensity * scaleFactor)},0,${alignment},${marginL},${marginR},${marginV},1
 `;
 
     ass += `
@@ -458,11 +692,11 @@ Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
-    // Add intro title for first 3 seconds if provided
-    if (introTitle) {
-      // Fade in effect: {\fad(300,300)} - 300ms fade in, 300ms fade out
-      ass += `Dialogue: 1,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(300,300)}${transformWord(introTitle)}\n`;
-    }
+    // // Add intro title for first 3 seconds if provided
+    // if (introTitle) {
+    //   // Fade in effect: {\fad(300,300)} - 300ms fade in, 300ms fade out
+    //   ass += `Dialogue: 1,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(300,300)}${transformWord(introTitle)}\n`;
+    // }
 
     // Group words into lines based on wordsPerLine setting
     const lines: Array<{ words: typeof words; start: number; end: number }> = [];
@@ -490,11 +724,21 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Generate dialogue lines based on animation type
     const animation = style?.animation || "none";
 
-    // Glow blur value for enhanced highlight effect
-    const glowBlur = glowEnabled ? glowIntensity : 1;
+    // Build ASS override tags for highlighted words
+    const highlightOpen = `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}}`;
+    const highlightClose = `{\\fscx100\\fscy100\\c${textColor}}`;
+
+    // Helper: emit a glow layer (Layer -1) for a given line of text
+    const addGlowLine = (startTime: string, endTime: string, text: string) => {
+      if (!glowEnabled) return;
+      // Strip existing override tags from text for the glow layer, keep plain text
+      const plainText = text.replace(/\{[^}]*\}/g, "");
+      const blurAmount = Math.round(glowIntensity * scaleFactor * 0.8);
+      ass += `Dialogue: -1,${startTime},${endTime},Glow,,0,0,0,,{\\blur${blurAmount}}${plainText}\n`;
+    };
 
     if (style?.highlightEnabled && animation === "karaoke") {
-      // Karaoke style: word-by-word with enhanced glow effect
+      // Karaoke style: word-by-word highlighting
       // Each word gets its own dialogue line that shows highlighted during its time
       for (const line of lines) {
         for (let i = 0; i < line.words.length; i++) {
@@ -502,20 +746,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const wordStart = this.formatASSTime(word.start);
           const wordEnd = this.formatASSTime(word.end);
 
-          // Build the line text with current word highlighted (scaled + colored + glow)
+          // Build the line text with current word highlighted (scaled + colored)
           let text = "";
           for (let j = 0; j < line.words.length; j++) {
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              // Enhanced highlight: custom scale, highlight color, thicker outline, glow effect
-              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\bord${outline + 1}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\bord${outline}\\blur0} `;
+              text += `${highlightOpen}${transformedWord}${highlightClose} `;
             } else {
               text += `${transformedWord} `;
             }
           }
 
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+          addGlowLine(wordStart, wordEnd, text.trim());
         }
       }
     } else if (style?.highlightEnabled && animation === "word-by-word") {
@@ -532,14 +776,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              // Current word: highlighted with scale and color
-              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\bord${outline + 1}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\bord${outline}\\blur0} `;
+              text += `${highlightOpen}${transformedWord}${highlightClose} `;
             } else {
               text += `${transformedWord} `;
             }
           }
 
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+          addGlowLine(wordStart, wordEnd, text.trim());
         }
       }
     } else if (animation === "bounce") {
@@ -566,6 +810,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           }
 
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+          addGlowLine(wordStart, wordEnd, text.trim());
         }
       }
     } else if (animation === "fade") {
@@ -576,6 +821,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const text = line.words.map(w => transformWord(w.word)).join(" ");
         // Fade in over 200ms, no fade out
         ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,{\\fad(200,0)}${text}\n`;
+        addGlowLine(startTime, endTime, text);
       }
     } else if (style?.highlightEnabled) {
       // Default highlight without specific animation (legacy karaoke behavior)
@@ -590,13 +836,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              text += `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}\\bord${outline + 1}\\blur${glowBlur}}${transformedWord}{\\fscx100\\fscy100\\c${textColor}\\bord${outline}\\blur0} `;
+              text += `${highlightOpen}${transformedWord}${highlightClose} `;
             } else {
               text += `${transformedWord} `;
             }
           }
 
           ass += `Dialogue: 0,${wordStart},${wordEnd},Default,,0,0,0,,${text.trim()}\n`;
+          addGlowLine(wordStart, wordEnd, text.trim());
         }
       }
     } else {
@@ -606,19 +853,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const endTime = this.formatASSTime(line.end);
         const text = line.words.map(w => transformWord(w.word)).join(" ");
         ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${text}\n`;
+        addGlowLine(startTime, endTime, text);
       }
     }
 
-    // Add emoji overlays if transcriptWithEmojis is provided
-    if (emojis && words.length > 0) {
-      const emojiOverlays = extractEmojiTimings(emojis, words);
-      for (const overlay of emojiOverlays) {
-        const emojiStart = this.formatASSTime(overlay.timestamp);
-        const emojiEnd = this.formatASSTime(overlay.timestamp + overlay.duration);
-        // Pop-in animation: scale from 200% to 100% over 200ms, then fade out over last 300ms
-        ass += `Dialogue: 2,${emojiStart},${emojiEnd},EmojiOverlay,,0,0,0,,{\\fscx200\\fscy200\\t(0,200,\\fscx100\\fscy100)\\fad(0,300)}${overlay.emoji}\n`;
-      }
-    }
+    // // Add emoji overlays if transcriptWithEmojis is provided
+    // if (emojis && words.length > 0) {
+    //   const emojiOverlays = extractEmojiTimings(emojis, words);
+    //   for (const overlay of emojiOverlays) {
+    //     const emojiStart = this.formatASSTime(overlay.timestamp);
+    //     const emojiEnd = this.formatASSTime(overlay.timestamp + overlay.duration);
+    //     // Pop-in animation: scale from 200% to 100% over 200ms, then fade out over last 300ms
+    //     ass += `Dialogue: 2,${emojiStart},${emojiEnd},EmojiOverlay,,0,0,0,,{\\fscx200\\fscy200\\t(0,200,\\fscx100\\fscy100)\\fad(0,300)}${overlay.emoji}\n`;
+    //   }
+    // }
 
     this.logOperation("ASS_CONTENT_SUMMARY", {
       wordCount: words.length,
@@ -722,6 +970,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Step 4: Read the output file
       const clipBuffer = await fs.promises.readFile(tempOutputPath);
 
+      // Validate output — an MP4 with only headers (~1-2KB) means no frames were encoded
+      if (clipBuffer.length < 10000) {
+        throw new Error(`FFmpeg produced an empty or corrupt clip (${clipBuffer.length} bytes). The segment may be outside the video's duration.`);
+      }
+
       this.logOperation("YOUTUBE_SEGMENT_COMPLETE", {
         size: clipBuffer.length,
         duration: endTime - startTime,
@@ -751,37 +1004,39 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     maxRetries: number = 3
   ): Promise<void> {
     let lastError: Error | null = null;
-    
+    let forceKeyframes = true;
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        await this.executeYtDlpDownload(url, startTime, endTime, outputPath);
+        await this.executeYtDlpDownload(url, startTime, endTime, outputPath, forceKeyframes);
         return; // Success
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        const isRetryableError = lastError.message.includes("ffmpeg exited with code 202") ||
+        const isCode222 = lastError.message.includes("ffmpeg exited with code 222");
+        const isRetryableError = isCode222 ||
+                                  lastError.message.includes("ffmpeg exited with code 202") ||
                                   lastError.message.includes("ffmpeg exited with code 1");
-        
+
         if (isRetryableError && attempt < maxRetries) {
-          // Wait before retry with exponential backoff (2s, 4s, 8s)
+          // code 222 is caused by --force-keyframes-at-cuts on certain streams — disable it on retry
+          if (isCode222) forceKeyframes = false;
+
           const delayMs = Math.pow(2, attempt) * 1000;
-          this.logOperation("YT_DLP_RETRY", { 
-            attempt, 
-            maxRetries, 
-            delayMs, 
-            error: lastError.message 
+          this.logOperation("YT_DLP_RETRY", {
+            attempt,
+            maxRetries,
+            delayMs,
+            forceKeyframes,
+            error: lastError.message,
           });
           await new Promise(resolve => setTimeout(resolve, delayMs));
-          
-          // Clean up partial file if it exists
           await this.cleanupTempFile(outputPath);
         } else if (!isRetryableError) {
-          // Non-retryable error, throw immediately
           throw lastError;
         }
       }
     }
-    
-    // All retries exhausted
+
     throw lastError || new Error("yt-dlp download failed after all retries");
   }
 
@@ -792,31 +1047,26 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     url: string,
     startTime: number,
     endTime: number,
-    outputPath: string
+    outputPath: string,
+    forceKeyframes = true
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Always download the highest quality available (no height limit)
-      // bestvideo + bestaudio merged, fallback to best single format
-      const formatSelector = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best";
-
+      const formatSelector = "bestvideo+bestaudio/best";
       const downloadSection = formatYtDlpTimestamp(startTime, endTime);
-
-      // Add cookies if available
       const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
 
       const args = [
         "-f", formatSelector,
         "--download-sections", downloadSection,
-        "--force-keyframes-at-cuts",
+        ...(forceKeyframes ? ["--force-keyframes-at-cuts"] : []),
+        "--merge-output-format", "mp4",
         "-o", outputPath,
         "--no-playlist",
         "--quiet",
         "--no-warnings",
-        "--no-post-overwrites", // Prevent conflicts with concurrent processes
-        // Enable Deno as primary JavaScript runtime (faster and more reliable)
+        "--no-post-overwrites",
         "--js-runtimes", "deno",
-        // Use web client when cookies are available, otherwise try android first
-        "--extractor-args", cookiesPath ? "youtube:player_client=web,android" : "youtube:player_client=android,web",
+        "--extractor-args", "youtube:player_client=android_vr,web,android",
         url,
       ];
 
@@ -825,6 +1075,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       }
 
       this.logOperation("YT_DLP_DOWNLOAD", { args: args.join(" ") });
+
+      // Print clickable terminal link to the exact YouTube timestamp being downloaded
+      const startHMS = formatTimestamp(startTime);
+      const youtubeTimestampUrl = `${url}&t=${Math.floor(startTime)}`;
+      const termLink = `\u001b]8;;${youtubeTimestampUrl}\u001b\\${url} [${startHMS} → ${formatTimestamp(endTime)}]\u001b]8;;\u001b\\`;
+      console.log(`[CLIP GENERATOR] Downloading segment: ${termLink}`);
 
       const ytdlpProcess = spawn("yt-dlp", args);
 
@@ -923,7 +1179,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const escapedPath = subsPathToUse
               .replace(/\\/g, "/")
               .replace(/:/g, "\\:");
-            filterComplex = `${filterComplex},ass=${escapedPath}`;
+            const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+            filterComplex = `${filterComplex},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
           }
 
           if (wmConfig) {
@@ -942,7 +1199,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-map", "0:a?",
             "-c:v", "libx264",
             "-preset", "medium",
-            "-crf", "23",
+            "-crf", "18",
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -960,7 +1217,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const escapedPath = subsPathToUse
               .replace(/\\/g, "/")
               .replace(/:/g, "\\:");
-            videoFilter = `${videoFilter},ass=${escapedPath}`;
+            const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+            videoFilter = `${videoFilter},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
           }
 
           if (wmConfig) {
@@ -1037,6 +1295,13 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           }
 
           const buffer = Buffer.concat(chunks);
+
+          // Validate output — an MP4 with only headers (~1-2KB) means no frames were encoded
+          if (buffer.length < 10000) {
+            reject(new Error(`FFmpeg produced an empty or corrupt clip (${buffer.length} bytes). The segment may be outside the video's duration.`));
+            return;
+          }
+
           this.logOperation("SEGMENT_EXTRACTED", { size: buffer.length });
           resolve(buffer);
         });
@@ -1083,7 +1348,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const escapedPath = subtitlesPath
             .replace(/\\/g, "/")
             .replace(/:/g, "\\:");
-          filterComplex = `${filterComplex},ass=${escapedPath}`;
+          const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+          filterComplex = `${filterComplex},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
         }
 
         if (wmConfig) {
@@ -1100,7 +1366,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           "-map", "0:a?",
           "-c:v", "libx264",
           "-preset", "medium",
-          "-crf", "23",
+          "-crf", "18",
           "-profile:v", "high",
           "-level", "4.0",
           "-c:a", "aac",
@@ -1117,7 +1383,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const escapedPath = subtitlesPath
             .replace(/\\/g, "/")
             .replace(/:/g, "\\:");
-          videoFilter = `${videoFilter},ass=${escapedPath}`;
+          const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+          videoFilter = `${videoFilter},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
         }
 
         if (wmConfig) {
@@ -1131,7 +1398,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-map", "0:a?",
             "-c:v", "libx264",
             "-preset", "medium",
-            "-crf", "23",
+            "-crf", "18",
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -1147,7 +1414,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-vf", videoFilter,
             "-c:v", "libx264",
             "-preset", "medium",
-            "-crf", "23",
+            "-crf", "18",
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -1291,10 +1558,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       `crop=${targetWidth}:${targetHeight},` +
       `gblur=sigma=20,` +
       `eq=brightness=-0.1[bg_blur];` +
-      // Foreground: scale to fit width, -2 ensures even height
-      `[fg]scale=${targetWidth}:-2,setsar=1[fg_scaled];` +
+      // Foreground: scale to 1.25x width for a zoomed-in look, sides cropped by overlay boundary
+      `[fg]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
       // Overlay foreground centered on blurred background
-      `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2`;
+      `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
   }
 
   /**
@@ -1313,13 +1580,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
   /**
    * Generate a storage key for a clip
+   * @deprecated Use R2Service.generateClipStorageKey instead
    */
   static generateClipStorageKey(
+    userId: string,
     videoId: string,
     clipId: string,
     aspectRatio: AspectRatio
   ): string {
-    return `clips/${videoId}/${clipId}-${aspectRatio.replace(":", "x")}.mp4`;
+    return R2Service.generateClipStorageKey(userId, videoId, clipId, aspectRatio, false);
   }
 
   /**

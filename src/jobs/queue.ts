@@ -53,7 +53,18 @@ redisConnection.on("error", (err) => {
 export const QUEUE_NAMES = {
   VIDEO_PROCESSING: "video-processing",
   CLIP_GENERATION: "clip-generation",
+  SOCIAL_POSTING: "social-posting",
 } as const;
+
+export interface SocialPostingJobData {
+  postId: string;
+  workspaceId: string;
+  clipId: string;
+  socialAccountId: string;
+  platform: string;
+  caption?: string;
+  hashtags?: string[];
+}
 
 export interface VideoProcessingJobData {
   videoId: string;
@@ -89,6 +100,13 @@ export interface ClipGenerationJobData {
   targetLanguage?: string;
   // Dubbing ID for dubbed audio replacement during export
   dubbingId?: string;
+  // Split-screen background video data
+  splitScreen?: {
+    backgroundVideoId: string;
+    backgroundStorageKey: string;
+    backgroundDuration: number;
+    splitRatio: number;
+  };
   // Caption data for burning into video
   captions?: {
     words: Array<{ word: string; start: number; end: number }>;
@@ -110,12 +128,12 @@ export interface ClipGenerationJobData {
       outline?: boolean;
       outlineColor?: string;
       outlineWidth?: number;
-      glowEnabled?: boolean;
-      glowColor?: string;
-      glowIntensity?: number;
       highlightScale?: number;
       textTransform?: "none" | "uppercase";
       wordsPerLine?: number;
+      glowEnabled?: boolean;
+      glowColor?: string;
+      glowIntensity?: number;
     };
   };
 }
@@ -125,7 +143,7 @@ export const videoProcessingQueue = new Queue<VideoProcessingJobData>(
   {
     connection: createRedisConnection(),
     defaultJobOptions: {
-      attempts: 1,
+      attempts: 2,
       backoff: {
         type: "exponential",
         delay: 5000,
@@ -172,6 +190,22 @@ export async function addVideoProcessingJob(data: VideoProcessingJobData) {
 
   console.log(`[QUEUE] Job added with ID: ${job.id}`);
   return job;
+}
+
+export async function removeVideoJob(videoId: string) {
+  const job = await videoProcessingQueue.getJob(`video-${videoId}`);
+  if (job) {
+    await job.remove();
+    console.log(`[QUEUE] Removed video processing job for: ${videoId}`);
+  }
+}
+
+export async function removeClipJob(clipId: string) {
+  const job = await clipGenerationQueue.getJob(`clip-${clipId}`);
+  if (job) {
+    await job.remove();
+    console.log(`[QUEUE] Removed clip generation job for: ${clipId}`);
+  }
 }
 
 export async function getJobStatus(jobId: string) {
@@ -229,7 +263,7 @@ export const clipGenerationQueue = new Queue<ClipGenerationJobData>(
   {
     connection: createRedisConnection(),
     defaultJobOptions: {
-      attempts: 1, // Retry up to 3 times (Requirement 7.7)
+      attempts: 3, // Retry up to 3 times (Requirement 7.7)
       backoff: {
         type: "exponential",
         delay: 5000,
@@ -313,4 +347,30 @@ export async function getClipJobStatus(jobId: string) {
     processedOn: job.processedOn,
     finishedOn: job.finishedOn,
   };
+}
+
+export const socialPostingQueue = new Queue<SocialPostingJobData>(
+  QUEUE_NAMES.SOCIAL_POSTING,
+  {
+    connection: createRedisConnection(),
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: "exponential",
+        delay: 10000,
+      },
+      removeOnComplete: { count: 100, age: 24 * 60 * 60 },
+      removeOnFail: { count: 50, age: 7 * 24 * 60 * 60 },
+    },
+  }
+);
+
+export async function addSocialPostingJob(data: SocialPostingJobData, delayMs?: number) {
+  console.log(`[QUEUE] Adding social posting job for post: ${data.postId}`);
+  const job = await socialPostingQueue.add("post-to-social", data, {
+    jobId: `social-${data.postId}`,
+    delay: delayMs,
+  });
+  console.log(`[QUEUE] Social posting job added with ID: ${job.id}`);
+  return job;
 }

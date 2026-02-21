@@ -35,6 +35,12 @@ adminRouter.delete("/users/:id", AdminController.deleteUser);
 // Workspace management
 adminRouter.get("/workspaces", AdminController.getAllWorkspaces);
 
+// Video management
+adminRouter.get("/videos/analytics", AdminController.getVideoAnalytics);
+adminRouter.get("/videos/:id", AdminController.getVideoDetail);
+adminRouter.get("/videos", AdminController.getAllVideos);
+adminRouter.post("/videos/:id/retry", AdminController.retryVideo);
+
 // System health
 adminRouter.get("/system-health", AdminController.getSystemHealth);
 

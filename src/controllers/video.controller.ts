@@ -4,9 +4,14 @@ import { VideoModel } from "../models/video.model";
 import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
 import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
-import { addVideoProcessingJob, getJobStatus } from "../jobs/queue";
+import { addVideoProcessingJob, getJobStatus, removeVideoJob, removeClipJob } from "../jobs/queue";
 import { getPlanConfig, calculateMinuteConsumption, formatDuration } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
+import { R2Service } from "../services/r2.service";
+import { ClipModel } from "../models/clip.model";
+import { db } from "../db";
+import { videoExport, voiceDubbing, dubbedClipAudio } from "../db/schema";
+import { inArray } from "drizzle-orm";
 
 export class VideoController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -63,6 +68,11 @@ export class VideoController {
         return c.json({ error: "Failed to retrieve video information. The video may be unavailable or private." }, 400);
       }
 
+      // Calculate effective processing duration based on timeframe selection
+      const timeframeStart = config?.timeframeStart ?? 0;
+      const timeframeEnd = config?.timeframeEnd ?? videoInfo.duration;
+      const effectiveDuration = timeframeEnd - timeframeStart;
+
       // Validate video duration against plan limits and check minutes
       const ws = await WorkspaceModel.getById(workspaceId);
       const plan = ws?.plan || "free";
@@ -71,18 +81,19 @@ export class VideoController {
 
       const uploadValidation = canUploadVideo(
         planConfig,
-        videoInfo.duration,
+        videoInfo.duration, // Full duration for plan limit check (e.g. max video length)
         0, // No file size for YouTube
-        minutesBalance.minutesRemaining
+        minutesBalance.minutesRemaining,
+        effectiveDuration // Timeframe duration for minutes check
       );
 
       if (!uploadValidation.allowed) {
         console.log(`[VIDEO CONTROLLER] Upload validation failed: ${uploadValidation.reason}`);
-        
+
         // Determine if upgrade is available and recommended plan
         const canUpgrade = plan === "free" || plan === "starter";
         const recommendedPlan = plan === "free" ? "starter" : "pro";
-        
+
         return c.json({
           error: uploadValidation.message,
           reason: uploadValidation.reason,
@@ -118,8 +129,8 @@ export class VideoController {
         title: videoInfo.title,
       });
 
-      // Deduct minutes for YouTube video (duration is known upfront)
-      const minutesToDeduct = calculateMinuteConsumption(videoInfo.duration);
+      // Deduct minutes based on selected timeframe, not full video duration
+      const minutesToDeduct = calculateMinuteConsumption(effectiveDuration);
       await MinutesModel.deductMinutes({
         workspaceId,
         userId: user.id,
@@ -127,7 +138,7 @@ export class VideoController {
         amount: minutesToDeduct,
         type: "upload",
       });
-      console.log(`[VIDEO CONTROLLER] Deducted ${minutesToDeduct} minutes for YouTube video ${videoId}`);
+      console.log(`[VIDEO CONTROLLER] Deducted ${minutesToDeduct} minutes for YouTube video ${videoId} (timeframe: ${timeframeStart}s-${timeframeEnd}s of ${videoInfo.duration}s total)`);
 
       // If config is provided, save it and start processing immediately
       if (config) {
@@ -142,12 +153,23 @@ export class VideoController {
           clipDurationMax: config.clipDurationMax ?? 90,
           timeframeStart: config.timeframeStart ?? 0,
           timeframeEnd: config.timeframeEnd ?? null,
+          language: config.language ?? null,
           enableAutoHook: config.enableAutoHook ?? true,
+          clipType: config.clipType ?? "viral-clips",
           customPrompt: config.customPrompt ?? "",
           topicKeywords: config.topicKeywords ?? [],
           captionTemplateId: config.captionTemplateId ?? "karaoke",
           aspectRatio: config.aspectRatio ?? "9:16",
           enableWatermark: config.enableWatermark ?? true,
+          // Editing Options
+          enableCaptions: config.enableCaptions ?? true,
+          enableEmojis: config.enableEmojis ?? false,
+          enableIntroTitle: config.enableIntroTitle ?? false,
+          // Split-Screen Options
+          enableSplitScreen: config.enableSplitScreen ?? false,
+          splitScreenBgVideoId: config.splitScreenBgVideoId ?? null,
+          splitScreenBgCategoryId: config.splitScreenBgCategoryId ?? null,
+          splitRatio: config.splitRatio ?? 50,
         });
 
         // Start processing immediately
@@ -320,6 +342,48 @@ export class VideoController {
       } else if (video.userId !== user.id) {
         return c.json({ error: "Forbidden" }, 403);
       }
+
+      // Delete all clip R2 files before DB delete
+      const clips = await ClipModel.getByVideoId(id);
+      const clipIds = clips.map(c => c.id);
+
+      const exportKeys = clipIds.length > 0
+        ? await db.select({ storageKey: videoExport.storageKey }).from(videoExport).where(inArray(videoExport.clipId, clipIds))
+        : [];
+
+      const dubbingRows = await db
+        .select({ dubbedAudioKey: voiceDubbing.dubbedAudioKey, mixedAudioKey: voiceDubbing.mixedAudioKey, dubbingId: voiceDubbing.id })
+        .from(voiceDubbing)
+        .where(inArray(voiceDubbing.videoId, [id]));
+
+      const dubbingIds = dubbingRows.map(d => d.dubbingId);
+      const clipAudioRows = dubbingIds.length > 0
+        ? await db.select({ audioKey: dubbedClipAudio.audioKey }).from(dubbedClipAudio).where(inArray(dubbedClipAudio.dubbingId, dubbingIds))
+        : [];
+
+      await Promise.allSettled([
+        ...clips.flatMap((clip) =>
+          [clip.storageKey, clip.rawStorageKey, clip.thumbnailKey]
+            .filter(Boolean)
+            .map((key) => R2Service.deleteFile(key as string))
+        ),
+        ...exportKeys.filter(e => e.storageKey).map(e => R2Service.deleteFile(e.storageKey as string)),
+        ...dubbingRows.flatMap(d => [d.dubbedAudioKey, d.mixedAudioKey].filter(Boolean).map(k => R2Service.deleteFile(k as string))),
+        ...clipAudioRows.filter(a => a.audioKey).map(a => R2Service.deleteFile(a.audioKey as string)),
+      ]);
+
+      // Delete video R2 files
+      await Promise.allSettled(
+        [video.storageKey, video.audioStorageKey, video.thumbnailKey]
+          .filter(Boolean)
+          .map((key) => R2Service.deleteFile(key as string))
+      );
+
+      // Remove from processing queue if queued/active
+      await removeVideoJob(id);
+
+      // Remove any pending clip generation jobs
+      await Promise.allSettled(clipIds.map((clipId) => removeClipJob(clipId)));
 
       await VideoModel.delete(id);
       return c.json({ message: "Video deleted successfully" });

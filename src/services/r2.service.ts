@@ -19,14 +19,19 @@ const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID!;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY!;
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME!;
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
+const R2_ENDPOINT = process.env.R2_ENDPOINT; // Optional: for MinIO or custom S3
+
+// Build endpoint - use custom endpoint if provided, otherwise use Cloudflare R2
+const endpoint = R2_ENDPOINT || `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
 
 const s3Client = new S3Client({
   region: "auto",
-  endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  endpoint,
   credentials: {
     accessKeyId: R2_ACCESS_KEY_ID,
     secretAccessKey: R2_SECRET_ACCESS_KEY,
   },
+  forcePathStyle: !!R2_ENDPOINT, // Required for MinIO
 });
 
 export class R2Service {
@@ -107,6 +112,12 @@ export class R2Service {
     key: string,
     expiresIn: number = 3600
   ): Promise<string> {
+    // If using MinIO with public bucket, return simple public URL (no signature needed)
+    if (R2_ENDPOINT && R2_PUBLIC_URL) {
+      return `${R2_PUBLIC_URL}/${key}`;
+    }
+    
+    // For Cloudflare R2, use signed URLs
     const command = new GetObjectCommand({
       Bucket: R2_BUCKET_NAME,
       Key: key,
@@ -129,10 +140,54 @@ export class R2Service {
     return getSignedUrl(s3Client, command, { expiresIn });
   }
 
+  /**
+   * @deprecated Use generateVideoStorageKey instead for new hierarchical structure
+   */
   static generateVideoKey(projectId: string, filename: string): string {
     const timestamp = Date.now();
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
     return `videos/${projectId}/${timestamp}-${sanitizedFilename}`;
+  }
+
+  /**
+   * Generate storage key for video source files
+   * Structure: {userId}/{videoId}/source.{ext}
+   */
+  static generateVideoStorageKey(userId: string, videoId: string, extension: string = "m4a"): string {
+    return `${userId}/${videoId}/source.${extension}`;
+  }
+
+  /**
+   * Generate storage key for video thumbnails
+   * Structure: {userId}/{videoId}/thumbnail.jpg
+   */
+  static generateVideoThumbnailKey(userId: string, videoId: string): string {
+    return `${userId}/${videoId}/thumbnail.jpg`;
+  }
+
+  /**
+   * Generate storage key for clip files
+   * Structure: {userId}/{videoId}/clips/{clipId}-{aspectRatio}.mp4
+   */
+  static generateClipStorageKey(userId: string, videoId: string, clipId: string, aspectRatio: string, raw: boolean = false): string {
+    const suffix = raw ? "-raw" : "";
+    return `${userId}/${videoId}/clips/${clipId}-${aspectRatio.replace(":", "x")}${suffix}.mp4`;
+  }
+
+  /**
+   * Generate storage key for clip thumbnails
+   * Structure: {userId}/{videoId}/clips/{clipId}-thumb.jpg
+   */
+  static generateClipThumbnailKey(userId: string, videoId: string, clipId: string): string {
+    return `${userId}/${videoId}/clips/${clipId}-thumb.jpg`;
+  }
+
+  /**
+   * Generate storage key for extracted audio from uploaded videos
+   * Structure: {userId}/{videoId}/audio.m4a
+   */
+  static generateAudioStorageKey(userId: string, videoId: string): string {
+    return `${userId}/${videoId}/audio.m4a`;
   }
 
   // ==========================================

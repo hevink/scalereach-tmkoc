@@ -250,20 +250,14 @@ export class DubbingController {
       }
 
       // Delete R2 files
-      if (dubbing.dubbedAudioKey) {
-        try {
-          await R2Service.deleteFile(dubbing.dubbedAudioKey);
-        } catch (e) {
-          console.warn(`[DUBBING CONTROLLER] Failed to delete TTS audio from R2:`, e);
-        }
-      }
-      if (dubbing.mixedAudioKey) {
-        try {
-          await R2Service.deleteFile(dubbing.mixedAudioKey);
-        } catch (e) {
-          console.warn(`[DUBBING CONTROLLER] Failed to delete mixed audio from R2:`, e);
-        }
-      }
+      const clipAudioKeys = await DubbingModel.getClipAudioKeysByDubbingId(dubbingId);
+      const r2Keys = [
+        dubbing.dubbedAudioKey,
+        dubbing.mixedAudioKey,
+        ...clipAudioKeys.map(c => c.audioKey),
+      ].filter(Boolean) as string[];
+
+      await Promise.allSettled(r2Keys.map(key => R2Service.deleteFile(key)));
 
       await DubbingModel.delete(dubbingId);
       return c.json({ success: true });

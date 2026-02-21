@@ -8,6 +8,10 @@
 import { describe, expect, it } from "bun:test";
 import { Hono } from "hono";
 import captionTemplateRouter from "../routes/caption-template.routes";
+import {
+  CAPTION_TEMPLATES,
+  SUPPORTED_FONTS,
+} from "../data/caption-templates";
 
 // Create a test app with the caption template routes
 const app = new Hono();
@@ -22,8 +26,8 @@ describe("Caption Template Controller", () => {
       const json = await res.json();
       expect(json.success).toBe(true);
       expect(json.data.templates).toBeDefined();
-      expect(json.data.templates.length).toBe(5);
-      expect(json.data.total).toBe(5);
+      expect(json.data.templates.length).toBe(CAPTION_TEMPLATES.length);
+      expect(json.data.total).toBe(CAPTION_TEMPLATES.length);
     });
 
     it("should return templates with correct structure", async () => {
@@ -39,102 +43,93 @@ describe("Caption Template Controller", () => {
       expect(template.preview).toBeDefined();
     });
 
-    it("should filter templates by platform", async () => {
+    it("should filter templates by TikTok platform", async () => {
       const res = await app.request("/api/caption-templates?platform=TikTok");
       expect(res.status).toBe(200);
 
       const json = await res.json();
       expect(json.success).toBe(true);
-      // Should include TikTok template and Universal templates
-      expect(json.data.templates.length).toBeGreaterThanOrEqual(1);
+
+      const expectedIds = CAPTION_TEMPLATES.filter(
+        (template) =>
+          template.platform === "Universal" || template.platform === "TikTok"
+      ).map((template) => template.id);
+
+      expect(json.data.templates.length).toBe(expectedIds.length);
       expect(
         json.data.templates.some(
-          (t: { id: string }) => t.id === "tiktok"
+          (t: { id: string }) => t.id === "tiktok-native"
+        )
+      ).toBe(true);
+      expect(
+        json.data.templates.every((t: { id: string }) =>
+          expectedIds.includes(t.id)
         )
       ).toBe(true);
     });
 
-    it("should filter templates by Instagram Reels platform", async () => {
+    it("should filter templates by YouTube platform", async () => {
       const res = await app.request(
-        "/api/caption-templates?platform=Instagram%20Reels"
+        "/api/caption-templates?platform=YouTube"
       );
       expect(res.status).toBe(200);
 
       const json = await res.json();
       expect(json.success).toBe(true);
+
+      const expectedIds = CAPTION_TEMPLATES.filter(
+        (template) =>
+          template.platform === "Universal" || template.platform === "YouTube"
+      ).map((template) => template.id);
+
+      expect(json.data.templates.length).toBe(expectedIds.length);
       expect(
         json.data.templates.some(
-          (t: { id: string }) => t.id === "reels"
+          (t: { id: string }) => t.id === "hormozi"
         )
       ).toBe(true);
-    });
-
-    it("should filter templates by YouTube Shorts platform", async () => {
-      const res = await app.request(
-        "/api/caption-templates?platform=YouTube%20Shorts"
-      );
-      expect(res.status).toBe(200);
-
-      const json = await res.json();
-      expect(json.success).toBe(true);
       expect(
-        json.data.templates.some(
-          (t: { id: string }) => t.id === "shorts"
+        json.data.templates.every((t: { id: string }) =>
+          expectedIds.includes(t.id)
         )
       ).toBe(true);
     });
   });
 
   describe("GET /api/caption-templates/:id", () => {
-    it("should return TikTok template by ID", async () => {
-      const res = await app.request("/api/caption-templates/tiktok");
+    it("should return Classic template by ID", async () => {
+      const res = await app.request("/api/caption-templates/classic");
       expect(res.status).toBe(200);
 
       const json = await res.json();
       expect(json.success).toBe(true);
-      expect(json.data.id).toBe("tiktok");
-      expect(json.data.name).toBe("TikTok");
-      expect(json.data.style).toBeDefined();
+      expect(json.data.id).toBe("classic");
+      expect(json.data.name).toBe("Classic");
+      expect(json.data.style.fontFamily).toBe("Poppins");
     });
 
-    it("should return Reels template by ID", async () => {
-      const res = await app.request("/api/caption-templates/reels");
+    it("should return Hormozi template by ID", async () => {
+      const res = await app.request("/api/caption-templates/hormozi");
       expect(res.status).toBe(200);
 
       const json = await res.json();
       expect(json.success).toBe(true);
-      expect(json.data.id).toBe("reels");
-      expect(json.data.name).toBe("Reels");
+      expect(json.data.id).toBe("hormozi");
+      expect(json.data.name).toBe("Hormozi");
+      expect(json.data.platform).toBe("YouTube");
     });
 
-    it("should return Shorts template by ID", async () => {
-      const res = await app.request("/api/caption-templates/shorts");
+    it("should return TikTok Native template by ID", async () => {
+      const res = await app.request(
+        "/api/caption-templates/tiktok-native"
+      );
       expect(res.status).toBe(200);
 
       const json = await res.json();
       expect(json.success).toBe(true);
-      expect(json.data.id).toBe("shorts");
-      expect(json.data.name).toBe("Shorts");
-    });
-
-    it("should return Minimal template by ID", async () => {
-      const res = await app.request("/api/caption-templates/minimal");
-      expect(res.status).toBe(200);
-
-      const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data.id).toBe("minimal");
-      expect(json.data.name).toBe("Minimal");
-    });
-
-    it("should return Bold template by ID", async () => {
-      const res = await app.request("/api/caption-templates/bold");
-      expect(res.status).toBe(200);
-
-      const json = await res.json();
-      expect(json.success).toBe(true);
-      expect(json.data.id).toBe("bold");
-      expect(json.data.name).toBe("Bold");
+      expect(json.data.id).toBe("tiktok-native");
+      expect(json.data.name).toBe("TikTok Native");
+      expect(json.data.platform).toBe("TikTok");
     });
 
     it("should return 404 for non-existent template", async () => {
@@ -155,10 +150,9 @@ describe("Caption Template Controller", () => {
 
       const json = await res.json();
       expect(json.success).toBe(true);
-      expect(json.data.fonts).toBeDefined();
       expect(Array.isArray(json.data.fonts)).toBe(true);
-      expect(json.data.fonts.length).toBeGreaterThanOrEqual(5);
-      expect(json.data.total).toBe(json.data.fonts.length);
+      expect(json.data.fonts).toEqual([...SUPPORTED_FONTS]);
+      expect(json.data.total).toBe(SUPPORTED_FONTS.length);
     });
 
     it("should include common web fonts", async () => {
@@ -188,7 +182,14 @@ describe("Caption Template Controller", () => {
         expect(style.textColor).toMatch(/^#[0-9A-Fa-f]{6}$/);
 
         // Position and alignment
-        expect(["top", "center", "bottom"]).toContain(style.position);
+        if (style.position) {
+          expect(["top", "center", "bottom"]).toContain(style.position);
+        } else {
+          expect(style.x).toBeGreaterThanOrEqual(0);
+          expect(style.x).toBeLessThanOrEqual(100);
+          expect(style.y).toBeGreaterThanOrEqual(0);
+          expect(style.y).toBeLessThanOrEqual(100);
+        }
         expect(["left", "center", "right"]).toContain(style.alignment);
 
         // Animation

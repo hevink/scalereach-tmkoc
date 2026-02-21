@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { video } from "../db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
 export class VideoModel {
@@ -30,6 +30,11 @@ export class VideoModel {
       );
       throw error;
     }
+  }
+
+  static async getByIds(ids: string[]) {
+    if (ids.length === 0) return [];
+    return db.select().from(video).where(inArray(video.id, ids));
   }
 
   static async getByProjectId(projectId: string) {
@@ -94,6 +99,7 @@ export class VideoModel {
           id: video.id,
           title: video.title,
           duration: video.duration,
+          thumbnailUrl: video.thumbnailUrl,
           status: video.status,
           sourceType: video.sourceType,
           sourceUrl: video.sourceUrl,
@@ -132,6 +138,7 @@ export class VideoModel {
           id: video.id,
           title: video.title,
           duration: video.duration,
+          thumbnailUrl: video.thumbnailUrl,
           status: video.status,
           sourceType: video.sourceType,
           sourceUrl: video.sourceUrl,
@@ -250,6 +257,18 @@ export class VideoModel {
       );
       throw error;
     }
+  }
+
+  static async getStorageKeysByWorkspaceId(workspaceId: string) {
+    const result = await db
+      .select({
+        storageKey: video.storageKey,
+        audioStorageKey: video.audioStorageKey,
+        thumbnailKey: video.thumbnailKey,
+      })
+      .from(video)
+      .where(eq(video.workspaceId, workspaceId));
+    return result;
   }
 
   static async delete(id: string) {

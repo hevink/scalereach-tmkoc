@@ -80,13 +80,14 @@ export class UppyUploadController {
         }
       }
 
-      // Generate storage key
+      // Generate storage key using new hierarchical structure
+      // Structure: {userId}/{videoId}/source.{ext}
       const projectId = metadata?.projectId;
-      const storagePath = projectId || `user-${user.id}`;
-      const key = R2Service.generateVideoKey(storagePath, filename);
+      const videoId = nanoid();
+      const extension = filename.split('.').pop()?.toLowerCase() || 'mp4';
+      const key = R2Service.generateVideoStorageKey(user.id, videoId, extension);
 
       // Create video record with workspaceId
-      const videoId = nanoid();
       await VideoModel.create({
         id: videoId,
         projectId: projectId || null,

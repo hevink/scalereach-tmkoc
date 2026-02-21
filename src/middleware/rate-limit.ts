@@ -278,9 +278,9 @@ export const RateLimitPresets = {
   auth: (): MiddlewareHandler =>
     rateLimit({
       limit: 5,
-      windowSeconds: 60,
+      windowSeconds: 1,
       keyPrefix: "rl:auth",
-      message: "Too many authentication attempts. Please try again in a minute.",
+      message: "Too many authentication attempts. Please try again shortly.",
     }),
 
   /**

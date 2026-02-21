@@ -13,6 +13,8 @@ export interface PlanLimits {
   watermark: boolean;
   translationsPerVideo: number; // -1 = unlimited
   dubbingMinutesPerMonth: number; // 0 = disabled, -1 = unlimited
+  splitScreen: boolean; // split-screen clip generation
+  maxClipQuality: "1080p" | "4k"; // max output quality for clips
 }
 
 export interface PlanConfig {
@@ -34,6 +36,8 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       watermark: true,
       translationsPerVideo: 1,
       dubbingMinutesPerMonth: 0,
+      splitScreen: false,
+      maxClipQuality: "1080p",
     },
   },
   starter: {
@@ -48,11 +52,13 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       watermark: false,
       translationsPerVideo: 5,
       dubbingMinutesPerMonth: 10,
+      splitScreen: true,
+      maxClipQuality: "1080p",
     },
   },
   pro: {
     plan: "pro",
-    minutes: { total: 300, type: "monthly", renewable: true },
+    minutes: { total: 500, type: "monthly", renewable: true },
     limits: {
       videoLength: 10800, // 3 hours
       uploadSize: 4 * 1024 * 1024 * 1024, // 4GB
@@ -62,6 +68,8 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       watermark: false,
       translationsPerVideo: -1, // unlimited
       dubbingMinutesPerMonth: 30,
+      splitScreen: true,
+      maxClipQuality: "4k",
     },
   },
 };

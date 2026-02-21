@@ -44,12 +44,12 @@ export interface CaptionStyleConfig {
   outlineColor?: string;
   // Enhanced options for viral caption rendering
   outlineWidth?: number;        // 1-8, default 3
-  glowEnabled?: boolean;        // Add glow effect
-  glowColor?: string;           // Glow color
-  glowIntensity?: number;       // 1-5 blur strength
   highlightScale?: number;      // 100-150, default 120
   textTransform?: "none" | "uppercase";
   wordsPerLine?: number;        // 3-7, default 5
+  glowEnabled?: boolean;        // Enable glow/bloom effect around text
+  glowColor?: string;           // Glow color (hex), defaults to textColor
+  glowIntensity?: number;       // 1-20, default 8
 }
 
 export const project = pgTable(
@@ -91,6 +91,9 @@ export const video = pgTable(
     sourceUrl: text("source_url"),
     storageKey: text("storage_key"),
     storageUrl: text("storage_url"),
+    // Thumbnail
+    thumbnailKey: text("thumbnail_key"),
+    thumbnailUrl: text("thumbnail_url"),
     // Audio storage fields for transcription
     audioStorageKey: text("audio_storage_key"),
     audioStorageUrl: text("audio_storage_url"),
@@ -169,6 +172,7 @@ export const viralClip = pgTable(
     thumbnailKey: text("thumbnail_key"),
     thumbnailUrl: text("thumbnail_url"),
     // Clip settings
+    clipType: text("clip_type"), // Template ID used for detection (e.g. 'viral-clips', 'testimonial')
     aspectRatio: text("aspect_ratio"), // '9:16' | '1:1' | '16:9'
     favorited: boolean("favorited").default(false).notNull(), // User favorite flag
     // Status: 'detected' | 'generating' | 'ready' | 'exported' | 'failed'

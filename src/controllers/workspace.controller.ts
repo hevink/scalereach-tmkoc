@@ -8,6 +8,9 @@ import {
   updateMemberRoleSchema,
   uploadLogoSchema,
 } from "../schemas/validation.schemas";
+import { R2Service } from "../services/r2.service";
+import { VideoModel } from "../models/video.model";
+import { ClipModel } from "../models/clip.model";
 
 export class WorkspaceController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -165,6 +168,23 @@ export class WorkspaceController {
         return c.json({ error: "Unauthorized" }, 401);
       }
 
+      // Check workspace creation eligibility
+      // Free plan users can only have 1 workspace. To create more, at least one existing workspace must be on a paid plan.
+      const existingWorkspaces = await WorkspaceModel.getByOwnerId(user.id);
+      if (existingWorkspaces.length > 0) {
+        const hasPaidWorkspace = existingWorkspaces.some(
+          (ws) => ws.plan === "starter" || ws.plan === "pro" || ws.plan === "agency"
+        );
+        if (!hasPaidWorkspace) {
+          console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - blocked: user ${user.id} has ${existingWorkspaces.length} workspace(s) but none on a paid plan`);
+          return c.json({
+            error: "Upgrade required",
+            message: "Free plan users can only have one workspace. Upgrade any existing workspace to a paid plan to create additional workspaces.",
+            code: "WORKSPACE_LIMIT_REACHED",
+          }, 403);
+        }
+      }
+
       // Validate request body using Zod schema
       const validation = await validateBody(c, createWorkspaceSchema);
       if (!validation.success) {
@@ -199,6 +219,20 @@ export class WorkspaceController {
         userId: ownerId,
         role: "owner",
       });
+
+      // Only grant free 50 minutes for the user's very first workspace
+      const isFirstWorkspace = existingWorkspaces.length === 0;
+      if (isFirstWorkspace) {
+        try {
+          const { MinutesModel } = await import("../models/minutes.model");
+          await MinutesModel.initializeBalance(workspaceId, "free");
+          console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - granted 50 free minutes to first workspace: ${workspaceId}`);
+        } catch (error) {
+          console.error(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - failed to initialize minutes:`, error);
+        }
+      } else {
+        console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - skipping free minutes (user already has ${existingWorkspaces.length} workspace(s))`);
+      }
 
       console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE success - created workspace: ${workspace.id} (${slug})`);
       return c.json(workspace, 201);
@@ -285,6 +319,58 @@ export class WorkspaceController {
           requiresConfirmation: true
         }, 400);
       }
+
+      // Clean up all R2 files before deleting workspace
+      const [videoKeys, clipKeys] = await Promise.all([
+        VideoModel.getStorageKeysByWorkspaceId(id),
+        ClipModel.getStorageKeysByWorkspaceId(id),
+      ]);
+
+      // Also get brand kit logo, export, and dubbing keys
+      const { db } = await import("../db");
+      const { brandKit, videoExport, voiceDubbing, dubbedClipAudio } = await import("../db/schema");
+      const { eq, inArray } = await import("drizzle-orm");
+
+      const brandKitRows = await db
+        .select({ logoStorageKey: brandKit.logoStorageKey })
+        .from(brandKit)
+        .where(eq(brandKit.workspaceId, id));
+
+      const { video, viralClip } = await import("../db/schema");
+
+      const exportRows = await db
+        .select({ storageKey: videoExport.storageKey })
+        .from(videoExport)
+        .innerJoin(viralClip, eq(videoExport.clipId, viralClip.id))
+        .innerJoin(video, eq(viralClip.videoId, video.id))
+        .where(eq(video.workspaceId, id));
+
+      const dubbingRows = await db
+        .select({ dubbedAudioKey: voiceDubbing.dubbedAudioKey, mixedAudioKey: voiceDubbing.mixedAudioKey, dubbingId: voiceDubbing.id })
+        .from(voiceDubbing)
+        .where(eq(voiceDubbing.workspaceId, id));
+
+      const dubbingIds = dubbingRows.map(d => d.dubbingId);
+      const clipAudioRows = dubbingIds.length > 0
+        ? await db.select({ audioKey: dubbedClipAudio.audioKey }).from(dubbedClipAudio).where(inArray(dubbedClipAudio.dubbingId, dubbingIds))
+        : [];
+
+      const r2Keys: string[] = [
+        ...videoKeys.flatMap((v) =>
+          [v.storageKey, v.audioStorageKey, v.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...clipKeys.flatMap((c) =>
+          [c.storageKey, c.rawStorageKey, c.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...brandKitRows.flatMap((b) =>
+          [b.logoStorageKey].filter(Boolean) as string[]
+        ),
+        ...exportRows.flatMap(e => [e.storageKey].filter(Boolean) as string[]),
+        ...dubbingRows.flatMap(d => [d.dubbedAudioKey, d.mixedAudioKey].filter(Boolean) as string[]),
+        ...clipAudioRows.flatMap(a => [a.audioKey].filter(Boolean) as string[]),
+      ];
+
+      await Promise.allSettled(r2Keys.map((key) => R2Service.deleteFile(key)));
 
       await WorkspaceModel.delete(id);
       console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE success - deleted workspace: ${id}${credits.balance > 0 ? ` (lost ${credits.balance} credits)` : ''}`);
@@ -524,6 +610,55 @@ export class WorkspaceController {
           requiresConfirmation: true
         }, 400);
       }
+
+      // Clean up all R2 files before deleting workspace
+      const [videoKeys, clipKeys] = await Promise.all([
+        VideoModel.getStorageKeysByWorkspaceId(workspace.id),
+        ClipModel.getStorageKeysByWorkspaceId(workspace.id),
+      ]);
+
+      const { db } = await import("../db");
+      const { brandKit, videoExport, voiceDubbing, dubbedClipAudio, video, viralClip } = await import("../db/schema");
+      const { eq, inArray } = await import("drizzle-orm");
+
+      const brandKitRows = await db
+        .select({ logoStorageKey: brandKit.logoStorageKey })
+        .from(brandKit)
+        .where(eq(brandKit.workspaceId, workspace.id));
+
+      const exportRows = await db
+        .select({ storageKey: videoExport.storageKey })
+        .from(videoExport)
+        .innerJoin(viralClip, eq(videoExport.clipId, viralClip.id))
+        .innerJoin(video, eq(viralClip.videoId, video.id))
+        .where(eq(video.workspaceId, workspace.id));
+
+      const dubbingRows = await db
+        .select({ dubbedAudioKey: voiceDubbing.dubbedAudioKey, mixedAudioKey: voiceDubbing.mixedAudioKey, dubbingId: voiceDubbing.id })
+        .from(voiceDubbing)
+        .where(eq(voiceDubbing.workspaceId, workspace.id));
+
+      const dubbingIds = dubbingRows.map(d => d.dubbingId);
+      const clipAudioRows = dubbingIds.length > 0
+        ? await db.select({ audioKey: dubbedClipAudio.audioKey }).from(dubbedClipAudio).where(inArray(dubbedClipAudio.dubbingId, dubbingIds))
+        : [];
+
+      const r2Keys: string[] = [
+        ...videoKeys.flatMap((v) =>
+          [v.storageKey, v.audioStorageKey, v.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...clipKeys.flatMap((c) =>
+          [c.storageKey, c.rawStorageKey, c.thumbnailKey].filter(Boolean) as string[]
+        ),
+        ...brandKitRows.flatMap((b) =>
+          [b.logoStorageKey].filter(Boolean) as string[]
+        ),
+        ...exportRows.flatMap(e => [e.storageKey].filter(Boolean) as string[]),
+        ...dubbingRows.flatMap(d => [d.dubbedAudioKey, d.mixedAudioKey].filter(Boolean) as string[]),
+        ...clipAudioRows.flatMap(a => [a.audioKey].filter(Boolean) as string[]),
+      ];
+
+      await Promise.allSettled(r2Keys.map((key) => R2Service.deleteFile(key)));
 
       await WorkspaceModel.delete(workspace.id);
       console.log(`[WORKSPACE CONTROLLER] DELETE_WORKSPACE_BY_SLUG success - deleted workspace: ${slug}${credits.balance > 0 ? ` (lost ${credits.balance} credits)` : ''}`);

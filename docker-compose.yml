@@ -23,6 +23,15 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - YT_DLP_GET_POT_BGUTIL_BASE_URL=http://bgutil-provider:4416
     volumes:
       - ./config:/app/config
+    depends_on:
+      - bgutil-provider
+    restart: unless-stopped
+
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    ports:
+      - "4416:4416"
     restart: unless-stopped

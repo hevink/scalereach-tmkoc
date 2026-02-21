@@ -18,11 +18,14 @@ import uploadRouter from "./routes/upload.routes";
 import uppyUploadRouter from "./routes/uppy-upload.routes";
 import captionTemplateRouter from "./routes/caption-template.routes";
 import exportRouter from "./routes/export.routes";
+import subtitleRouter from "./routes/subtitle.routes";
 import healthRouter from "./routes/health.routes";
 import adminRouter from "./routes/admin.routes";
 import translationRouter from "./routes/translation.routes";
 import dubbingRouter from "./routes/dubbing.routes";
 import shareRouter from "./routes/share.routes";
+import backgroundVideoRouter from "./routes/background-video.routes";
+import socialRouter from "./routes/social.routes";
 import swaggerApp from "./docs/swagger-ui";
 import { openApiDocument } from "./docs/openapi";
 import type { AuthContext } from "./lib/auth";
@@ -38,6 +41,7 @@ const requiredEnvVars = [
   "DATABASE_URL",
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
+  "ANTHROPIC_API_KEY",
 ];
 
 const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar]);
@@ -105,9 +109,12 @@ app.route("/api/upload", uploadRouter);
 app.route("/api/uppy", uppyUploadRouter);
 app.route("/api/caption-templates", captionTemplateRouter);
 app.route("/api/exports", exportRouter);
+app.route("/api", subtitleRouter); // Subtitle download routes
 app.route("/api/admin", adminRouter);
 app.route("/api/translations", translationRouter);
 app.route("/api/dubbing", dubbingRouter);
+app.route("/api/backgrounds", backgroundVideoRouter);
+app.route("/api/social", socialRouter);
 app.route("/api", shareRouter); // Share routes (includes /api/videos/:videoId/share and /api/share/:token/analytics)
 app.route("/health", healthRouter); // Enhanced health checks
 app.route("/api-docs", swaggerApp); // Swagger UI at api-docs path
