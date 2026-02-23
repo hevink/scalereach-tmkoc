@@ -1,4 +1,4 @@
-// Worker v1.2.0 — email-allowlist auth for protected endpoints
+// Worker v1.3.0 — live log viewer at /health/hevin/logs
 // Initialize Sentry first (must be at the very top)
 import "./lib/sentry";
 
@@ -95,6 +95,172 @@ function loginPage(error?: string): Response {
 }
 
 const startTime = Date.now();
+
+// ── Live log viewer ───────────────────────────────────────────────────────────
+const PM2_LOG_FILE = process.env.PM2_LOG_FILE ||
+  `/home/ubuntu/.pm2/logs/scalereach-worker-out.log`;
+const PM2_ERR_FILE = process.env.PM2_ERR_FILE ||
+  `/home/ubuntu/.pm2/logs/scalereach-worker-error.log`;
+
+function logViewerPage(): Response {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScaleReach Worker — Live Logs</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#e5e5e5;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+    .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111;border-bottom:1px solid #222;flex-shrink:0}
+    .topbar-left{display:flex;align-items:center;gap:16px}
+    .logo{font-size:11px;color:#555;letter-spacing:.1em;text-transform:uppercase}
+    h1{font-size:15px;font-weight:600;color:#e5e5e5}
+    .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:20px;background:#1a2a1a;color:#4ade80;border:1px solid #2a4a2a}
+    .badge.err{background:#2a1a1a;color:#f87171;border-color:#4a2a2a}
+    .badge.disconnected{background:#2a2a1a;color:#facc15;border-color:#4a4a1a}
+    .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.5s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .controls{display:flex;align-items:center;gap:10px}
+    .btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #333;background:#1a1a1a;color:#aaa;transition:all .15s}
+    .btn:hover{background:#222;color:#e5e5e5;border-color:#444}
+    .btn.active{background:#1a2a1a;color:#4ade80;border-color:#2a4a2a}
+    .btn.danger{background:#2a1a1a;color:#f87171;border-color:#4a2a2a}
+    select{padding:5px 10px;border-radius:6px;font-size:12px;background:#1a1a1a;color:#aaa;border:1px solid #333;cursor:pointer;outline:none}
+    select:focus{border-color:#444}
+    .log-wrap{flex:1;overflow-y:auto;padding:12px 16px;font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace;font-size:12.5px;line-height:1.7}
+    .log-wrap::-webkit-scrollbar{width:6px}
+    .log-wrap::-webkit-scrollbar-track{background:#111}
+    .log-wrap::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
+    .line{display:flex;gap:10px;padding:1px 0;border-radius:3px}
+    .line:hover{background:#141414}
+    .ts{color:#444;flex-shrink:0;user-select:none;font-size:11px;padding-top:1px}
+    .msg{color:#d4d4d4;word-break:break-all;white-space:pre-wrap}
+    .msg.err{color:#f87171}
+    .msg.warn{color:#facc15}
+    .msg.info{color:#60a5fa}
+    .msg.success{color:#4ade80}
+    .statusbar{padding:6px 20px;background:#111;border-top:1px solid #1a1a1a;font-size:11px;color:#444;display:flex;gap:16px;flex-shrink:0}
+    .empty{color:#333;text-align:center;padding:60px 0;font-size:13px}
+    a.back{font-size:12px;color:#555;text-decoration:none}
+    a.back:hover{color:#aaa}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="back" href="/health/hevin">← Dashboard</a>
+      <div class="logo">ScaleReach · Worker</div>
+      <h1>Live Logs</h1>
+      <span class="badge" id="status"><span class="dot"></span> Connecting…</span>
+    </div>
+    <div class="controls">
+      <select id="logType" onchange="reconnect()">
+        <option value="out">stdout</option>
+        <option value="err">stderr</option>
+        <option value="both">both</option>
+      </select>
+      <select id="lineCount" onchange="reconnect()">
+        <option value="100">Last 100</option>
+        <option value="200">Last 200</option>
+        <option value="500">Last 500</option>
+      </select>
+      <button class="btn active" id="scrollBtn" onclick="toggleScroll()">↓ Auto-scroll</button>
+      <button class="btn" onclick="clearLogs()">Clear</button>
+      <button class="btn danger" id="pauseBtn" onclick="togglePause()">Pause</button>
+    </div>
+  </div>
+  <div class="log-wrap" id="logWrap">
+    <div class="empty" id="empty">Waiting for logs…</div>
+  </div>
+  <div class="statusbar">
+    <span id="lineCounter">0 lines</span>
+    <span id="byteCounter">0 bytes</span>
+    <span id="lastTs">—</span>
+  </div>
+
+  <script>
+    let es = null, paused = false, autoScroll = true, lineCount = 0, byteCount = 0;
+    const wrap = document.getElementById('logWrap');
+    const empty = document.getElementById('empty');
+    const statusEl = document.getElementById('status');
+    const lineCounter = document.getElementById('lineCounter');
+    const byteCounter = document.getElementById('byteCounter');
+    const lastTs = document.getElementById('lastTs');
+
+    function colorClass(msg) {
+      if (/error|err:|failed|exception|fatal/i.test(msg)) return 'err';
+      if (/warn|warning/i.test(msg)) return 'warn';
+      if (/✓|success|done|complete|started|running|healthy/i.test(msg)) return 'success';
+      if (/\\[info\\]|info:/i.test(msg)) return 'info';
+      return '';
+    }
+
+    function addLine(text, isErr) {
+      if (paused) return;
+      empty.style.display = 'none';
+      const now = new Date();
+      const ts = now.toTimeString().slice(0,8);
+      const div = document.createElement('div');
+      div.className = 'line';
+      const cls = isErr ? 'err' : colorClass(text);
+      div.innerHTML = '<span class="ts">' + ts + '</span><span class="msg ' + cls + '">' + escHtml(text) + '</span>';
+      wrap.appendChild(div);
+      lineCount++;
+      byteCount += text.length;
+      lineCounter.textContent = lineCount + ' lines';
+      byteCounter.textContent = (byteCount / 1024).toFixed(1) + ' KB';
+      lastTs.textContent = 'Last: ' + now.toLocaleTimeString();
+      if (autoScroll) wrap.scrollTop = wrap.scrollHeight;
+      // Keep max 2000 lines in DOM
+      const lines = wrap.querySelectorAll('.line');
+      if (lines.length > 2000) lines[0].remove();
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function setStatus(text, cls) {
+      statusEl.className = 'badge ' + (cls || '');
+      statusEl.innerHTML = '<span class="dot"></span> ' + text;
+    }
+
+    function connect() {
+      if (es) es.close();
+      const type = document.getElementById('logType').value;
+      const lines = document.getElementById('lineCount').value;
+      es = new EventSource('/health/hevin/logs/stream?type=' + type + '&lines=' + lines);
+      setStatus('Connecting…', '');
+      es.onopen = () => setStatus('Live', '');
+      es.onmessage = (e) => {
+        const d = JSON.parse(e.data);
+        addLine(d.line, d.err);
+      };
+      es.addEventListener('history', (e) => {
+        const lines = JSON.parse(e.data);
+        lines.forEach(l => addLine(l.line, l.err));
+      });
+      es.onerror = () => {
+        setStatus('Disconnected — retrying…', 'disconnected');
+        setTimeout(connect, 3000);
+      };
+    }
+
+    function reconnect() { lineCount = 0; byteCount = 0; wrap.querySelectorAll('.line').forEach(e=>e.remove()); empty.style.display=''; connect(); }
+    function clearLogs() { wrap.querySelectorAll('.line').forEach(e=>e.remove()); lineCount=0; byteCount=0; empty.style.display=''; lineCounter.textContent='0 lines'; byteCounter.textContent='0 bytes'; }
+    function toggleScroll() { autoScroll=!autoScroll; document.getElementById('scrollBtn').className='btn'+(autoScroll?' active':''); }
+    function togglePause() { paused=!paused; document.getElementById('pauseBtn').textContent=paused?'Resume':'Pause'; document.getElementById('pauseBtn').className='btn danger'+(paused?' active':''); }
+
+    connect();
+  </script>
+</body>
+</html>`;
+  return new Response(html, {
+    status: 200,
+    headers: { "Content-Type": "text/html", "X-Frame-Options": "DENY", "Cache-Control": "no-store" },
+  });
+}
 
 startPotServer();
 
@@ -352,6 +518,124 @@ try {
           console.error("[WORKER] validate-youtube error:", msg);
           return new Response(JSON.stringify({ valid: false, error: msg }), { status: 200, headers: SECURITY_HEADERS });
         }
+      }
+
+      // ── PROTECTED: live log viewer ────────────────────────
+      if (url.pathname === "/health/hevin/logs") {
+        if (!isAuthorized(req)) {
+          const accept = req.headers.get("accept") || "";
+          if (accept.includes("text/html")) return new Response(null, { status: 302, headers: { Location: "/auth/login" } });
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
+        }
+        return logViewerPage();
+      }
+
+      // ── PROTECTED: live log SSE stream ────────────────────
+      if (url.pathname === "/health/hevin/logs/stream") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
+        }
+
+        const logType = url.searchParams.get("type") || "both";
+        const tailLines = Math.min(parseInt(url.searchParams.get("lines") || "100", 10), 500);
+
+        const { ReadableStream } = globalThis;
+        const { spawn: spawnChild } = await import("child_process");
+        const { existsSync: fsExists } = await import("fs");
+
+        const encoder = new TextEncoder();
+
+        const stream = new ReadableStream({
+          start(controller) {
+            const send = (line: string, isErr: boolean) => {
+              try {
+                const data = `data: ${JSON.stringify({ line, err: isErr })}\n\n`;
+                controller.enqueue(encoder.encode(data));
+              } catch { /* client disconnected */ }
+            };
+
+            const sendEvent = (event: string, data: string) => {
+              try {
+                controller.enqueue(encoder.encode(`event: ${event}\ndata: ${data}\n\n`));
+              } catch { /* client disconnected */ }
+            };
+
+            // Send history first
+            const historyLines: { line: string; err: boolean }[] = [];
+            const filesToTail: { path: string; isErr: boolean }[] = [];
+
+            if ((logType === "out" || logType === "both") && fsExists(PM2_LOG_FILE)) {
+              filesToTail.push({ path: PM2_LOG_FILE, isErr: false });
+            }
+            if ((logType === "err" || logType === "both") && fsExists(PM2_ERR_FILE)) {
+              filesToTail.push({ path: PM2_ERR_FILE, isErr: true });
+            }
+
+            // Send last N lines as history event
+            for (const { path, isErr } of filesToTail) {
+              try {
+                const { execSync } = require("child_process");
+                const out = execSync(`tail -${tailLines} "${path}"`, { encoding: "utf8", maxBuffer: 1024 * 1024 });
+                out.split("\n").filter(Boolean).forEach((l: string) => historyLines.push({ line: l, err: isErr }));
+              } catch { /* file may not exist yet */ }
+            }
+            if (historyLines.length > 0) {
+              sendEvent("history", JSON.stringify(historyLines));
+            }
+
+            // Now tail -f for live updates
+            const tailArgs = ["-f", "-n", "0"];
+            for (const { path } of filesToTail) tailArgs.push(path);
+
+            if (filesToTail.length === 0) {
+              send("[No log files found yet — waiting for worker activity]", false);
+              return;
+            }
+
+            const tail = spawnChild("tail", tailArgs, { stdio: ["ignore", "pipe", "ignore"] });
+
+            // Track which file each line comes from when tailing both
+            // (tail -f prefixes with "==> filename <==" when multiple files)
+            let currentIsErr = logType === "err";
+            let buf = "";
+
+            tail.stdout?.on("data", (chunk: Buffer) => {
+              buf += chunk.toString();
+              const lines = buf.split("\n");
+              buf = lines.pop() ?? "";
+              for (const line of lines) {
+                if (!line) continue;
+                // tail -f header when watching multiple files
+                if (line.startsWith("==>") && line.endsWith("<==")) {
+                  currentIsErr = line.includes("error");
+                  continue;
+                }
+                send(line, logType === "both" ? currentIsErr : logType === "err");
+              }
+            });
+
+            tail.on("exit", () => {
+              try { controller.close(); } catch { /* already closed */ }
+            });
+
+            // Clean up when client disconnects
+            req.signal?.addEventListener("abort", () => {
+              tail.kill();
+              try { controller.close(); } catch { /* already closed */ }
+            });
+          },
+        });
+
+        return new Response(stream, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
       }
 
       return new Response("Not Found", { status: 404, headers: SECURITY_HEADERS });
