@@ -143,6 +143,7 @@ async function processClipGenerationJob(
     splitScreen,
   } = job.data;
 
+  const jobStartTime = Date.now();
   console.log(`[CLIP WORKER] Processing clip generation job: ${clipId}`);
   console.log(`[CLIP WORKER] Source type: ${sourceType}, Aspect ratio: ${aspectRatio}`);
   console.log(`[CLIP WORKER] Time range: ${startTime}s - ${endTime}s`);
@@ -198,6 +199,7 @@ async function processClipGenerationJob(
     await job.updateProgress(20);
 
     // Generate the clip with captions and intro title
+    const generateStart = Date.now();
     console.log(`[CLIP WORKER] Starting clip generation...`);
     const generatedClip = await ClipGeneratorService.generateClip({
       userId,
@@ -228,6 +230,7 @@ async function processClipGenerationJob(
     await job.updateProgress(85);
 
     // Generate thumbnail from the clip (at 1 second)
+    const thumbnailStart = Date.now();
     console.log(`[CLIP WORKER] Generating thumbnail...`);
     let thumbnailKey: string | undefined;
     let thumbnailUrl: string | undefined;
@@ -261,6 +264,12 @@ async function processClipGenerationJob(
 
     await job.updateProgress(100);
 
+    const totalMs = Date.now() - jobStartTime;
+    const generateMs = thumbnailStart - generateStart;
+    const thumbnailMs = Date.now() - thumbnailStart;
+    const clipDurationSec = endTime - startTime;
+
+    console.log(`[CLIP WORKER] TIMING | clipId=${clipId} total=${(totalMs/1000).toFixed(1)}s generate=${(generateMs/1000).toFixed(1)}s thumbnail=${(thumbnailMs/1000).toFixed(1)}s clipDuration=${clipDurationSec}s ratio=${(totalMs/1000/clipDurationSec).toFixed(2)}x`);
     console.log(`[CLIP WORKER] Clip generation complete: ${clipId}`);
     console.log(`[CLIP WORKER] Storage URL: ${generatedClip.storageUrl}`);
     console.log(`[CLIP WORKER] File size: ${(generatedClip.fileSize / 1024 / 1024).toFixed(2)} MB`);
