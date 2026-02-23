@@ -1,4 +1,4 @@
-// Worker v1.0.1 — deployed via CI/CD
+// Worker v1.0.2 — CI/CD auto-deploy test
 // Initialize Sentry first (must be at the very top)
 import "./lib/sentry";
 
