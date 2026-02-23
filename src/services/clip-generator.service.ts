@@ -486,7 +486,7 @@ export class ClipGeneratorService {
       "-i", inputPath,
       "-vf", `ass=${escapedSubsPath}:fontsdir=${escapedFontsDir}`,
       "-c:v", "libx264",
-      "-preset", "medium",
+      "-preset", "veryfast",
       "-crf", "18",
       "-c:a", "copy",
       "-movflags", "+faststart",
@@ -1198,7 +1198,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-map", "[outv]",
             "-map", "0:a?",
             "-c:v", "libx264",
-            "-preset", "medium",
+            "-preset", "veryfast",
             "-crf", "18",
             "-profile:v", "high",
             "-level", "4.0",
@@ -1233,7 +1233,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
               "-map", "[outv]",
               "-map", "0:a?",
               "-c:v", "libx264",
-              "-preset", "slow",
+              "-preset", "veryfast",
               "-crf", "18",
               "-c:a", "aac",
               "-b:a", "192k",
@@ -1248,7 +1248,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
               "-t", duration.toString(),
               "-vf", videoFilter,
               "-c:v", "libx264",
-              "-preset", "slow",
+              "-preset", "veryfast",
               "-crf", "18",
               "-c:a", "aac",
               "-b:a", "192k",
@@ -1270,6 +1270,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         const chunks: Buffer[] = [];
         let stderr = "";
+        // Kill FFmpeg if it hangs for more than 10 minutes
+        const ffmpegTimeout = setTimeout(() => {
+          ffmpegProcess.kill("SIGKILL");
+          reject(new Error(`FFmpeg timed out after 10 minutes (downloadYouTubeSegment)`));
+        }, 10 * 60 * 1000);
 
         ffmpegProcess.stdout?.on("data", (data) => {
           chunks.push(data);
@@ -1285,10 +1290,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         });
 
         ffmpegProcess.on("error", (err) => {
+          clearTimeout(ffmpegTimeout);
           reject(new Error(`Failed to spawn FFmpeg: ${err.message}. Make sure FFmpeg is installed.`));
         });
 
         ffmpegProcess.on("close", (code) => {
+          clearTimeout(ffmpegTimeout);
           if (code !== 0) {
             reject(new Error(`FFmpeg failed with code ${code}: ${stderr}`));
             return;
@@ -1365,7 +1372,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           "-map", "[outv]",
           "-map", "0:a?",
           "-c:v", "libx264",
-          "-preset", "medium",
+          "-preset", "veryfast",
           "-crf", "18",
           "-profile:v", "high",
           "-level", "4.0",
@@ -1397,7 +1404,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-map", "[outv]",
             "-map", "0:a?",
             "-c:v", "libx264",
-            "-preset", "medium",
+            "-preset", "veryfast",
             "-crf", "18",
             "-profile:v", "high",
             "-level", "4.0",
@@ -1413,7 +1420,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-i", inputPath,
             "-vf", videoFilter,
             "-c:v", "libx264",
-            "-preset", "medium",
+            "-preset", "veryfast",
             "-crf", "18",
             "-profile:v", "high",
             "-level", "4.0",
@@ -1436,16 +1443,23 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       const ffmpegProcess = spawn("ffmpeg", args);
 
       let stderr = "";
+      // Kill FFmpeg if it hangs for more than 10 minutes
+      const ffmpegTimeout = setTimeout(() => {
+        ffmpegProcess.kill("SIGKILL");
+        reject(new Error(`FFmpeg timed out after 10 minutes (convertAspectRatioFile)`));
+      }, 10 * 60 * 1000);
 
       ffmpegProcess.stderr?.on("data", (data) => {
         stderr += data.toString();
       });
 
       ffmpegProcess.on("error", (err) => {
+        clearTimeout(ffmpegTimeout);
         reject(new Error(`Failed to spawn FFmpeg: ${err.message}`));
       });
 
       ffmpegProcess.on("close", (code) => {
+        clearTimeout(ffmpegTimeout);
         if (code !== 0) {
           reject(new Error(`FFmpeg aspect ratio conversion failed with code ${code}: ${stderr}`));
           return;

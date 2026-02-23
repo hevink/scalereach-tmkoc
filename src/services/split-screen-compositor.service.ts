@@ -144,7 +144,7 @@ export class SplitScreenCompositorService {
       "-map", "0:a",
       // Encoding (match existing pipeline)
       "-c:v", "libx264",
-      "-preset", "fast",
+      "-preset", "veryfast",
       "-crf", "18",
       "-c:a", "aac",
       "-b:a", "192k",
