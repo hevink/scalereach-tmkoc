@@ -240,10 +240,6 @@ function logViewerPage(): Response {
         const d = JSON.parse(e.data);
         addLine(d.line, d.err);
       };
-      es.addEventListener('history', (e) => {
-        const lines = JSON.parse(e.data);
-        lines.forEach(l => addLine(l.line, l.err));
-      });
       es.onerror = () => {
         setStatus('Disconnected — retrying…', 'disconnected');
         setTimeout(connect, 3000);
@@ -572,15 +568,16 @@ try {
               filesToTail.push({ path: PM2_ERR_FILE, isErr: true });
             }
 
-            // Send last N lines as history event
+            // Send last N lines as history — individual data messages so onmessage fires reliably
             for (const { path, isErr } of filesToTail) {
               try {
                 const out = execSyncNode(`tail -${tailLines} "${path}"`, { encoding: "utf8", maxBuffer: 1024 * 1024 });
                 out.split("\n").filter(Boolean).forEach((l: string) => historyLines.push({ line: l, err: isErr }));
               } catch { /* file may not exist yet */ }
             }
-            if (historyLines.length > 0) {
-              sendEvent("history", JSON.stringify(historyLines));
+            // Send each history line as a normal data message (not custom event)
+            for (const { line, err } of historyLines) {
+              send(line, err);
             }
 
             // Now tail -f for live updates
