@@ -168,7 +168,7 @@ export class ClipGeneratorService {
     extraInputArgs: string[];
     filterFragment: string;
   } {
-    const logoHeight = Math.max(Math.round(videoHeight * 0.032), 19);
+    const logoHeight = Math.max(Math.round(videoHeight * 0.064), 38);
     const padding = Math.round(videoHeight * 0.03);
     const madeWithSize = Math.max(Math.round(logoHeight * 0.4), 10);
     const scaleReachSize = Math.max(Math.round(logoHeight * 0.44), 11);
