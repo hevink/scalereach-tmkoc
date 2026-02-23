@@ -1015,13 +1015,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const isCode222 = lastError.message.includes("ffmpeg exited with code 222");
         const isRetryableError = isCode222 ||
                                   lastError.message.includes("ffmpeg exited with code 202") ||
-                                  lastError.message.includes("ffmpeg exited with code 1");
+                                  lastError.message.includes("ffmpeg exited with code 1") ||
+                                  lastError.message.includes("Interrupted by user") ||
+                                  lastError.message.includes("yt-dlp failed with code 1");
 
         if (isRetryableError && attempt < maxRetries) {
           // code 222 is caused by --force-keyframes-at-cuts on certain streams — disable it on retry
           if (isCode222) forceKeyframes = false;
 
-          const delayMs = Math.pow(2, attempt) * 1000;
+          // "Interrupted by user" means the process was killed mid-download (e.g. worker restart)
+          // Use a longer delay to let the system settle before retrying
+          const isInterrupted = lastError.message.includes("Interrupted by user");
+          const delayMs = isInterrupted ? 5000 : Math.pow(2, attempt) * 1000;
           this.logOperation("YT_DLP_RETRY", {
             attempt,
             maxRetries,
