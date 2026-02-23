@@ -2,6 +2,9 @@
 // Initialize Sentry first (must be at the very top)
 import "./lib/sentry";
 
+import { spawn as spawnProc, execSync as execSyncNode } from "child_process";
+import { existsSync as fsExists } from "fs";
+
 import { startPotServer, stopPotServer } from "./lib/pot-server";
 import { startVideoWorker } from "./jobs/video.worker";
 import { startClipWorker } from "./jobs/clip.worker";
@@ -540,8 +543,6 @@ try {
         const tailLines = Math.min(parseInt(url.searchParams.get("lines") || "100", 10), 500);
 
         const { ReadableStream } = globalThis;
-        const { spawn: spawnChild } = await import("child_process");
-        const { existsSync: fsExists } = await import("fs");
 
         const encoder = new TextEncoder();
 
@@ -574,8 +575,7 @@ try {
             // Send last N lines as history event
             for (const { path, isErr } of filesToTail) {
               try {
-                const { execSync } = require("child_process");
-                const out = execSync(`tail -${tailLines} "${path}"`, { encoding: "utf8", maxBuffer: 1024 * 1024 });
+                const out = execSyncNode(`tail -${tailLines} "${path}"`, { encoding: "utf8", maxBuffer: 1024 * 1024 });
                 out.split("\n").filter(Boolean).forEach((l: string) => historyLines.push({ line: l, err: isErr }));
               } catch { /* file may not exist yet */ }
             }
@@ -592,7 +592,7 @@ try {
               return;
             }
 
-            const tail = spawnChild("tail", tailArgs, { stdio: ["ignore", "pipe", "ignore"] });
+            const tail = spawnProc("tail", tailArgs, { stdio: ["ignore", "pipe", "ignore"] });
 
             // Track which file each line comes from when tailing both
             // (tail -f prefixes with "==> filename <==" when multiple files)
