@@ -6,7 +6,7 @@ This documents the exact steps used to deploy the ScaleReach worker to AWS EC2.
 
 ```
 Frontend (app.scalereach.ai)
-    → API (scalereach-api.onrender.com)
+    → API (api.scalereach.ai)
     → Redis (13.204.63.21:6379)
     → Worker (worker.scalereach.ai / EC2)  ← this guide
               ↓
