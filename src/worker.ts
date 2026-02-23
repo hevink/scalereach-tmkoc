@@ -101,9 +101,9 @@ const startTime = Date.now();
 
 // ── Live log viewer ───────────────────────────────────────────────────────────
 const PM2_LOG_FILE = process.env.PM2_LOG_FILE ||
-  `/home/ubuntu/.pm2/logs/scalereach-worker-out.log`;
+  `/opt/scalereach/logs/worker-out.log`;
 const PM2_ERR_FILE = process.env.PM2_ERR_FILE ||
-  `/home/ubuntu/.pm2/logs/scalereach-worker-error.log`;
+  `/opt/scalereach/logs/worker-error.log`;
 
 function logViewerPage(): Response {
   const html = `<!DOCTYPE html>
