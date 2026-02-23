@@ -269,7 +269,7 @@ export class YouTubeService {
 
       });
 
-      process.on("error", (err) => {
+      childProcess.on("error", (err) => {
         reject(new Error(`Failed to spawn yt-dlp: ${err.message}`));
       });
     });
