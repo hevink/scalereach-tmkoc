@@ -1448,11 +1448,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       const ffmpegProcess = spawn("ffmpeg", args);
 
       let stderr = "";
-      // Kill FFmpeg if it hangs for more than 10 minutes
+      // Kill FFmpeg if it hangs for more than 20 minutes
+      // (93s clip at 0.27x speed = ~6min encode alone; 10min was too tight)
       const ffmpegTimeout = setTimeout(() => {
         ffmpegProcess.kill("SIGKILL");
-        reject(new Error(`FFmpeg timed out after 10 minutes (convertAspectRatioFile)`));
-      }, 10 * 60 * 1000);
+        reject(new Error(`FFmpeg timed out after 20 minutes (convertAspectRatioFile)`));
+      }, 20 * 60 * 1000);
 
       ffmpegProcess.stderr?.on("data", (data) => {
         stderr += data.toString();
