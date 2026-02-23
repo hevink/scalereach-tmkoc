@@ -62,9 +62,8 @@ jobs:
 
             echo "📦 Pulling latest code..."
             git fetch origin
-            git stash
-            git checkout ${{ github.ref_name }}
-            git pull origin ${{ github.ref_name }}
+            git checkout -B ${{ github.ref_name }} origin/${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
 
             NEW_COMMIT=$(git rev-parse HEAD)
             echo "🆕 New commit: $NEW_COMMIT"
