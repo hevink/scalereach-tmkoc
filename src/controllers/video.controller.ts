@@ -403,65 +403,47 @@ export class VideoController {
       }
 
       const isValid = YouTubeService.isValidYouTubeUrl(url);
-
       if (!isValid) {
         return c.json({ valid: false, error: "Invalid YouTube URL format" });
       }
 
-      const videoInfo = await YouTubeService.getVideoInfo(url);
+      // Proxy to worker (has yt-dlp installed) — API (Render) does not have yt-dlp
+      const workerUrl = process.env.WORKER_URL;
+      if (workerUrl) {
+        try {
+          const workerRes = await fetch(
+            `${workerUrl}/validate-youtube?url=${encodeURIComponent(url)}`,
+            { signal: AbortSignal.timeout(30000) }
+          );
+          const data = await workerRes.json();
+          return c.json(data);
+        } catch (proxyErr: any) {
+          console.error("[VIDEO CONTROLLER] Worker proxy failed:", proxyErr?.message);
+          return c.json({ valid: false, error: "Video validation service unavailable. Please try again." });
+        }
+      }
 
-      // Validate video duration (max 4 hours)
+      // Fallback: try direct (only works if yt-dlp is installed locally)
+      const videoInfo = await YouTubeService.getVideoInfo(url);
       const durationValidation = YouTubeService.validateVideoDuration(videoInfo.duration);
       if (!durationValidation.valid) {
-        return c.json({
-          valid: false,
-          error: durationValidation.error,
-          videoInfo,
-        });
+        return c.json({ valid: false, error: durationValidation.error, videoInfo });
       }
+      return c.json({ valid: true, videoInfo });
 
-      return c.json({
-        valid: true,
-        videoInfo,
-      });
     } catch (error: any) {
       console.error(`[VIDEO CONTROLLER] VALIDATE_YOUTUBE_URL error:`, error);
-      
-      // Provide more specific error messages
       const errorMessage = error?.message || "Unknown error";
-      
       if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
-        return c.json({
-          valid: false,
-          error: "YouTube blocked the request. The video may be restricted or yt-dlp needs updating.",
-        });
+        return c.json({ valid: false, error: "YouTube blocked the request. The video may be restricted." });
       }
-      
       if (errorMessage.includes("Video unavailable") || errorMessage.includes("Private video")) {
-        return c.json({
-          valid: false,
-          error: "This video is unavailable or private.",
-        });
+        return c.json({ valid: false, error: "This video is unavailable or private." });
       }
-      
       if (errorMessage.includes("Sign in") || errorMessage.includes("age-restricted")) {
-        return c.json({
-          valid: false,
-          error: "This video requires sign-in or is age-restricted.",
-        });
+        return c.json({ valid: false, error: "This video requires sign-in or is age-restricted." });
       }
-      
-      if (errorMessage.includes("yt-dlp") || errorMessage.includes("spawn")) {
-        return c.json({
-          valid: false,
-          error: "Video processing service is unavailable. Please try again later.",
-        });
-      }
-      
-      return c.json({
-        valid: false,
-        error: `Failed to fetch video info: ${errorMessage}`,
-      });
+      return c.json({ valid: false, error: `Failed to fetch video info: ${errorMessage}` });
     }
   }
 }

@@ -329,6 +329,31 @@ try {
         }, null, 2), { status: 200, headers: SECURITY_HEADERS });
       }
 
+      // ── PUBLIC: validate YouTube URL (proxied from API) ──
+      if (url.pathname === "/validate-youtube" && req.method === "GET") {
+        const ytUrl = url.searchParams.get("url");
+        if (!ytUrl) {
+          return new Response(JSON.stringify({ valid: false, error: "URL is required" }), { status: 400, headers: SECURITY_HEADERS });
+        }
+        try {
+          const { YouTubeService } = await import("./services/youtube.service");
+          const isValid = YouTubeService.isValidYouTubeUrl(ytUrl);
+          if (!isValid) {
+            return new Response(JSON.stringify({ valid: false, error: "Invalid YouTube URL format" }), { status: 200, headers: SECURITY_HEADERS });
+          }
+          const videoInfo = await YouTubeService.getVideoInfo(ytUrl);
+          const durationValidation = YouTubeService.validateVideoDuration(videoInfo.duration);
+          if (!durationValidation.valid) {
+            return new Response(JSON.stringify({ valid: false, error: durationValidation.error, videoInfo }), { status: 200, headers: SECURITY_HEADERS });
+          }
+          return new Response(JSON.stringify({ valid: true, videoInfo }), { status: 200, headers: SECURITY_HEADERS });
+        } catch (error: any) {
+          const msg = error?.message || "Unknown error";
+          console.error("[WORKER] validate-youtube error:", msg);
+          return new Response(JSON.stringify({ valid: false, error: msg }), { status: 200, headers: SECURITY_HEADERS });
+        }
+      }
+
       return new Response("Not Found", { status: 404, headers: SECURITY_HEADERS });
     },
   });

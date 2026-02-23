@@ -22,6 +22,8 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      - key: WORKER_URL
+        value: https://worker.scalereach.ai
       - key: YOUTUBE_API_KEY
         sync: false
       - key: REDIS_URL
