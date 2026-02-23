@@ -59,10 +59,23 @@ export class VideoController {
         return c.json({ error: "Invalid YouTube URL" }, 400);
       }
 
-      // Get video info to validate duration before processing
+      // Get video info — proxy to worker if available (yt-dlp only on EC2)
       let videoInfo;
       try {
-        videoInfo = await YouTubeService.getVideoInfo(youtubeUrl);
+        const workerUrl = process.env.WORKER_URL;
+        if (workerUrl) {
+          const workerRes = await fetch(
+            `${workerUrl}/validate-youtube?url=${encodeURIComponent(youtubeUrl)}`,
+            { signal: AbortSignal.timeout(30000) }
+          );
+          const data = await workerRes.json() as any;
+          if (!data.valid || !data.videoInfo) {
+            return c.json({ error: data.error || "Failed to retrieve video information. The video may be unavailable or private." }, 400);
+          }
+          videoInfo = data.videoInfo;
+        } else {
+          videoInfo = await YouTubeService.getVideoInfo(youtubeUrl);
+        }
       } catch (error) {
         console.error(`[VIDEO CONTROLLER] Failed to get video info:`, error);
         return c.json({ error: "Failed to retrieve video information. The video may be unavailable or private." }, 400);
