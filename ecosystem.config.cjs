@@ -13,6 +13,7 @@ module.exports = {
         VIDEO_WORKER_CONCURRENCY: "2",
         CLIP_WORKER_CONCURRENCY: "2",
         DUBBING_WORKER_CONCURRENCY: "1",
+        PATH: "/home/ubuntu/.deno/bin:/home/ubuntu/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
       },
       out_file: "./logs/worker-out.log",
       error_file: "./logs/worker-error.log",
