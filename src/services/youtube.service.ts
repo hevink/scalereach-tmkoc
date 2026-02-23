@@ -172,13 +172,13 @@ export class YouTubeService {
       const args = [
         "--dump-json",
         "--no-download",
-        // Enable Deno as JavaScript runtime (faster and more reliable)
-        "--js-runtimes", "deno",
-        // Anti-bot detection measures
-        "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        // Use android_vr first — it serves highest quality streams including 4K AV1
-        "--extractor-args", cookiesPath ? "youtube:player_client=web,android_vr,android" : "youtube:player_client=android_vr,web,android",
-        "--extractor-retries", "5",
+        // Use web client when cookies present (android clients don't support cookies)
+        "--extractor-args", cookiesPath
+          ? "youtube:player_client=web"
+          : "youtube:player_client=android_vr,web,android",
+        "--extractor-retries", "3",
+        // Download remote JS challenge solver components
+        "--remote-components", "ejs:github",
         url,
       ];
 
@@ -290,25 +290,19 @@ export class YouTubeService {
     
     const args = [
       "-f", "bestaudio[ext=m4a]/bestaudio/best",
-      "-o", "-", // Output to stdout
-      "--quiet", // Suppress progress output
+      "-o", "-",
+      "--quiet",
       "--no-warnings",
       "--no-check-certificates",
       "--prefer-free-formats",
-      // Enable Deno as primary JavaScript runtime (faster and more reliable)
-      "--js-runtimes", "deno",
-      // Anti-bot detection measures
-      "--add-header", "User-Agent:Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-      "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "--add-header", "Accept-Language:en-us,en;q=0.5",
-      "--add-header", "Sec-Fetch-Mode:navigate",
-      // Use android_vr first — it serves highest quality streams including 4K AV1
-      "--extractor-args", cookiesPath ? "youtube:player_client=web,android_vr,android" : "youtube:player_client=android_vr,web,android",
-      "--extractor-retries", "5",
+      // Use web client when cookies present (android clients don't support cookies)
+      "--extractor-args", cookiesPath
+        ? "youtube:player_client=web"
+        : "youtube:player_client=android_vr,web,android",
+      "--extractor-retries", "3",
       "--fragment-retries", "5",
       "--retry-sleep", "2",
-      "--sleep-interval", "1",
-      "--max-sleep-interval", "3",
+      "--remote-components", "ejs:github",
       url,
     ];
 
