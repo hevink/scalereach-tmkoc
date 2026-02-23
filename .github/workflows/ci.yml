@@ -11,29 +11,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Type check ──────────────────────────────────────────────
-  typecheck:
-    name: Type Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.2.19"
-      - run: bun install
-      - run: bun run build
-
   # ── Build verification ──────────────────────────────────────
   build-check:
     name: Build Verification
     runs-on: ubuntu-latest
-    needs: [typecheck]
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
+          ref: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.2.19"
