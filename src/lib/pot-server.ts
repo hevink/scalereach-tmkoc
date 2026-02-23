@@ -2,7 +2,8 @@ import { spawn, type ChildProcess } from "child_process";
 import { existsSync } from "fs";
 
 const POT_SERVER_PORT = parseInt(process.env.BGUTIL_POT_PORT || "4416", 10);
-const POT_SERVER_PATH = process.env.BGUTIL_SERVER_PATH || "/tmp/bgutil-ytdlp-pot-provider/server/build/main.js";
+const POT_SERVER_PATH = process.env.BGUTIL_SERVER_PATH ||
+  "/home/ubuntu/bgutil-ytdlp-pot-provider/server/build/main.js";
 
 let potProcess: ChildProcess | null = null;
 

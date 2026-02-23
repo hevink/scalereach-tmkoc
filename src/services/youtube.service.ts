@@ -168,19 +168,30 @@ export class YouTubeService {
     return new Promise((resolve, reject) => {
       // Add cookies if available
       const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
+      const proxy = process.env.YOUTUBE_PROXY;
+      const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
       
       const args = [
         "--dump-json",
         "--no-download",
-        // Use web client when cookies present (android clients don't support cookies)
-        "--extractor-args", cookiesPath
-          ? "youtube:player_client=web"
-          : "youtube:player_client=android_vr,web,android",
+        "--extractor-args", "youtube:player_client=web",
         "--extractor-retries", "3",
-        // Download remote JS challenge solver components
-        "--remote-components", "ejs:github",
         url,
       ];
+
+      // Add bgutil POT provider if server is running
+      if (bgutilBaseUrl) {
+        args.splice(args.indexOf("--extractor-retries"), 0,
+          "--extractor-args", `youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`
+        );
+        console.log(`[YOUTUBE SERVICE] Using bgutil POT provider at: ${bgutilBaseUrl}`);
+      }
+
+      // Add proxy if configured
+      if (proxy) {
+        args.unshift("--proxy", proxy);
+        console.log(`[YOUTUBE SERVICE] Using proxy: ${proxy}`);
+      }
 
       if (cookiesPath) {
         args.unshift("--cookies", cookiesPath);
@@ -287,6 +298,8 @@ export class YouTubeService {
 
     // Add cookies if available
     const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
+    const proxy = process.env.YOUTUBE_PROXY;
+    const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
     
     const args = [
       "-f", "bestaudio[ext=m4a]/bestaudio/best",
@@ -295,16 +308,24 @@ export class YouTubeService {
       "--no-warnings",
       "--no-check-certificates",
       "--prefer-free-formats",
-      // Use web client when cookies present (android clients don't support cookies)
-      "--extractor-args", cookiesPath
-        ? "youtube:player_client=web"
-        : "youtube:player_client=android_vr,web,android",
+      "--extractor-args", "youtube:player_client=web",
       "--extractor-retries", "3",
       "--fragment-retries", "5",
       "--retry-sleep", "2",
-      "--remote-components", "ejs:github",
       url,
     ];
+
+    // Add bgutil POT provider if server is running
+    if (bgutilBaseUrl) {
+      args.splice(args.indexOf("--extractor-retries"), 0,
+        "--extractor-args", `youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`
+      );
+    }
+
+    // Add proxy if configured
+    if (proxy) {
+      args.unshift("--proxy", proxy);
+    }
 
     // Download only the selected timeframe if specified
     if (startTime !== undefined || endTime !== undefined) {
