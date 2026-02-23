@@ -124,6 +124,21 @@ async function checkRedisHealth(): Promise<{ status: string; latency?: number; e
   }
 }
 
+async function getGitInfo() {
+  try {
+    const { execSync } = await import("child_process");
+    const commit = execSync("git rev-parse HEAD", { cwd: "/opt/scalereach" }).toString().trim();
+    const shortCommit = execSync("git rev-parse --short HEAD", { cwd: "/opt/scalereach" }).toString().trim();
+    const branch = execSync("git rev-parse --abbrev-ref HEAD", { cwd: "/opt/scalereach" }).toString().trim();
+    const message = execSync("git log -1 --pretty=%s", { cwd: "/opt/scalereach" }).toString().trim();
+    const author = execSync("git log -1 --pretty=%an", { cwd: "/opt/scalereach" }).toString().trim();
+    const date = execSync("git log -1 --pretty=%ci", { cwd: "/opt/scalereach" }).toString().trim();
+    return { commit, short: shortCommit, branch, message, author, date };
+  } catch {
+    return { error: "git info unavailable" };
+  }
+}
+
 async function getQueueStats() {
   try {
     const [vW, vA, vC, vF] = await Promise.all([videoProcessingQueue.getWaitingCount(), videoProcessingQueue.getActiveCount(), videoProcessingQueue.getCompletedCount(), videoProcessingQueue.getFailedCount()]);
@@ -234,6 +249,7 @@ try {
           status: isHealthy ? "healthy" : "unhealthy",
           timestamp: new Date().toISOString(),
           uptime: Math.floor((Date.now() - startTime) / 1000),
+          git: await getGitInfo(),
           workers: {
             videoWorker: { running: videoWorker.isRunning(), concurrency: VIDEO_WORKER_CONCURRENCY },
             clipWorker: { running: clipWorker.isRunning(), concurrency: CLIP_WORKER_CONCURRENCY },
@@ -286,6 +302,7 @@ try {
           timestamp: new Date().toISOString(),
           uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
           authenticated_as: sessionEmail,
+          git: await getGitInfo(),
           workers: {
             videoWorker: { running: videoWorker.isRunning(), concurrency: VIDEO_WORKER_CONCURRENCY },
             clipWorker: { running: clipWorker.isRunning(), concurrency: CLIP_WORKER_CONCURRENCY },
