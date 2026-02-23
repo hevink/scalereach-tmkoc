@@ -180,6 +180,123 @@ healthServer = Bun.serve({
       });
     }
 
+    // Full debug dashboard — all Redis + system + queue data
+    if (url.pathname === "/health/hevin") {
+      const redisHealth = await checkRedisHealth();
+      const queueStats = await getQueueStats();
+
+      // Redis INFO
+      let redisInfo: Record<string, string> = {};
+      let redisKeys: string[] = [];
+      let redisMemory: Record<string, string> = {};
+      let redisClients: Record<string, string> = {};
+      let redisStats: Record<string, string> = {};
+      try {
+        const infoRaw = await redisConnection.info();
+        infoRaw.split("\r\n").forEach((line) => {
+          if (line && !line.startsWith("#")) {
+            const [k, v] = line.split(":");
+            if (k && v !== undefined) redisInfo[k.trim()] = v.trim();
+          }
+        });
+        redisMemory = {
+          used_memory_human: redisInfo.used_memory_human,
+          used_memory_peak_human: redisInfo.used_memory_peak_human,
+          maxmemory_human: redisInfo.maxmemory_human || "unlimited",
+          mem_fragmentation_ratio: redisInfo.mem_fragmentation_ratio,
+        };
+        redisClients = {
+          connected_clients: redisInfo.connected_clients,
+          blocked_clients: redisInfo.blocked_clients,
+          tracking_clients: redisInfo.tracking_clients,
+        };
+        redisStats = {
+          total_commands_processed: redisInfo.total_commands_processed,
+          total_connections_received: redisInfo.total_connections_received,
+          keyspace_hits: redisInfo.keyspace_hits,
+          keyspace_misses: redisInfo.keyspace_misses,
+          uptime_in_seconds: redisInfo.uptime_in_seconds,
+          redis_version: redisInfo.redis_version,
+          role: redisInfo.role,
+        };
+        // Get all BullMQ keys
+        const keys = await redisConnection.keys("bull:*");
+        redisKeys = keys.sort();
+      } catch (e) {
+        redisInfo = { error: e instanceof Error ? e.message : "failed" };
+      }
+
+      // System info
+      const os = await import("os");
+      const cpus = os.cpus();
+      const totalMem = os.totalmem();
+      const freeMem = os.freemem();
+      const loadAvg = os.loadavg();
+
+      const response = {
+        timestamp: new Date().toISOString(),
+        uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
+
+        workers: {
+          videoWorker: { running: videoWorker.isRunning(), concurrency: VIDEO_WORKER_CONCURRENCY },
+          clipWorker: { running: clipWorker.isRunning(), concurrency: CLIP_WORKER_CONCURRENCY },
+          translationWorker: { running: translationWorker.isRunning(), concurrency: 1 },
+          dubbingWorker: { running: dubbingWorker.isRunning(), concurrency: DUBBING_WORKER_CONCURRENCY },
+          socialWorker: { running: socialWorker.isRunning(), concurrency: 2 },
+          total_concurrency:
+            VIDEO_WORKER_CONCURRENCY + CLIP_WORKER_CONCURRENCY + 1 + DUBBING_WORKER_CONCURRENCY + 2,
+        },
+
+        queues: queueStats,
+
+        system: {
+          platform: os.platform(),
+          arch: os.arch(),
+          node_version: process.version,
+          bun_version: typeof Bun !== "undefined" ? Bun.version : "n/a",
+          cpu_count: cpus.length,
+          cpu_model: cpus[0]?.model,
+          cpu_speed_mhz: cpus[0]?.speed,
+          load_avg_1m: loadAvg[0].toFixed(2),
+          load_avg_5m: loadAvg[1].toFixed(2),
+          load_avg_15m: loadAvg[2].toFixed(2),
+          memory_total_mb: Math.round(totalMem / 1024 / 1024),
+          memory_free_mb: Math.round(freeMem / 1024 / 1024),
+          memory_used_mb: Math.round((totalMem - freeMem) / 1024 / 1024),
+          memory_used_pct: ((1 - freeMem / totalMem) * 100).toFixed(1) + "%",
+          process_memory_mb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+          process_heap_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+          hostname: os.hostname(),
+        },
+
+        redis: {
+          status: redisHealth.status,
+          latency_ms: redisHealth.latency,
+          version: redisStats.redis_version,
+          role: redisStats.role,
+          uptime_seconds: redisStats.uptime_in_seconds,
+          memory: redisMemory,
+          clients: redisClients,
+          stats: redisStats,
+          bullmq_keys_count: redisKeys.length,
+          bullmq_keys: redisKeys,
+        },
+
+        env: {
+          NODE_ENV: process.env.NODE_ENV,
+          WORKER_HEALTH_PORT: process.env.WORKER_HEALTH_PORT,
+          VIDEO_WORKER_CONCURRENCY: process.env.VIDEO_WORKER_CONCURRENCY,
+          CLIP_WORKER_CONCURRENCY: process.env.CLIP_WORKER_CONCURRENCY,
+          DUBBING_WORKER_CONCURRENCY: process.env.DUBBING_WORKER_CONCURRENCY,
+        },
+      };
+
+      return new Response(JSON.stringify(response, null, 2), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // Liveness probe
     if (url.pathname === "/health/live") {
       return new Response(
