@@ -6,7 +6,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 // ============================================================
 const AI_MODEL = "claude-sonnet-4-5-20250929";
 
-const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || "https://ais.scalereach.ai/";
+const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || "https://ais.scalereach.ai/v1";
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "my-super-secret-password-123";
 
 const anthropic = createAnthropic({
