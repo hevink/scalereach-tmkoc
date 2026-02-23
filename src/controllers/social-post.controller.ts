@@ -172,6 +172,63 @@ export class SocialPostController {
     }
   }
 
+  static async updatePost(c: Context) {
+    const id = c.req.param("id");
+    SocialPostController.logRequest(c, "UPDATE_POST", { id });
+
+    try {
+      const user = c.get("user");
+      if (!user) return c.json({ error: "Unauthorized" }, 401);
+
+      const post = await ScheduledPostModel.getById(id);
+      if (!post) return c.json({ error: "Post not found" }, 404);
+
+      const members = await WorkspaceModel.getMembers(post.workspaceId);
+      if (!members.some((m) => m.userId === user.id)) {
+        return c.json({ error: "Access denied" }, 403);
+      }
+
+      if (post.status !== "pending") {
+        return c.json({ error: "Only pending posts can be edited" }, 400);
+      }
+
+      const body = await c.req.json();
+      const { caption, hashtags, scheduledAt } = body;
+
+      // Reschedule the BullMQ job if scheduledAt changed
+      if (scheduledAt !== undefined && post.postType === "scheduled") {
+        const job = await socialPostingQueue.getJob(`social-${id}`);
+        if (job) await job.remove();
+
+        const target = new Date(scheduledAt);
+        const delayMs = Math.max(0, target.getTime() - Date.now());
+        await addSocialPostingJob(
+          {
+            postId: post.id,
+            workspaceId: post.workspaceId,
+            clipId: post.clipId,
+            socialAccountId: post.socialAccountId,
+            platform: post.platform,
+            caption: caption ?? post.caption ?? undefined,
+            hashtags: hashtags ?? post.hashtags ?? [],
+          },
+          delayMs
+        );
+      }
+
+      const updated = await ScheduledPostModel.update(id, {
+        caption: caption !== undefined ? caption : post.caption ?? undefined,
+        hashtags: hashtags !== undefined ? hashtags : post.hashtags ?? [],
+        scheduledAt: scheduledAt !== undefined ? new Date(scheduledAt) : post.scheduledAt ?? undefined,
+      });
+
+      return c.json(updated);
+    } catch (error) {
+      console.error("[SOCIAL POST CONTROLLER] UPDATE_POST error:", error);
+      return c.json({ error: "Failed to update post" }, 500);
+    }
+  }
+
   static async cancelPost(c: Context) {
     const id = c.req.param("id");
     SocialPostController.logRequest(c, "CANCEL_POST", { id });

@@ -97,6 +97,23 @@ export class ScheduledPostModel {
       .where(eq(scheduledPost.id, id));
   }
 
+  static async update(
+    id: string,
+    params: {
+      caption?: string;
+      hashtags?: string[];
+      scheduledAt?: Date | null;
+    }
+  ) {
+    this.logOperation("UPDATE", { id });
+    const result = await db
+      .update(scheduledPost)
+      .set({ ...params, updatedAt: new Date() })
+      .where(eq(scheduledPost.id, id))
+      .returning();
+    return result[0];
+  }
+
   static async cancel(id: string) {
     this.logOperation("CANCEL", { id });
     await db

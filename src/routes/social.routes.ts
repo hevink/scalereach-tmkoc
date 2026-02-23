@@ -18,6 +18,7 @@ protected_.delete("/accounts/:id", SocialAccountController.disconnectAccount);
 
 protected_.post("/posts", SocialPostController.schedulePost);
 protected_.get("/posts", SocialPostController.listPosts);
+protected_.patch("/posts/:id", SocialPostController.updatePost);
 protected_.delete("/posts/:id", SocialPostController.cancelPost);
 
 // Workspace clips for the scheduler modal — only ready clips with a storageUrl
