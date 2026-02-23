@@ -3,9 +3,9 @@
 services:
   - type: web
     name: scalereach-api
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    runtime: node
+    buildCommand: "curl -fsSL https://bun.sh/install | bash -s bun-v1.2.19 && export PATH=$HOME/.bun/bin:$PATH && bun install"
+    startCommand: "export PATH=$HOME/.bun/bin:$PATH && bun run src/index.ts"
     region: oregon
     plan: starter
     healthCheckPath: /health
