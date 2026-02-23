@@ -54,3 +54,59 @@ services:
         sync: false
       - key: DODO_PAYMENTS_API_KEY
         sync: false
+      - key: DODO_ENVIRONMENT
+        sync: false
+      - key: DODO_WEBHOOK_SECRET
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: AI_MODEL
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: DEEPL_API_KEY
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: SMTP_FROM_NAME
+        sync: false
+      - key: UNOSEND_API_KEY
+        sync: false
+      - key: UNOSEND_FROM_EMAIL
+        sync: false
+      - key: UNOSEND_FROM_NAME
+        sync: false
+      - key: YOUTUBE_OAUTH_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: TIKTOK_CLIENT_KEY
+        sync: false
+      - key: TIKTOK_CLIENT_SECRET
+        sync: false
+      - key: INSTAGRAM_APP_ID
+        sync: false
+      - key: INSTAGRAM_APP_SECRET
+        sync: false
+      - key: TWITTER_CLIENT_ID
+        sync: false
+      - key: TWITTER_CLIENT_SECRET
+        sync: false
+      - key: SOCIAL_OAUTH_REDIRECT_BASE_URL
+        sync: false
+      - key: REDIS_HOST
+        sync: false
+      - key: REDIS_PORT
+        sync: false
+      - key: REDIS_PASSWORD
+        sync: false

@@ -60,6 +60,13 @@ COPY drizzle ./drizzle
 COPY drizzle.config.ts tsconfig.json ./
 
 # Create config directory for YouTube cookies
-RUN mkdir -p /app/config
+RUN mkdir -p /app/config && chown -R appuser:appuser /app
 
-CMD ["bun", "run", "--env-file=.env", "src/worker.ts"]
+USER appuser
+
+EXPOSE 3002
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:3002/health/live || exit 1
+
+CMD ["bun", "run", "src/worker.ts"]

@@ -9,7 +9,7 @@ import { DeepgramService } from "../services/deepgram.service";
 import { ViralDetectionService } from "../services/viral-detection.service";
 import { FFmpegService } from "../services/ffmpeg.service";
 import { CLASSIC_TEMPLATE, getTemplateById } from "../data/caption-templates";
-import { VideoConfigModel } from "../models/video-config.model";
+import { VideoConfigModel, parseSplitScreenBgVideoIds } from "../models/video-config.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { UserModel } from "../models/user.model";
 import { MinutesModel } from "../models/minutes.model";
@@ -25,6 +25,33 @@ import {
   VideoProcessingJobData,
   addClipGenerationJob,
 } from "./queue";
+
+import type { BackgroundVideo } from "../db/schema/background-video.schema";
+
+/**
+ * Pick a background video for a single clip from the pre-loaded pool.
+ * Falls back to a fully random DB pick when the pool is empty (no selection made).
+ */
+async function pickSplitScreenBg(
+  pool: BackgroundVideo[],
+  splitRatio: number
+): Promise<{ backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined> {
+  try {
+    const bgVideo = pool.length > 0
+      ? pool[Math.floor(Math.random() * pool.length)]
+      : await BackgroundVideoModel.getRandom();
+    if (!bgVideo) return undefined;
+    return {
+      backgroundVideoId: bgVideo.id,
+      backgroundStorageKey: bgVideo.storageKey,
+      backgroundDuration: bgVideo.duration,
+      splitRatio,
+    };
+  } catch (err) {
+    console.warn(`[VIDEO WORKER] Failed to pick split-screen bg:`, err);
+    return undefined;
+  }
+}
 
 async function updateVideoStatus(
   videoId: string,
@@ -153,6 +180,13 @@ async function processYouTubeVideo(
       storageUrl = uploadResult.url;
     } catch (error: any) {
       console.error(`[VIDEO WORKER] Upload failed: ${error.message}`);
+      console.error(`[VIDEO WORKER] Upload error details:`, {
+        name: error.name,
+        code: error.Code || error.code,
+        statusCode: error.$metadata?.httpStatusCode,
+        requestId: error.$metadata?.requestId,
+        message: error.message,
+      });
       // Try to clean up partial upload
       try {
         await R2Service.deleteFile(storageKey);
@@ -237,29 +271,18 @@ async function processYouTubeVideo(
 
     await job.updateProgress(90);
 
-    // Resolve split-screen background video if enabled (shared across all clips)
-    let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+    // Pre-load the background video pool for split-screen (resolved per clip below)
+    let splitScreenBgPool: import("../db/schema/background-video.schema").BackgroundVideo[] = [];
     if (videoConfig?.enableSplitScreen) {
       try {
-        let bgVideo = null;
-        if (videoConfig.splitScreenBgVideoId) {
-          bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
-        } else if (videoConfig.splitScreenBgCategoryId) {
-          bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+        const ids = parseSplitScreenBgVideoIds(videoConfig.splitScreenBgVideoId);
+        if (ids.length > 0) {
+          splitScreenBgPool = await BackgroundVideoModel.getByIds(ids);
         }
-        if (bgVideo) {
-          splitScreenData = {
-            backgroundVideoId: bgVideo.id,
-            backgroundStorageKey: bgVideo.storageKey,
-            backgroundDuration: bgVideo.duration,
-            splitRatio: videoConfig.splitRatio ?? 50,
-          };
-          console.log(`[VIDEO WORKER] Split-screen enabled: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
-        } else {
-          console.warn(`[VIDEO WORKER] Split-screen enabled but no background video found, skipping`);
-        }
+        // If pool is still empty (no selection), pickSplitScreenBg will pick random per clip
+        console.log(`[VIDEO WORKER] Split-screen bg pool: ${splitScreenBgPool.length} video(s) pre-loaded`);
       } catch (bgError) {
-        console.warn(`[VIDEO WORKER] Failed to resolve split-screen background:`, bgError);
+        console.warn(`[VIDEO WORKER] Failed to pre-load split-screen background pool:`, bgError);
       }
     }
 
@@ -349,6 +372,10 @@ async function processYouTubeVideo(
         const introTitleEnabled = false;
         const emojisEnabled = false;
 
+        const splitScreenData = videoConfig?.enableSplitScreen
+          ? await pickSplitScreenBg(splitScreenBgPool, videoConfig.splitRatio ?? 50)
+          : undefined;
+
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -371,7 +398,7 @@ async function processYouTubeVideo(
           splitScreen: splitScreenData,
         });
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ' (split-screen)' : ''}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}`);
       }
     }
 
@@ -676,29 +703,18 @@ async function processUploadedVideo(
 
     await job.updateProgress(90);
 
-    // Resolve split-screen background video if enabled (shared across all clips)
-    let splitScreenData: { backgroundVideoId: string; backgroundStorageKey: string; backgroundDuration: number; splitRatio: number } | undefined;
+    // Pre-load the background video pool for split-screen (resolved per clip below)
+    let splitScreenBgPool: BackgroundVideo[] = [];
     if (videoConfig?.enableSplitScreen) {
       try {
-        let bgVideo = null;
-        if (videoConfig.splitScreenBgVideoId) {
-          bgVideo = await BackgroundVideoModel.getById(videoConfig.splitScreenBgVideoId);
-        } else if (videoConfig.splitScreenBgCategoryId) {
-          bgVideo = await BackgroundVideoModel.getRandomByCategory(videoConfig.splitScreenBgCategoryId);
+        const ids = parseSplitScreenBgVideoIds(videoConfig.splitScreenBgVideoId);
+        if (ids.length > 0) {
+          splitScreenBgPool = await BackgroundVideoModel.getByIds(ids);
         }
-        if (bgVideo) {
-          splitScreenData = {
-            backgroundVideoId: bgVideo.id,
-            backgroundStorageKey: bgVideo.storageKey,
-            backgroundDuration: bgVideo.duration,
-            splitRatio: videoConfig.splitRatio ?? 50,
-          };
-          console.log(`[VIDEO WORKER] Split-screen enabled: bg=${bgVideo.displayName}, ratio=${splitScreenData.splitRatio}`);
-        } else {
-          console.warn(`[VIDEO WORKER] Split-screen enabled but no background video found, skipping`);
-        }
+        // If pool is still empty (no selection), pickSplitScreenBg will pick random per clip
+        console.log(`[VIDEO WORKER] Split-screen bg pool: ${splitScreenBgPool.length} video(s) pre-loaded`);
       } catch (bgError) {
-        console.warn(`[VIDEO WORKER] Failed to resolve split-screen background:`, bgError);
+        console.warn(`[VIDEO WORKER] Failed to pre-load split-screen background pool:`, bgError);
       }
     }
 
@@ -788,6 +804,10 @@ async function processUploadedVideo(
         const introTitleEnabled = false;
         const emojisEnabled = false;
 
+        const splitScreenData = videoConfig?.enableSplitScreen
+          ? await pickSplitScreenBg(splitScreenBgPool, videoConfig.splitRatio ?? 50)
+          : undefined;
+
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -810,7 +830,7 @@ async function processUploadedVideo(
           splitScreen: splitScreenData,
         });
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ' (split-screen)' : ''}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}`);
       }
     }
 

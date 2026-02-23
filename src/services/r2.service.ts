@@ -85,8 +85,18 @@ export class R2Service {
       console.log(`[R2 SERVICE] Upload progress: ${progress.loaded} bytes`);
     });
 
-    await upload.done();
-
+    try {
+      await upload.done();
+    } catch (err: any) {
+      console.error(`[R2 SERVICE] Stream upload error:`, {
+        name: err.name,
+        message: err.message,
+        code: err.Code || err.code,
+        statusCode: err.$metadata?.httpStatusCode,
+        requestId: err.$metadata?.requestId,
+      });
+      throw err;
+    }
     const url = R2_PUBLIC_URL
       ? `${R2_PUBLIC_URL}/${key}`
       : `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${key}`;

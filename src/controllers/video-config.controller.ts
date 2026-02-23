@@ -106,7 +106,10 @@ export class VideoConfigController {
         enableIntroTitle: body.enableIntroTitle ?? false,
         // Split-Screen Options
         enableSplitScreen: body.enableSplitScreen ?? false,
-        splitScreenBgVideoId: body.splitScreenBgVideoId ?? null,
+        splitScreenBgVideoId: Array.isArray(body.splitScreenBgVideoIds) && body.splitScreenBgVideoIds.length > 0
+          ? JSON.stringify(body.splitScreenBgVideoIds)
+          : (body.splitScreenBgVideoId ?? null),
+        splitScreenBgVideoIds: Array.isArray(body.splitScreenBgVideoIds) ? body.splitScreenBgVideoIds : null,
         splitScreenBgCategoryId: body.splitScreenBgCategoryId ?? null,
         splitRatio: body.splitRatio ?? 50,
       };
@@ -208,7 +211,14 @@ export class VideoConfigController {
       if (body.enableIntroTitle !== undefined) configInput.enableIntroTitle = body.enableIntroTitle;
       // Split-Screen Options
       if (body.enableSplitScreen !== undefined) configInput.enableSplitScreen = body.enableSplitScreen;
-      if (body.splitScreenBgVideoId !== undefined) configInput.splitScreenBgVideoId = body.splitScreenBgVideoId;
+      if (body.splitScreenBgVideoIds !== undefined) {
+        configInput.splitScreenBgVideoIds = Array.isArray(body.splitScreenBgVideoIds) ? body.splitScreenBgVideoIds : null;
+        configInput.splitScreenBgVideoId = Array.isArray(body.splitScreenBgVideoIds) && body.splitScreenBgVideoIds.length > 0
+          ? JSON.stringify(body.splitScreenBgVideoIds)
+          : null;
+      } else if (body.splitScreenBgVideoId !== undefined) {
+        configInput.splitScreenBgVideoId = body.splitScreenBgVideoId;
+      }
       if (body.splitScreenBgCategoryId !== undefined) configInput.splitScreenBgCategoryId = body.splitScreenBgCategoryId;
       if (body.splitRatio !== undefined) configInput.splitRatio = body.splitRatio;
 

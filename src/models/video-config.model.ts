@@ -27,9 +27,19 @@ export interface VideoConfigInput {
   enableIntroTitle?: boolean;
   // Split-Screen Options
   enableSplitScreen?: boolean;
-  splitScreenBgVideoId?: string | null;
+  splitScreenBgVideoId?: string | null;       // legacy single-select (kept for compat)
+  splitScreenBgVideoIds?: string[] | null;    // multi-select: JSON-encoded in DB
   splitScreenBgCategoryId?: string | null;
   splitRatio?: number;
+}
+
+/** Parse the stored splitScreenBgVideoId value — may be a JSON array or a plain ID */
+export function parseSplitScreenBgVideoIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  if (raw.startsWith("[")) {
+    try { return JSON.parse(raw); } catch { return []; }
+  }
+  return [raw];
 }
 
 export class VideoConfigModel {

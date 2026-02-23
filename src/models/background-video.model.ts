@@ -47,6 +47,26 @@ export class BackgroundVideoModel {
     return result[0] || null;
   }
 
+  static async getByIds(ids: string[]): Promise<BackgroundVideo[]> {
+    if (ids.length === 0) return [];
+    this.log("GET_BY_IDS", { ids });
+    const result = await db
+      .select()
+      .from(backgroundVideo)
+      .where(sql`${backgroundVideo.id} = ANY(${ids})`);
+    return result;
+  }
+
+  static async getRandom(): Promise<BackgroundVideo | null> {
+    this.log("GET_RANDOM");
+    const result = await db
+      .select()
+      .from(backgroundVideo)
+      .orderBy(sql`RANDOM()`)
+      .limit(1);
+    return result[0] || null;
+  }
+
   static async getRandomByCategory(categoryId: string): Promise<BackgroundVideo | null> {
     this.log("GET_RANDOM_BY_CATEGORY", { categoryId });
     const result = await db
