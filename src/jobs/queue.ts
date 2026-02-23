@@ -236,6 +236,12 @@ export function createWorker<T>(
   const worker = new Worker<T>(queueName, processor, {
     connection: createRedisConnection(),
     concurrency,
+    // FFmpeg jobs can take 2-5 minutes — increase stall thresholds so a
+    // slow encode doesn't get incorrectly marked as stalled and retried.
+    stalledInterval: 5 * 60 * 1000,  // check for stalled jobs every 5 min (default: 30s)
+    maxStalledCount: 3,               // allow 3 stall recoveries before failing (default: 1)
+    lockDuration: 10 * 60 * 1000,    // job lock lasts 10 min (default: 30s)
+    lockRenewTime: 5 * 60 * 1000,    // renew lock every 5 min (default: 15s)
   });
 
   worker.on("completed", (job) => {
@@ -263,7 +269,7 @@ export const clipGenerationQueue = new Queue<ClipGenerationJobData>(
   {
     connection: createRedisConnection(),
     defaultJobOptions: {
-      attempts: 3, // Retry up to 3 times (Requirement 7.7)
+      attempts: 5, // Retry up to 5 times (Requirement 7.7)
       backoff: {
         type: "exponential",
         delay: 5000,
