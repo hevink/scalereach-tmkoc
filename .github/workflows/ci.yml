@@ -56,21 +56,41 @@ jobs:
             export PATH="/home/ubuntu/.bun/bin:$PATH"
             cd /opt/scalereach
 
+            # Save current commit for rollback
+            PREV_COMMIT=$(git rev-parse HEAD)
+            echo "📌 Current commit: $PREV_COMMIT"
+
             echo "📦 Pulling latest code..."
             git fetch origin
+            git stash
             git checkout ${{ github.ref_name }}
             git pull origin ${{ github.ref_name }}
+
+            NEW_COMMIT=$(git rev-parse HEAD)
+            echo "🆕 New commit: $NEW_COMMIT"
 
             echo "📦 Installing dependencies..."
             bun install
 
             echo "🔄 Reloading worker..."
             pm2 reload ecosystem.config.cjs --update-env || pm2 start ecosystem.config.cjs
-
             pm2 save
-            echo "✅ Worker deploy complete"
-            pm2 status
 
-            echo "🏥 Health check..."
-            sleep 3
-            curl -sf http://localhost:3002/health | grep -q '"status":"healthy"' && echo "✅ Health OK" || echo "⚠️ Health check failed"
+            echo "🏥 Health check (waiting 8s)..."
+            sleep 8
+            if curl -sf http://localhost:3002/health | grep -q '"status":"healthy"'; then
+              echo "✅ Deploy successful — $NEW_COMMIT"
+              pm2 status
+            else
+              echo "❌ Health check failed — rolling back to $PREV_COMMIT"
+              git checkout $PREV_COMMIT
+              bun install
+              pm2 reload ecosystem.config.cjs --update-env || pm2 start ecosystem.config.cjs
+              sleep 5
+              if curl -sf http://localhost:3002/health | grep -q '"status":"healthy"'; then
+                echo "✅ Rollback successful — running $PREV_COMMIT"
+              else
+                echo "🚨 Rollback also failed — manual intervention required"
+              fi
+              exit 1
+            fi
