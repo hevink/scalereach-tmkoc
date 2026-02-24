@@ -360,6 +360,22 @@ export class AdminController {
   }
 
   /**
+   * Get a single user by ID
+   * GET /api/admin/users/:id
+   */
+  static async getUserById(c: Context) {
+    try {
+      const userId = c.req.param("id");
+      const user = await AdminModel.getUserById(userId);
+      if (!user) return c.json({ error: "User not found" }, 404);
+      return c.json(user);
+    } catch (error) {
+      console.error("[ADMIN] Failed to get user:", error);
+      return c.json({ error: "Failed to get user" }, 500);
+    }
+  }
+
+  /**
    * Get videos for a specific user
    * GET /api/admin/users/:id/videos?page=1&limit=20
    */

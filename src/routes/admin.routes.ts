@@ -33,6 +33,7 @@ adminRouter.put("/users/:id/role", AdminController.updateUserRole);
 adminRouter.delete("/users/:id", AdminController.deleteUser);
 adminRouter.get("/users/:id/videos", AdminController.getUserVideos);
 adminRouter.get("/users/:id/clips", AdminController.getUserClips);
+adminRouter.get("/users/:id", AdminController.getUserById);
 
 // Workspace management
 adminRouter.get("/workspaces", AdminController.getAllWorkspaces);

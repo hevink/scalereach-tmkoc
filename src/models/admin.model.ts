@@ -1139,6 +1139,32 @@ export class AdminModel {
   }
 
   /**
+   * Get a single user by ID (admin view)
+   */
+  static async getUserById(userId: string) {
+    this.logOperation("GET_USER_BY_ID", { userId });
+    try {
+      const result = await db.select({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        image: user.image,
+        role: user.role,
+        emailVerified: user.emailVerified,
+        isOnboarded: user.isOnboarded,
+        twoFactorEnabled: user.twoFactorEnabled,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      }).from(user).where(eq(user.id, userId));
+      return result[0] || null;
+    } catch (error) {
+      console.error(`[ADMIN MODEL] GET_USER_BY_ID failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Get all videos for a specific user (admin view)
    */
   static async getUserVideos(userId: string, page: number = 1, limit: number = 20) {
