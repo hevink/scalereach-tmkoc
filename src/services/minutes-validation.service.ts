@@ -80,6 +80,7 @@ export function canUploadVideo(
       reason: "INSUFFICIENT_MINUTES",
       message: ERROR_MESSAGES.INSUFFICIENT_MINUTES[plan],
       upgrade: plan !== "pro",
+      minutesWillBeDeducted: minutesNeeded, // include so caller can show the actual number
     };
   }
 
@@ -115,6 +116,7 @@ export function canRegenerateVideo(
       reason: "INSUFFICIENT_MINUTES",
       message: ERROR_MESSAGES.INSUFFICIENT_MINUTES[plan],
       upgrade: plan !== "pro",
+      minutesWillBeDeducted: minutesNeeded,
     };
   }
 

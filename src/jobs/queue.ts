@@ -50,10 +50,13 @@ redisConnection.on("error", (err) => {
   console.error("[REDIS] Connection error:", err.message);
 });
 
+// Queue prefix — set QUEUE_PREFIX=local in .env.local to isolate local jobs from prod
+const QUEUE_PREFIX = process.env.QUEUE_PREFIX ? `${process.env.QUEUE_PREFIX}-` : "";
+
 export const QUEUE_NAMES = {
-  VIDEO_PROCESSING: "video-processing",
-  CLIP_GENERATION: "clip-generation",
-  SOCIAL_POSTING: "social-posting",
+  VIDEO_PROCESSING: `${QUEUE_PREFIX}video-processing`,
+  CLIP_GENERATION: `${QUEUE_PREFIX}clip-generation`,
+  SOCIAL_POSTING: `${QUEUE_PREFIX}social-posting`,
 } as const;
 
 /**
