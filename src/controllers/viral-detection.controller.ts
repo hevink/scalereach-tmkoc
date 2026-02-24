@@ -320,6 +320,37 @@ export class ViralDetectionController {
   }
 
   /**
+   * PATCH /api/clips/:id
+   * Update clip metadata (title, introTitle)
+   */
+  static async updateClip(c: Context) {
+    const clipId = c.req.param("id");
+    ViralDetectionController.logRequest(c, "UPDATE_CLIP", { clipId });
+
+    try {
+      const clip = await ClipModel.getById(clipId);
+      if (!clip) {
+        return c.json({ error: "Clip not found" }, 404);
+      }
+
+      const body = await c.req.json();
+      const updates: Record<string, any> = {};
+      if (typeof body.title === "string") updates.title = body.title;
+      if (typeof body.introTitle === "string") updates.introTitle = body.introTitle;
+
+      if (Object.keys(updates).length === 0) {
+        return c.json({ error: "No valid fields to update" }, 400);
+      }
+
+      const updated = await ClipModel.update(clipId, updates);
+      return c.json(updated);
+    } catch (error) {
+      console.error(`[VIRAL DETECTION CONTROLLER] UPDATE_CLIP error:`, error);
+      return c.json({ error: "Failed to update clip" }, 500);
+    }
+  }
+
+  /**
    * DELETE /api/clips/:id
    * Delete a clip
    */

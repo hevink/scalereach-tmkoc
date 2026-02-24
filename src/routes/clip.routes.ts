@@ -14,6 +14,7 @@ clipRouter.use("/*", authMiddleware);
 // Clip management endpoints
 // Validates: Requirements 22.1, 22.2, 22.3, 22.4, 22.5
 clipRouter.get("/:id", ViralDetectionController.getClipById);
+clipRouter.patch("/:id", ViralDetectionController.updateClip);
 clipRouter.delete("/:id", ViralDetectionController.deleteClip);
 clipRouter.post("/:id/favorite", ViralDetectionController.toggleFavorite);
 
