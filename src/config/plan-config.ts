@@ -14,7 +14,7 @@ export interface PlanLimits {
   translationsPerVideo: number; // -1 = unlimited
   dubbingMinutesPerMonth: number; // 0 = disabled, -1 = unlimited
   splitScreen: boolean; // split-screen clip generation
-  maxClipQuality: "1080p" | "2k" | "4k"; // max output quality for clips
+  maxClipQuality: "720p" | "1080p" | "2k" | "4k"; // max output quality for clips
   socialAccounts: number; // 0 = disabled, -1 = unlimited
 }
 
@@ -38,7 +38,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       translationsPerVideo: 1,
       dubbingMinutesPerMonth: 0,
       splitScreen: false,
-      maxClipQuality: "1080p",
+      maxClipQuality: "720p",
       socialAccounts: 0,
     },
   },
@@ -72,7 +72,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       translationsPerVideo: -1, // unlimited
       dubbingMinutesPerMonth: 30,
       splitScreen: true,
-      maxClipQuality: "2k",
+      maxClipQuality: "4k",
       socialAccounts: 5,
     },
   },
