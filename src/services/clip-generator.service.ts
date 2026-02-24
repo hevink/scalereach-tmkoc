@@ -114,14 +114,18 @@ function getOutputDimensions(
 
 /**
  * Get FFmpeg encoding params based on quality.
- * Pro plan (2k/4k) → slow preset + CRF 16 for maximum quality.
- * Free/Starter (720p/1080p) → veryfast + CRF 18 to keep CPU usage low.
+ * Pro plan (2k/4k) → medium preset + CRF 18 for high quality with reasonable CPU.
+ * Free/Starter (720p/1080p) → ultrafast + CRF 22 to minimize CPU usage.
+ *
+ * NOTE: Social media platforms (TikTok, YouTube, Instagram) re-encode all uploads
+ * to ~5-8 Mbps, so CRF differences below ~23 are invisible to end viewers.
+ * Using medium instead of slow is 3-4x faster with virtually identical visual quality.
  */
 function getEncodingParams(quality: VideoQuality): { preset: string; crf: string } {
   if (quality === "2k" || quality === "4k") {
-    return { preset: "slow", crf: "16" };
+    return { preset: "medium", crf: "18" };
   }
-  return { preset: "veryfast", crf: "18" };
+  return { preset: "ultrafast", crf: "22" };
 }
 
 /**
@@ -220,10 +224,16 @@ export class ClipGeneratorService {
    * Creates TWO versions:
    * 1. storageUrl - clip WITH captions (for download/share)
    * 2. rawStorageUrl - clip WITHOUT captions (for editing)
+   *
+   * OPTIMIZED PIPELINE (v2):
+   * - Downloads/extracts source segment ONCE, reuses for both versions
+   * - Split-screen + captions merged into single FFmpeg pass where possible
+   * - Reduces FFmpeg encode passes from up to 7 → 2-3 per clip
+   *
    * Validates: Requirements 7.1, 7.3
    */
   static async generateClip(options: ClipGenerationOptions, onProgress?: (percent: number) => void): Promise<GeneratedClip> {
-    this.logOperation("GENERATE_CLIP", {
+    this.logOperation("GENERATE_CLIP_V2", {
       clipId: options.clipId,
       sourceType: options.sourceType,
       aspectRatio: options.aspectRatio,
@@ -232,224 +242,177 @@ export class ClipGeneratorService {
       endTime: options.endTime,
       hasCaptions: !!options.captions?.words?.length,
       hasIntroTitle: !!options.introTitle,
+      hasSplitScreen: !!options.splitScreen,
     });
 
     const { width, height } = getOutputDimensions(options.aspectRatio, options.quality);
     const duration = options.endTime - options.startTime;
 
-    // Generate storage keys for both versions using new hierarchical structure
-    // Structure: {userId}/{videoId}/clips/{clipId}-{aspectRatio}.mp4
     const storageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, false);
     const rawStorageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, true);
+
+    const tempDir = os.tmpdir();
+    const tempId = nanoid();
+    // Shared temp paths for the single-download approach
+    const rawSourcePath = path.join(tempDir, `src-${tempId}.mp4`);
+    const captionedOutputPath = path.join(tempDir, `cap-${tempId}.mp4`);
+    const rawOutputPath = path.join(tempDir, `raw-${tempId}.mp4`);
+    const tempPaths: string[] = [rawSourcePath, captionedOutputPath, rawOutputPath];
 
     let clipWithCaptionsBuffer: Buffer;
     let clipWithoutCaptionsBuffer: Buffer;
 
-    // When split screen is enabled, we generate clips WITHOUT captions first,
-    // compose the split screen, then burn captions onto the composed video
-    // so captions appear at the dividing line between main video and gameplay.
-    const deferCaptions = !!options.splitScreen && !!options.captions?.words?.length;
-    const captionsForGeneration = deferCaptions ? undefined : options.captions;
+    try {
+      // ── STEP 1: Download/extract source segment ONCE ──
+      onProgress?.(10);
+      if (options.sourceType === "youtube" && options.sourceUrl) {
+        await this.downloadYouTubeSegmentToFile(
+          options.sourceUrl, options.startTime, options.endTime, rawSourcePath, options.quality
+        );
+      } else if (options.sourceType === "upload" && options.storageKey) {
+        await this.downloadUploadedSegmentToFile(
+          options.storageKey, options.startTime, options.endTime, rawSourcePath
+        );
+      } else {
+        throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
+      }
+      this.logOperation("SOURCE_DOWNLOADED_ONCE", { path: rawSourcePath });
 
-    if (options.sourceType === "youtube" && options.sourceUrl) {
-      // Generate clip WITH captions (or without if deferred for split screen)
-      onProgress?.(25);
-      clipWithCaptionsBuffer = await this.downloadYouTubeSegment(
-        options.sourceUrl,
-        options.startTime,
-        options.endTime,
-        options.aspectRatio,
-        options.quality,
-        captionsForGeneration,
-        options.introTitle,
-        options.watermark,
-        options.emojis
-      );
-
-      // Generate clip WITHOUT captions (raw version for editing)
-      onProgress?.(50);
-      clipWithoutCaptionsBuffer = await this.downloadYouTubeSegment(
-        options.sourceUrl,
-        options.startTime,
-        options.endTime,
-        options.aspectRatio,
-        options.quality,
-        undefined, // No captions
-        undefined, // No intro title
-        options.watermark,
-        undefined  // No emojis
-      );
-    } else if (options.sourceType === "upload" && options.storageKey) {
-      // Generate clip WITH captions (or without if deferred for split screen)
-      onProgress?.(25);
-      clipWithCaptionsBuffer = await this.extractSegmentFromFile(
-        options.storageKey,
-        options.startTime,
-        options.endTime,
-        options.aspectRatio,
-        options.quality,
-        captionsForGeneration,
-        options.introTitle,
-        options.watermark,
-        options.emojis
-      );
-
-      // Generate clip WITHOUT captions (raw version for editing)
-      onProgress?.(50);
-      clipWithoutCaptionsBuffer = await this.extractSegmentFromFile(
-        options.storageKey,
-        options.startTime,
-        options.endTime,
-        options.aspectRatio,
-        options.quality,
-        undefined, // No captions
-        undefined, // No intro title
-        options.watermark,
-        undefined  // No emojis
-      );
-    } else {
-      throw new Error("Invalid source configuration: missing sourceUrl or storageKey");
-    }
-
-    // Apply split-screen composition if enabled
-    if (options.splitScreen) {
-      this.logOperation("SPLIT_SCREEN_COMPOSE", {
-        clipId: options.clipId,
-        splitRatio: options.splitScreen.splitRatio,
-        bgDuration: options.splitScreen.backgroundDuration,
-        deferCaptions,
-      });
-
+      // ── STEP 2: Determine split-screen setup ──
       let bgTempPath: string | undefined;
-      const tempPaths: string[] = [];
+      const hasSplitScreen = !!options.splitScreen;
+      const hasCaptions = !!(options.captions?.words?.length || options.introTitle || options.emojis);
 
-      try {
-        // Download background video
+      if (hasSplitScreen) {
         bgTempPath = await SplitScreenCompositorService.downloadBackground(
-          options.splitScreen.backgroundStorageKey
+          options.splitScreen!.backgroundStorageKey
         );
         tempPaths.push(bgTempPath);
+      }
 
-        // Compose split-screen for main clip (no captions yet if deferred)
-        const mainTempWith = path.join(os.tmpdir(), `ss-main-with-${nanoid()}.mp4`);
-        const composedWith = path.join(os.tmpdir(), `ss-out-with-${nanoid()}.mp4`);
-        tempPaths.push(mainTempWith, composedWith);
-        await fs.promises.writeFile(mainTempWith, clipWithCaptionsBuffer);
+      // ── STEP 3: Generate RAW clip (no captions, no emojis, no intro) ──
+      // This is always a single FFmpeg pass: aspect ratio conversion (+ split-screen if enabled)
+      onProgress?.(30);
+      if (hasSplitScreen && bgTempPath) {
+        // Single-pass: aspect ratio + split-screen composition
+        await this.convertWithSplitScreen(
+          rawSourcePath, rawOutputPath, bgTempPath,
+          width, height, duration,
+          options.splitScreen!.splitRatio,
+          options.splitScreen!.backgroundDuration,
+          undefined, // no subtitles
+          options.watermark, options.quality
+        );
+      } else {
+        // Single-pass: aspect ratio conversion only
+        await this.convertAspectRatioFile(
+          rawSourcePath, rawOutputPath, width, height,
+          undefined, // no subtitles
+          options.watermark, options.quality
+        );
+      }
+      clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
 
-        await SplitScreenCompositorService.compose({
-          mainClipPath: mainTempWith,
-          backgroundVideoPath: bgTempPath,
-          outputPath: composedWith,
-          splitRatio: options.splitScreen.splitRatio,
-          targetWidth: width,
-          targetHeight: height,
-          clipDuration: duration,
-          backgroundDuration: options.splitScreen.backgroundDuration,
-          quality: options.quality,
-        });
-        clipWithCaptionsBuffer = await fs.promises.readFile(composedWith);
+      if (clipWithoutCaptionsBuffer.length < 10000) {
+        throw new Error(`FFmpeg produced an empty or corrupt clip (${clipWithoutCaptionsBuffer.length} bytes). The segment may be outside the video's duration.`);
+      }
 
-        // Compose split-screen for raw clip (no captions)
-        const mainTempRaw = path.join(os.tmpdir(), `ss-main-raw-${nanoid()}.mp4`);
-        const composedRaw = path.join(os.tmpdir(), `ss-out-raw-${nanoid()}.mp4`);
-        tempPaths.push(mainTempRaw, composedRaw);
-        await fs.promises.writeFile(mainTempRaw, clipWithoutCaptionsBuffer);
-
-        await SplitScreenCompositorService.compose({
-          mainClipPath: mainTempRaw,
-          backgroundVideoPath: bgTempPath,
-          outputPath: composedRaw,
-          splitRatio: options.splitScreen.splitRatio,
-          targetWidth: width,
-          targetHeight: height,
-          clipDuration: duration,
-          backgroundDuration: options.splitScreen.backgroundDuration,
-          quality: options.quality,
-        });
-        clipWithoutCaptionsBuffer = await fs.promises.readFile(composedRaw);
-
-        // Now burn captions onto the composed video at the split point
-        if (deferCaptions && options.captions) {
-          const splitRatio = options.splitScreen.splitRatio;
-          // Place captions just above the split line (bottom of main video area)
+      // ── STEP 4: Generate CAPTIONED clip ──
+      onProgress?.(55);
+      if (!hasCaptions) {
+        // No captions needed — reuse the raw buffer (zero extra encoding)
+        clipWithCaptionsBuffer = clipWithoutCaptionsBuffer;
+      } else {
+        // Prepare ASS subtitles
+        let captionsForASS = options.captions;
+        // For split-screen, position captions at the split line
+        if (hasSplitScreen && captionsForASS?.words?.length) {
+          const splitRatio = options.splitScreen!.splitRatio;
           const captionY = splitRatio - 5;
-          const captionsAtSplitPoint: NonNullable<ClipGenerationOptions["captions"]> = {
-            ...options.captions,
+          captionsForASS = {
+            ...captionsForASS,
             style: {
-              ...options.captions.style,
+              ...captionsForASS.style,
               position: "center" as const,
               y: captionY,
-              x: options.captions.style?.x ?? 50,
+              x: captionsForASS.style?.x ?? 50,
             },
           };
-          this.logOperation("BURN_CAPTIONS_AT_SPLIT_POINT", {
-            clipId: options.clipId,
-            captionY: splitRatio,
-            splitRatio,
-          });
-          clipWithCaptionsBuffer = await this.burnSubtitlesOnBuffer(
-            clipWithCaptionsBuffer,
-            captionsAtSplitPoint,
-            width,
-            height,
-            options.introTitle,
-            options.emojis,
-            options.quality
-          );
         }
 
-        this.logOperation("SPLIT_SCREEN_COMPLETE", { clipId: options.clipId });
-      } catch (ssError) {
-        // Fall back to single-video pipeline on failure
-        console.warn(
-          `[CLIP GENERATOR] Split-screen composition failed, falling back to single-video:`,
-          ssError instanceof Error ? ssError.message : ssError
+        const assContent = this.generateASSSubtitles(
+          captionsForASS?.words || [],
+          captionsForASS?.style,
+          width, height,
+          options.introTitle,
+          options.emojis
         );
-        // Captions were deferred — burn them onto the fallback clip so they're not lost
-        if (deferCaptions && options.captions) {
-          clipWithCaptionsBuffer = await this.burnSubtitlesOnBuffer(
-            clipWithCaptionsBuffer,
-            options.captions,
-            width,
-            height,
-            options.introTitle,
-            options.emojis,
-            options.quality
+        const tempSubsPath = path.join(tempDir, `subs-${tempId}.ass`);
+        tempPaths.push(tempSubsPath);
+        await fs.promises.writeFile(tempSubsPath, assContent);
+
+        if (hasSplitScreen && bgTempPath) {
+          // Single-pass: aspect ratio + split-screen + captions all in one FFmpeg command
+          await this.convertWithSplitScreen(
+            rawSourcePath, captionedOutputPath, bgTempPath,
+            width, height, duration,
+            options.splitScreen!.splitRatio,
+            options.splitScreen!.backgroundDuration,
+            tempSubsPath,
+            options.watermark, options.quality
+          );
+        } else {
+          // Single-pass: aspect ratio + captions
+          await this.convertAspectRatioFile(
+            rawSourcePath, captionedOutputPath, width, height,
+            tempSubsPath,
+            options.watermark, options.quality
           );
         }
-      } finally {
-        await SplitScreenCompositorService.cleanup(tempPaths);
+
+        clipWithCaptionsBuffer = await fs.promises.readFile(captionedOutputPath);
+
+        if (clipWithCaptionsBuffer.length < 10000) {
+          throw new Error(`FFmpeg produced an empty or corrupt captioned clip (${clipWithCaptionsBuffer.length} bytes).`);
+        }
       }
+
+      this.logOperation("CLIP_GENERATION_COMPLETE", {
+        clipId: options.clipId,
+        captionedSize: clipWithCaptionsBuffer.length,
+        rawSize: clipWithoutCaptionsBuffer.length,
+      });
+
+      // ── STEP 5: Upload both versions to R2 ──
+      onProgress?.(70);
+      this.logOperation("UPLOADING_CLIP_WITH_CAPTIONS", { storageKey, size: clipWithCaptionsBuffer.length });
+      const { url: storageUrl } = await R2Service.uploadFile(storageKey, clipWithCaptionsBuffer, "video/mp4");
+
+      onProgress?.(85);
+      this.logOperation("UPLOADING_RAW_CLIP", { rawStorageKey, size: clipWithoutCaptionsBuffer.length });
+      const { url: rawStorageUrl } = await R2Service.uploadFile(rawStorageKey, clipWithoutCaptionsBuffer, "video/mp4");
+
+      return {
+        storageKey,
+        storageUrl,
+        rawStorageKey,
+        rawStorageUrl,
+        duration,
+        width,
+        height,
+        fileSize: clipWithCaptionsBuffer.length,
+      };
+    } catch (error) {
+      // If split-screen failed, try fallback without split-screen
+      if (options.splitScreen && error instanceof Error && error.message.includes("Split-screen")) {
+        console.warn(`[CLIP GENERATOR] Split-screen failed, falling back to single-video pipeline:`, error.message);
+        const fallbackOptions = { ...options, splitScreen: undefined };
+        return this.generateClip(fallbackOptions, onProgress);
+      }
+      throw error;
+    } finally {
+      await SplitScreenCompositorService.cleanup(tempPaths);
     }
-
-    // Upload clip WITH captions to R2
-    onProgress?.(70);
-    this.logOperation("UPLOADING_CLIP_WITH_CAPTIONS", { storageKey, size: clipWithCaptionsBuffer.length });
-    const { url: storageUrl } = await R2Service.uploadFile(
-      storageKey,
-      clipWithCaptionsBuffer,
-      "video/mp4"
-    );
-
-    // Upload clip WITHOUT captions (raw) to R2
-    onProgress?.(85);
-    this.logOperation("UPLOADING_RAW_CLIP", { rawStorageKey, size: clipWithoutCaptionsBuffer.length });
-    const { url: rawStorageUrl } = await R2Service.uploadFile(
-      rawStorageKey,
-      clipWithoutCaptionsBuffer,
-      "video/mp4"
-    );
-
-    return {
-      storageKey,
-      storageUrl,
-      rawStorageKey,
-      rawStorageUrl,
-      duration,
-      width,
-      height,
-      fileSize: clipWithCaptionsBuffer.length,
-    };
   }
 
   /**
@@ -1346,6 +1309,178 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         await this.cleanupTempFile(subsPathToUse);
       }
     }
+  }
+
+  /**
+   * Download an uploaded video segment from R2 to a local temp file.
+   * Uses FFmpeg to seek and trim the segment efficiently.
+   */
+  private static async downloadUploadedSegmentToFile(
+    storageKey: string,
+    startTime: number,
+    endTime: number,
+    outputPath: string
+  ): Promise<void> {
+    const videoUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
+    const duration = endTime - startTime;
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-ss", startTime.toString(),
+        "-i", videoUrl,
+        "-t", duration.toString(),
+        "-c", "copy", // Stream copy — no re-encoding, just extract the segment
+        "-y",
+        outputPath,
+      ];
+
+      this.logOperation("DOWNLOAD_UPLOAD_SEGMENT", { storageKey, startTime, endTime });
+
+      const proc = spawn("ffmpeg", args);
+      let stderr = "";
+
+      const timeout = setTimeout(() => {
+        proc.kill("SIGKILL");
+        reject(new Error("Upload segment download timed out (5 min)"));
+      }, 5 * 60 * 1000);
+
+      proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+
+      proc.on("close", (code) => {
+        clearTimeout(timeout);
+        if (code === 0) {
+          this.logOperation("DOWNLOAD_UPLOAD_SEGMENT_COMPLETE", { outputPath });
+          resolve();
+        } else {
+          reject(new Error(`Upload segment download failed (code ${code}): ${stderr.slice(-500)}`));
+        }
+      });
+
+      proc.on("error", (err) => {
+        clearTimeout(timeout);
+        reject(new Error(`Failed to spawn FFmpeg: ${err.message}`));
+      });
+    });
+  }
+
+  /**
+   * Single-pass FFmpeg: aspect ratio conversion + split-screen composition + optional captions.
+   * Merges what was previously 3 separate encodes into 1 FFmpeg command.
+   *
+   * Filter graph:
+   *   Input 0 (main video) → scale to top portion
+   *   Input 1 (background)  → scale to bottom portion
+   *   vstack → optional ASS subtitles → optional watermark → output
+   */
+  private static async convertWithSplitScreen(
+    mainVideoPath: string,
+    outputPath: string,
+    backgroundVideoPath: string,
+    targetWidth: number,
+    targetHeight: number,
+    clipDuration: number,
+    splitRatio: number,
+    backgroundDuration: number,
+    subtitlesPath?: string,
+    watermark?: boolean,
+    quality: VideoQuality = "1080p"
+  ): Promise<void> {
+    const wmConfig = watermark
+      ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())
+      : null;
+
+    const { preset, crf } = getEncodingParams(quality);
+    const topHeight = Math.round(targetHeight * (splitRatio / 100));
+    const bottomHeight = targetHeight - topHeight;
+    const bgArgs = SplitScreenCompositorService.getBackgroundInputArgs(clipDuration, backgroundDuration);
+
+    // Build single filter_complex: scale both inputs → vstack → optional subs → optional watermark
+    let filterComplex = [
+      `[0:v]scale=${targetWidth}:${topHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${topHeight}[main]`,
+      `[1:v]scale=${targetWidth}:${bottomHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${bottomHeight}[bg]`,
+      `[main][bg]vstack`,
+    ].join(";");
+
+    // Append ASS subtitles if provided
+    if (subtitlesPath) {
+      const escapedPath = subtitlesPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+      const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+      filterComplex = `${filterComplex},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
+    }
+
+    // Append watermark or finalize
+    if (wmConfig) {
+      filterComplex = `${filterComplex}[pre_wm];${wmConfig.filterFragment},format=yuv420p[outv]`;
+    } else {
+      filterComplex = `${filterComplex},format=yuv420p[outv]`;
+    }
+
+    const args = [
+      // Input 0: main video
+      "-i", mainVideoPath,
+      // Input 1: background video (with loop/offset args)
+      ...bgArgs.inputArgs,
+      "-i", backgroundVideoPath,
+      // Watermark logo input (if any)
+      ...(wmConfig ? wmConfig.extraInputArgs : []),
+      // Filter
+      "-filter_complex", filterComplex,
+      "-map", "[outv]",
+      "-map", "0:a?",
+      // Encoding
+      "-c:v", "libx264",
+      "-preset", preset,
+      "-crf", crf,
+      "-profile:v", "high",
+      "-level", "4.0",
+      "-c:a", "aac",
+      "-b:a", "192k",
+      // Trim to clip duration
+      "-t", clipDuration.toString(),
+      "-movflags", "+faststart",
+      "-y",
+      outputPath,
+    ];
+
+    this.logOperation("FFMPEG_SPLIT_SCREEN_SINGLE_PASS", {
+      args: args.join(" "),
+      hasSubtitles: !!subtitlesPath,
+      hasWatermark: !!watermark,
+      splitRatio,
+    });
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn("ffmpeg", args);
+      let stderr = "";
+
+      const timeout = setTimeout(() => {
+        proc.kill("SIGKILL");
+        reject(new Error("Split-screen single-pass FFmpeg timed out (20 min)"));
+      }, 20 * 60 * 1000);
+
+      proc.stderr?.on("data", (d) => {
+        stderr += d.toString();
+        const match = d.toString().match(/time=(\d{2}:\d{2}:\d{2})/);
+        if (match) {
+          this.logOperation("SPLIT_SCREEN_PROGRESS", { time: match[1] });
+        }
+      });
+
+      proc.on("close", (code) => {
+        clearTimeout(timeout);
+        if (code === 0) {
+          this.logOperation("SPLIT_SCREEN_SINGLE_PASS_COMPLETE", { outputPath });
+          resolve();
+        } else {
+          reject(new Error(`Split-screen single-pass failed (code ${code}): ${stderr.slice(-500)}`));
+        }
+      });
+
+      proc.on("error", (err) => {
+        clearTimeout(timeout);
+        reject(new Error(`Failed to spawn FFmpeg: ${err.message}`));
+      });
+    });
   }
 
   /**

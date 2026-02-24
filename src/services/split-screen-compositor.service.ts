@@ -133,8 +133,8 @@ export class SplitScreenCompositorService {
     const bgArgs = this.getBackgroundInputArgs(options.clipDuration, options.backgroundDuration);
 
     const isHighQuality = options.quality === "2k" || options.quality === "4k";
-    const preset = isHighQuality ? "slow" : "veryfast";
-    const crf = isHighQuality ? "16" : "18";
+    const preset = isHighQuality ? "medium" : "ultrafast";
+    const crf = isHighQuality ? "18" : "22";
 
     const args = [
       // Input 0: main clip
