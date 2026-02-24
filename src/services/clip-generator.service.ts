@@ -1501,7 +1501,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     subtitlesPath?: string,
     watermark?: boolean,
     quality: VideoQuality = "1080p",
-    backgroundStyle: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "blur"
+    backgroundStyle: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "black"
   ): Promise<void> {
     const wmConfig = watermark
       ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())

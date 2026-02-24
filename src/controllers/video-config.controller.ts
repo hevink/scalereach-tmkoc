@@ -113,7 +113,7 @@ export class VideoConfigController {
         splitScreenBgCategoryId: body.splitScreenBgCategoryId ?? null,
         splitRatio: body.splitRatio ?? 50,
         // Background Style
-        backgroundStyle: body.backgroundStyle ?? "blur",
+        backgroundStyle: body.backgroundStyle ?? "black",
       };
 
       // Background style plan gating

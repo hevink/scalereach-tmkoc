@@ -60,7 +60,7 @@ export const videoConfig = pgTable(
     splitRatio: integer("split_ratio").default(50),
 
     // Background Style (for vertical non-split-screen clips)
-    backgroundStyle: text("background_style").default("blur"), // blur, black, white
+    backgroundStyle: text("background_style").default("black"), // blur, black, white
 
     // Timestamps
     createdAt: timestamp("created_at").defaultNow().notNull(),
