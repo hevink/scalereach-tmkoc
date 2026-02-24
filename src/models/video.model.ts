@@ -187,6 +187,7 @@ export class VideoModel {
     title?: string;
     fileSize?: number;
     mimeType?: string;
+    expiresAt?: Date;
   }) {
     this.logOperation("CREATE_VIDEO", {
       id: data.id,

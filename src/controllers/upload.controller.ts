@@ -6,7 +6,7 @@ import { addVideoProcessingJob, getPlanPriority } from "../jobs/queue";
 import {
   UploadValidationService,
 } from "../services/upload-validation.service";
-import { getPlanConfig } from "../config/plan-config";
+import { getPlanConfig, getVideoExpiryDate } from "../config/plan-config";
 import { validateFileSize } from "../services/minutes-validation.service";
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB - minimum for S3/R2 multipart
@@ -95,6 +95,7 @@ export class UploadController {
         title: filename,
         fileSize,
         mimeType: contentType,
+        expiresAt: getVideoExpiryDate(ws?.plan || "free"),
       });
 
       // Create multipart upload

@@ -48,7 +48,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
     limits: {
       videoLength: 7200, // 2 hours
       uploadSize: 4 * 1024 * 1024 * 1024, // 4GB
-      storageDuration: 180 * 24 * 60 * 60, // 6 months
+      storageDuration: 90 * 24 * 60 * 60, // 3 months
       regenerations: 5,
       editing: -1, // unlimited
       watermark: false,
@@ -80,6 +80,16 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
 
 export function getPlanConfig(plan: string): PlanConfig {
   return PLAN_CONFIGS[plan] || PLAN_CONFIGS.free;
+}
+
+/**
+ * Calculate the expiry date for a video based on the workspace plan.
+ * Returns a Date object set to now + storageDuration seconds.
+ */
+export function getVideoExpiryDate(plan: string): Date {
+  const config = getPlanConfig(plan);
+  const now = new Date();
+  return new Date(now.getTime() + config.limits.storageDuration * 1000);
 }
 
 export function calculateMinuteConsumption(videoLengthInSeconds: number): number {

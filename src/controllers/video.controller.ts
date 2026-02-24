@@ -5,7 +5,7 @@ import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
 import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
 import { addVideoProcessingJob, getJobStatus, removeVideoJob, removeClipJob, getPlanPriority } from "../jobs/queue";
-import { getPlanConfig, calculateMinuteConsumption, formatDuration } from "../config/plan-config";
+import { getPlanConfig, calculateMinuteConsumption, formatDuration, getVideoExpiryDate } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
 import { R2Service } from "../services/r2.service";
 import { ClipModel } from "../models/clip.model";
@@ -140,6 +140,7 @@ export class VideoController {
         sourceType: "youtube",
         sourceUrl: youtubeUrl,
         title: videoInfo.title,
+        expiresAt: getVideoExpiryDate(plan),
       });
 
       // Deduct minutes based on selected timeframe, not full video duration

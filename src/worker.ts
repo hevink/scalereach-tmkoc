@@ -11,6 +11,7 @@ import { startClipWorker } from "./jobs/clip.worker";
 import { startTranslationWorker, translationQueue } from "./jobs/translation.worker";
 import { startDubbingWorker, dubbingQueue } from "./jobs/dubbing.worker";
 import { startSocialWorker } from "./jobs/social.worker";
+import { startStorageCleanupJob } from "./jobs/storage-cleanup.job";
 import { redisConnection, videoProcessingQueue, clipGenerationQueue, socialPostingQueue } from "./jobs/queue";
 
 const VIDEO_WORKER_CONCURRENCY = parseInt(process.env.VIDEO_WORKER_CONCURRENCY || "2", 10);
@@ -277,6 +278,9 @@ const dubbingWorker = startDubbingWorker(DUBBING_WORKER_CONCURRENCY);
 
 console.log("[WORKER] Starting social posting worker...");
 const socialWorker = startSocialWorker();
+
+console.log("[WORKER] Starting storage cleanup job...");
+startStorageCleanupJob();
 
 async function checkRedisHealth(): Promise<{ status: string; latency?: number; error?: string }> {
   const start = Date.now();

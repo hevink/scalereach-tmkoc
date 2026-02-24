@@ -5,7 +5,7 @@ import { VideoModel } from "../models/video.model";
 import {
   UploadValidationService,
 } from "../services/upload-validation.service";
-import { getPlanConfig, formatBytes } from "../config/plan-config";
+import { getPlanConfig, formatBytes, getVideoExpiryDate } from "../config/plan-config";
 
 /**
  * Uppy-compatible upload controller
@@ -98,6 +98,7 @@ export class UppyUploadController {
         title: filename,
         mimeType: type,
         fileSize: metadata?.fileSize,
+        expiresAt: getVideoExpiryDate(workspace?.plan || "free"),
       });
 
       // Create multipart upload in R2

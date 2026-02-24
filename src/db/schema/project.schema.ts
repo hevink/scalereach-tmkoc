@@ -113,6 +113,7 @@ export const video = pgTable(
     minutesConsumed: integer("minutes_consumed").default(0).notNull(),
     status: text("status").default("pending").notNull(), // 'pending' | 'downloading' | 'uploading' | 'transcribing' | 'analyzing' | 'completed' | 'failed'
     errorMessage: text("error_message"),
+    expiresAt: timestamp("expires_at"), // null = never expires (set based on plan at creation)
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()
@@ -127,6 +128,7 @@ export const video = pgTable(
     sourceTypeIdx: index("idx_video_sourceType").on(table.sourceType),
     createdAtIdx: index("idx_video_createdAt").on(table.createdAt),
     userIdCreatedAtIdx: index("idx_video_userId_createdAt").on(table.userId, table.createdAt),
+    expiresAtIdx: index("idx_video_expiresAt").on(table.expiresAt),
   })
 );
 
