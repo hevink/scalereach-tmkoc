@@ -1139,8 +1139,63 @@ export class AdminModel {
   }
 
   /**
-   * Get a single user by ID (admin view)
+   * Get all workspaces for a user with subscription, credits, and minutes (admin view)
    */
+  static async getUserWorkspaces(userId: string) {
+    this.logOperation("GET_USER_WORKSPACES", { userId });
+    try {
+      const result = await db.execute(sql`
+        SELECT
+          w.id, w.name, w.slug, w.plan, w.billing_cycle,
+          w.subscription_id, w.subscription_status,
+          w.subscription_renewal_date, w.subscription_cancelled_at,
+          w.created_at, w.updated_at,
+          wc.balance as credits_balance,
+          wc.lifetime_credits,
+          wm.minutes_total, wm.minutes_used, wm.minutes_remaining,
+          wm.minutes_reset_date,
+          wm.editing_operations_used,
+          wme.role as member_role,
+          (SELECT COUNT(*) FROM video v WHERE v.workspace_id = w.id) as video_count,
+          (SELECT COUNT(*) FROM viral_clip vc
+            JOIN video v2 ON v2.id = vc.video_id
+            WHERE v2.workspace_id = w.id) as clip_count
+        FROM workspace w
+        JOIN workspace_member wme ON wme.workspace_id = w.id AND wme.user_id = ${userId}
+        LEFT JOIN workspace_credits wc ON wc.workspace_id = w.id
+        LEFT JOIN workspace_minutes wm ON wm.workspace_id = w.id
+        ORDER BY w.created_at DESC
+      `);
+      return (result.rows as any[]).map(row => ({
+        id: row.id,
+        name: row.name,
+        slug: row.slug,
+        plan: row.plan || "free",
+        billingCycle: row.billing_cycle,
+        subscriptionId: row.subscription_id,
+        subscriptionStatus: row.subscription_status,
+        subscriptionRenewalDate: row.subscription_renewal_date,
+        subscriptionCancelledAt: row.subscription_cancelled_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        memberRole: row.member_role,
+        creditsBalance: Number(row.credits_balance ?? 0),
+        lifetimeCredits: Number(row.lifetime_credits ?? 0),
+        minutesTotal: Number(row.minutes_total ?? 0),
+        minutesUsed: Number(row.minutes_used ?? 0),
+        minutesRemaining: Number(row.minutes_remaining ?? 0),
+        minutesResetDate: row.minutes_reset_date,
+        editingOperationsUsed: Number(row.editing_operations_used ?? 0),
+        videoCount: Number(row.video_count ?? 0),
+        clipCount: Number(row.clip_count ?? 0),
+      }));
+    } catch (error) {
+      console.error(`[ADMIN MODEL] GET_USER_WORKSPACES failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
   static async getUserById(userId: string) {
     this.logOperation("GET_USER_BY_ID", { userId });
     try {
@@ -1233,20 +1288,25 @@ export class AdminModel {
       const [clipsResult, totalResult] = await Promise.all([
         db.execute(sql`
           SELECT
-            vc.id, vc.title, vc.status, vc.virality_score,
+            vc.id, vc.title, vc.status, vc.score as virality_score,
             vc.start_time, vc.end_time, vc.duration,
-            vc.aspect_ratio, vc.quality, vc.storage_url,
+            vc.aspect_ratio, vc.storage_url,
             vc.thumbnail_url, vc.created_at,
             v.title as video_title, v.id as video_id,
             w.name as workspace_name
           FROM viral_clip vc
-          LEFT JOIN video v ON v.id = vc.video_id
-          LEFT JOIN workspace w ON w.id = vc.workspace_id
-          WHERE vc.user_id = ${userId}
+          JOIN video v ON v.id = vc.video_id
+          LEFT JOIN workspace w ON w.id = v.workspace_id
+          WHERE v.user_id = ${userId}
           ORDER BY vc.created_at DESC
           LIMIT ${limit} OFFSET ${offset}
         `),
-        db.execute(sql`SELECT COUNT(*) as count FROM viral_clip WHERE user_id = ${userId}`),
+        db.execute(sql`
+          SELECT COUNT(*) as count
+          FROM viral_clip vc
+          JOIN video v ON v.id = vc.video_id
+          WHERE v.user_id = ${userId}
+        `),
       ]);
       const total = Number((totalResult.rows[0] as any)?.count ?? 0);
       console.log(`[ADMIN MODEL] GET_USER_CLIPS completed in ${(performance.now() - startTime).toFixed(2)}ms`);
@@ -1260,7 +1320,7 @@ export class AdminModel {
           endTime: row.end_time ? Number(row.end_time) : null,
           duration: row.duration ? Number(row.duration) : null,
           aspectRatio: row.aspect_ratio,
-          quality: row.quality,
+          quality: null,
           storageUrl: row.storage_url,
           thumbnailUrl: row.thumbnail_url,
           createdAt: row.created_at,

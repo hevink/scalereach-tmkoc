@@ -360,6 +360,21 @@ export class AdminController {
   }
 
   /**
+   * Get workspaces with subscription data for a user
+   * GET /api/admin/users/:id/workspaces
+   */
+  static async getUserWorkspaces(c: Context) {
+    try {
+      const userId = c.req.param("id");
+      const data = await AdminModel.getUserWorkspaces(userId);
+      return c.json(data);
+    } catch (error) {
+      console.error("[ADMIN] Failed to get user workspaces:", error);
+      return c.json({ error: "Failed to get user workspaces" }, 500);
+    }
+  }
+
+  /**
    * Get a single user by ID
    * GET /api/admin/users/:id
    */
