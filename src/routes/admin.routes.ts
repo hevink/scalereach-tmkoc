@@ -31,6 +31,8 @@ adminRouter.get("/activity", AdminController.getRecentActivity);
 adminRouter.get("/users", AdminController.getAllUsers);
 adminRouter.put("/users/:id/role", AdminController.updateUserRole);
 adminRouter.delete("/users/:id", AdminController.deleteUser);
+adminRouter.get("/users/:id/videos", AdminController.getUserVideos);
+adminRouter.get("/users/:id/clips", AdminController.getUserClips);
 
 // Workspace management
 adminRouter.get("/workspaces", AdminController.getAllWorkspaces);

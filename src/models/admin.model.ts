@@ -1137,4 +1137,116 @@ export class AdminModel {
       throw error;
     }
   }
+
+  /**
+   * Get all videos for a specific user (admin view)
+   */
+  static async getUserVideos(userId: string, page: number = 1, limit: number = 20) {
+    this.logOperation("GET_USER_VIDEOS", { userId, page, limit });
+    const startTime = performance.now();
+    try {
+      const offset = (page - 1) * limit;
+      const [videosResult, totalResult] = await Promise.all([
+        db.execute(sql`
+          SELECT
+            v.id, v.title, v.status, v.source_type, v.source_url,
+            v.duration, v.file_size, v.error_message, v.credits_used,
+            v.thumbnail_url, v.created_at, v.updated_at,
+            w.name as workspace_name, w.slug as workspace_slug,
+            p.name as project_name,
+            COALESCE(cc.clip_count, 0) as clip_count
+          FROM video v
+          LEFT JOIN project p ON p.id = v.project_id
+          LEFT JOIN workspace w ON w.id = v.workspace_id
+          LEFT JOIN (
+            SELECT video_id, COUNT(*) as clip_count FROM viral_clip GROUP BY video_id
+          ) cc ON cc.video_id = v.id
+          WHERE v.user_id = ${userId}
+          ORDER BY v.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `),
+        db.execute(sql`SELECT COUNT(*) as count FROM video WHERE user_id = ${userId}`),
+      ]);
+      const total = Number((totalResult.rows[0] as any)?.count ?? 0);
+      console.log(`[ADMIN MODEL] GET_USER_VIDEOS completed in ${(performance.now() - startTime).toFixed(2)}ms`);
+      return {
+        videos: (videosResult.rows as any[]).map(row => ({
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          sourceType: row.source_type,
+          sourceUrl: row.source_url,
+          duration: row.duration ? Number(row.duration) : null,
+          fileSize: row.file_size ? Number(row.file_size) : null,
+          errorMessage: row.error_message,
+          creditsUsed: Number(row.credits_used || 0),
+          thumbnailUrl: row.thumbnail_url,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          workspaceName: row.workspace_name,
+          workspaceSlug: row.workspace_slug,
+          projectName: row.project_name,
+          clipCount: Number(row.clip_count),
+        })),
+        total, page, limit, totalPages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      console.error(`[ADMIN MODEL] GET_USER_VIDEOS failed:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all clips for a specific user (admin view)
+   */
+  static async getUserClips(userId: string, page: number = 1, limit: number = 20) {
+    this.logOperation("GET_USER_CLIPS", { userId, page, limit });
+    const startTime = performance.now();
+    try {
+      const offset = (page - 1) * limit;
+      const [clipsResult, totalResult] = await Promise.all([
+        db.execute(sql`
+          SELECT
+            vc.id, vc.title, vc.status, vc.virality_score,
+            vc.start_time, vc.end_time, vc.duration,
+            vc.aspect_ratio, vc.quality, vc.storage_url,
+            vc.thumbnail_url, vc.created_at,
+            v.title as video_title, v.id as video_id,
+            w.name as workspace_name
+          FROM viral_clip vc
+          LEFT JOIN video v ON v.id = vc.video_id
+          LEFT JOIN workspace w ON w.id = vc.workspace_id
+          WHERE vc.user_id = ${userId}
+          ORDER BY vc.created_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `),
+        db.execute(sql`SELECT COUNT(*) as count FROM viral_clip WHERE user_id = ${userId}`),
+      ]);
+      const total = Number((totalResult.rows[0] as any)?.count ?? 0);
+      console.log(`[ADMIN MODEL] GET_USER_CLIPS completed in ${(performance.now() - startTime).toFixed(2)}ms`);
+      return {
+        clips: (clipsResult.rows as any[]).map(row => ({
+          id: row.id,
+          title: row.title,
+          status: row.status,
+          viralityScore: row.virality_score ? Number(row.virality_score) : null,
+          startTime: row.start_time ? Number(row.start_time) : null,
+          endTime: row.end_time ? Number(row.end_time) : null,
+          duration: row.duration ? Number(row.duration) : null,
+          aspectRatio: row.aspect_ratio,
+          quality: row.quality,
+          storageUrl: row.storage_url,
+          thumbnailUrl: row.thumbnail_url,
+          createdAt: row.created_at,
+          videoTitle: row.video_title,
+          videoId: row.video_id,
+          workspaceName: row.workspace_name,
+        })),
+        total, page, limit, totalPages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      console.error(`[ADMIN MODEL] GET_USER_CLIPS failed:`, error);
+      throw error;
+    }
+  }
 }

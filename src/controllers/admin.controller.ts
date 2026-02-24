@@ -358,4 +358,38 @@ export class AdminController {
       return c.json({ error: "Failed to retry video" }, 500);
     }
   }
+
+  /**
+   * Get videos for a specific user
+   * GET /api/admin/users/:id/videos?page=1&limit=20
+   */
+  static async getUserVideos(c: Context) {
+    try {
+      const userId = c.req.param("id");
+      const page = Math.max(1, parseInt(c.req.query("page") || "1", 10));
+      const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") || "20", 10)));
+      const data = await AdminModel.getUserVideos(userId, page, limit);
+      return c.json(data);
+    } catch (error) {
+      console.error("[ADMIN] Failed to get user videos:", error);
+      return c.json({ error: "Failed to get user videos" }, 500);
+    }
+  }
+
+  /**
+   * Get clips for a specific user
+   * GET /api/admin/users/:id/clips?page=1&limit=20
+   */
+  static async getUserClips(c: Context) {
+    try {
+      const userId = c.req.param("id");
+      const page = Math.max(1, parseInt(c.req.query("page") || "1", 10));
+      const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") || "20", 10)));
+      const data = await AdminModel.getUserClips(userId, page, limit);
+      return c.json(data);
+    } catch (error) {
+      console.error("[ADMIN] Failed to get user clips:", error);
+      return c.json({ error: "Failed to get user clips" }, 500);
+    }
+  }
 }
