@@ -112,6 +112,8 @@ export class VideoConfigController {
         splitScreenBgVideoIds: Array.isArray(body.splitScreenBgVideoIds) ? body.splitScreenBgVideoIds : null,
         splitScreenBgCategoryId: body.splitScreenBgCategoryId ?? null,
         splitRatio: body.splitRatio ?? 50,
+        // Background Style
+        backgroundStyle: body.backgroundStyle ?? "blur",
       };
 
       // Split-screen plan gating and validation
@@ -221,6 +223,8 @@ export class VideoConfigController {
       }
       if (body.splitScreenBgCategoryId !== undefined) configInput.splitScreenBgCategoryId = body.splitScreenBgCategoryId;
       if (body.splitRatio !== undefined) configInput.splitRatio = body.splitRatio;
+      // Background Style
+      if (body.backgroundStyle !== undefined) configInput.backgroundStyle = body.backgroundStyle;
 
       // Split-screen validation
       if (configInput.enableSplitScreen) {

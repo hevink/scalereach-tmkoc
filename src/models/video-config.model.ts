@@ -31,6 +31,8 @@ export interface VideoConfigInput {
   splitScreenBgVideoIds?: string[] | null;    // multi-select: JSON-encoded in DB
   splitScreenBgCategoryId?: string | null;
   splitRatio?: number;
+  // Background Style (for vertical non-split-screen clips)
+  backgroundStyle?: "blur" | "black" | "white";
 }
 
 /** Parse the stored splitScreenBgVideoId value — may be a JSON array or a plain ID */

@@ -141,6 +141,7 @@ async function processClipGenerationJob(
     emojis,
     targetLanguage,
     splitScreen,
+    backgroundStyle,
   } = job.data;
 
   const jobStartTime = Date.now();
@@ -216,6 +217,7 @@ async function processClipGenerationJob(
       introTitle,
       captions: effectiveCaptions,
       emojis,
+      backgroundStyle,
       splitScreen: splitScreen ? {
         backgroundStorageKey: splitScreen.backgroundStorageKey,
         backgroundDuration: splitScreen.backgroundDuration,

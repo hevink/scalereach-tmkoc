@@ -391,6 +391,7 @@ async function processYouTubeVideo(
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
           introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
+          backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white") ?? "blur",
           captions: captionsEnabled ? {
             words: adjustedWords,
             style: captionStyle,
@@ -823,6 +824,7 @@ async function processUploadedVideo(
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
           introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
+          backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white") ?? "blur",
           captions: captionsEnabled ? {
             words: adjustedWords,
             style: captionStyle,

@@ -35,6 +35,7 @@ export interface ClipGenerationOptions {
   watermark?: boolean;
   emojis?: string;
   introTitle?: string;
+  backgroundStyle?: "blur" | "black" | "white";
   splitScreen?: {
     backgroundStorageKey: string;
     backgroundDuration: number;
@@ -308,7 +309,8 @@ export class ClipGeneratorService {
         await this.convertAspectRatioFile(
           rawSourcePath, rawOutputPath, width, height,
           undefined, // no subtitles
-          options.watermark, options.quality
+          options.watermark, options.quality,
+          options.backgroundStyle
         );
       }
       clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
@@ -366,7 +368,8 @@ export class ClipGeneratorService {
           await this.convertAspectRatioFile(
             rawSourcePath, captionedOutputPath, width, height,
             tempSubsPath,
-            options.watermark, options.quality
+            options.watermark, options.quality,
+            options.backgroundStyle
           );
         }
 
@@ -1497,7 +1500,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     targetHeight: number,
     subtitlesPath?: string,
     watermark?: boolean,
-    quality: VideoQuality = "1080p"
+    quality: VideoQuality = "1080p",
+    backgroundStyle: "blur" | "black" | "white" = "blur"
   ): Promise<void> {
     const wmConfig = watermark
       ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())
@@ -1512,8 +1516,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       let args: string[];
 
       if (isVertical) {
-        // Use blur background filter (complex filter graph)
-        let filterComplex = this.buildBlurBackgroundFilter(targetWidth, targetHeight);
+        // Use background filter based on style (complex filter graph)
+        let filterComplex = this.buildBackgroundFilter(targetWidth, targetHeight, backgroundStyle);
 
         // Add subtitles to the final output if provided
         if (subtitlesPath) {
@@ -1742,6 +1746,30 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       `[fg]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
       // Overlay foreground centered on blurred background
       `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
+  }
+
+  /**
+   * Build a solid color background filter for vertical clips
+   */
+  private static buildSolidBackgroundFilter(targetWidth: number, targetHeight: number, color: string): string {
+    return `color=c=${color}:s=${targetWidth}x${targetHeight}:d=1[bg_solid];` +
+      `[0:v]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
+      `[bg_solid][fg_scaled]overlay=(W-w)/2:(H-h)/2:shortest=1,setsar=1`;
+  }
+
+  /**
+   * Dispatcher: pick the right background filter based on style
+   */
+  private static buildBackgroundFilter(targetWidth: number, targetHeight: number, style: "blur" | "black" | "white" = "blur"): string {
+    switch (style) {
+      case "black":
+        return this.buildSolidBackgroundFilter(targetWidth, targetHeight, "black");
+      case "white":
+        return this.buildSolidBackgroundFilter(targetWidth, targetHeight, "white");
+      case "blur":
+      default:
+        return this.buildBlurBackgroundFilter(targetWidth, targetHeight);
+    }
   }
 
   /**
