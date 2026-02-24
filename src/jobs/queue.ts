@@ -117,7 +117,7 @@ export interface ClipGenerationJobData {
   // Dubbing ID for dubbed audio replacement during export
   dubbingId?: string;
   // Background style for vertical non-split-screen clips
-  backgroundStyle?: "blur" | "black" | "white";
+  backgroundStyle?: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom";
   // Split-screen background video data
   splitScreen?: {
     backgroundVideoId: string;

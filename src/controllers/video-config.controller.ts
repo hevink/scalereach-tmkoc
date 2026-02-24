@@ -116,6 +116,19 @@ export class VideoConfigController {
         backgroundStyle: body.backgroundStyle ?? "blur",
       };
 
+      // Background style plan gating
+      const FREE_BACKGROUND_STYLES = ["black", "white"];
+      if (configInput.backgroundStyle && !FREE_BACKGROUND_STYLES.includes(configInput.backgroundStyle)) {
+        const ws = video.workspaceId ? await WorkspaceModel.getById(video.workspaceId) : null;
+        const plan = ws?.plan || "free";
+        if (plan === "free") {
+          return c.json(
+            { error: "Premium background styles are available on Starter and Pro plans. Please upgrade to use this feature." },
+            403
+          );
+        }
+      }
+
       // Split-screen plan gating and validation
       if (configInput.enableSplitScreen) {
         // Check plan allows split-screen
@@ -225,6 +238,19 @@ export class VideoConfigController {
       if (body.splitRatio !== undefined) configInput.splitRatio = body.splitRatio;
       // Background Style
       if (body.backgroundStyle !== undefined) configInput.backgroundStyle = body.backgroundStyle;
+
+      // Background style plan gating
+      const FREE_BG_STYLES = ["black", "white"];
+      if (configInput.backgroundStyle && !FREE_BG_STYLES.includes(configInput.backgroundStyle)) {
+        const ws = video.workspaceId ? await WorkspaceModel.getById(video.workspaceId) : null;
+        const plan = ws?.plan || "free";
+        if (plan === "free") {
+          return c.json(
+            { error: "Premium background styles are available on Starter and Pro plans. Please upgrade to use this feature." },
+            403
+          );
+        }
+      }
 
       // Split-screen validation
       if (configInput.enableSplitScreen) {

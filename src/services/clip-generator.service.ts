@@ -35,7 +35,7 @@ export interface ClipGenerationOptions {
   watermark?: boolean;
   emojis?: string;
   introTitle?: string;
-  backgroundStyle?: "blur" | "black" | "white";
+  backgroundStyle?: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom";
   splitScreen?: {
     backgroundStorageKey: string;
     backgroundDuration: number;
@@ -1501,7 +1501,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     subtitlesPath?: string,
     watermark?: boolean,
     quality: VideoQuality = "1080p",
-    backgroundStyle: "blur" | "black" | "white" = "blur"
+    backgroundStyle: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "blur"
   ): Promise<void> {
     const wmConfig = watermark
       ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())
@@ -1758,14 +1758,65 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   }
 
   /**
+   * Build a gradient background filter for vertical clips
+   * Uses two solid colors blended vertically
+   */
+  private static buildGradientBackgroundFilter(targetWidth: number, targetHeight: number, topColor: string, bottomColor: string): string {
+    return `color=c=${topColor}:s=${targetWidth}x${targetHeight}:d=1[c1];` +
+      `color=c=${bottomColor}:s=${targetWidth}x${targetHeight}:d=1[c2];` +
+      `[c1][c2]blend=all_expr='A*(1-Y/H)+B*(Y/H)'[bg_grad];` +
+      `[0:v]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
+      `[bg_grad][fg_scaled]overlay=(W-w)/2:(H-h)/2:shortest=1,setsar=1`;
+  }
+
+  /**
+   * Build a mirror background filter for vertical clips
+   * Flips the video vertically for top and bottom bars
+   */
+  private static buildMirrorBackgroundFilter(targetWidth: number, targetHeight: number): string {
+    const halfHeight = Math.round(targetHeight / 2);
+    return `[0:v]split=3[bg_top][bg_bot][fg];` +
+      `[bg_top]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,` +
+      `crop=${targetWidth}:${halfHeight}:(iw-${targetWidth})/2:0,vflip[top_mirror];` +
+      `[bg_bot]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,` +
+      `crop=${targetWidth}:${halfHeight}:(iw-${targetWidth})/2:ih-${halfHeight},vflip[bot_mirror];` +
+      `[top_mirror][bot_mirror]vstack[bg_full];` +
+      `[fg]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
+      `[bg_full][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
+  }
+
+  /**
+   * Build a zoom background filter for vertical clips
+   * Uses a zoomed-in, slightly darkened version of the video as background (no blur)
+   */
+  private static buildZoomBackgroundFilter(targetWidth: number, targetHeight: number): string {
+    return `[0:v]split=2[bg][fg];` +
+      `[bg]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,` +
+      `crop=${targetWidth}:${targetHeight},` +
+      `eq=brightness=-0.15[bg_zoom];` +
+      `[fg]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
+      `[bg_zoom][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
+  }
+
+  /**
    * Dispatcher: pick the right background filter based on style
    */
-  private static buildBackgroundFilter(targetWidth: number, targetHeight: number, style: "blur" | "black" | "white" = "blur"): string {
+  private static buildBackgroundFilter(targetWidth: number, targetHeight: number, style: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "blur"): string {
     switch (style) {
       case "black":
         return this.buildSolidBackgroundFilter(targetWidth, targetHeight, "black");
       case "white":
         return this.buildSolidBackgroundFilter(targetWidth, targetHeight, "white");
+      case "gradient-ocean":
+        return this.buildGradientBackgroundFilter(targetWidth, targetHeight, "0x1CB5E0", "0x000851");
+      case "gradient-midnight":
+        return this.buildGradientBackgroundFilter(targetWidth, targetHeight, "0x4b6cb7", "0x182848");
+      case "gradient-sunset":
+        return this.buildGradientBackgroundFilter(targetWidth, targetHeight, "0xFF512F", "0xF09819");
+      case "mirror":
+        return this.buildMirrorBackgroundFilter(targetWidth, targetHeight);
+      case "zoom":
+        return this.buildZoomBackgroundFilter(targetWidth, targetHeight);
       case "blur":
       default:
         return this.buildBlurBackgroundFilter(targetWidth, targetHeight);

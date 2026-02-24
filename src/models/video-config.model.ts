@@ -32,7 +32,7 @@ export interface VideoConfigInput {
   splitScreenBgCategoryId?: string | null;
   splitRatio?: number;
   // Background Style (for vertical non-split-screen clips)
-  backgroundStyle?: "blur" | "black" | "white";
+  backgroundStyle?: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom";
 }
 
 /** Parse the stored splitScreenBgVideoId value — may be a JSON array or a plain ID */
