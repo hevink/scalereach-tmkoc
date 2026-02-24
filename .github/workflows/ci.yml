@@ -62,8 +62,8 @@ jobs:
 
             echo "📦 Pulling latest code..."
             git fetch origin
-            git checkout -B ${{ github.ref_name }} origin/${{ github.ref_name }}
-            git reset --hard origin/${{ github.ref_name }}
+            git checkout main
+            git reset --hard origin/main
 
             NEW_COMMIT=$(git rev-parse HEAD)
             echo "🆕 New commit: $NEW_COMMIT"
@@ -82,7 +82,8 @@ jobs:
               pm2 status
             else
               echo "❌ Health check failed — rolling back to $PREV_COMMIT"
-              git checkout $PREV_COMMIT
+              git checkout main
+              git reset --hard $PREV_COMMIT
               bun install
               pm2 reload ecosystem.config.cjs --update-env || pm2 start ecosystem.config.cjs
               sleep 5
