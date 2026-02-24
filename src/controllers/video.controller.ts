@@ -4,7 +4,7 @@ import { VideoModel } from "../models/video.model";
 import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
 import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
-import { addVideoProcessingJob, getJobStatus, removeVideoJob, removeClipJob } from "../jobs/queue";
+import { addVideoProcessingJob, getJobStatus, removeVideoJob, removeClipJob, getPlanPriority } from "../jobs/queue";
 import { getPlanConfig, calculateMinuteConsumption, formatDuration } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
 import { R2Service } from "../services/r2.service";
@@ -194,7 +194,7 @@ export class VideoController {
           userId: user.id,
           sourceType: "youtube",
           sourceUrl: youtubeUrl,
-        });
+        }, getPlanPriority(plan));
 
         console.log(
           `[VIDEO CONTROLLER] SUBMIT_YOUTUBE_URL success - created video: ${videoId} with config, processing started`

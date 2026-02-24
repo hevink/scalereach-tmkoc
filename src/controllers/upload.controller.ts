@@ -2,7 +2,7 @@ import { Context } from "hono";
 import { nanoid } from "nanoid";
 import { R2Service } from "../services/r2.service";
 import { VideoModel } from "../models/video.model";
-import { addVideoProcessingJob } from "../jobs/queue";
+import { addVideoProcessingJob, getPlanPriority } from "../jobs/queue";
 import {
   UploadValidationService,
 } from "../services/upload-validation.service";
@@ -223,13 +223,15 @@ export class UploadController {
       });
 
       // Add to processing queue
+      const { WorkspaceModel } = await import("../models/workspace.model");
+      const ws = video.workspaceId ? await WorkspaceModel.getById(video.workspaceId) : null;
       await addVideoProcessingJob({
         videoId,
         projectId: video.projectId,
         userId: user.id,
         sourceType: "upload",
         sourceUrl: url,
-      });
+      }, getPlanPriority(ws?.plan));
 
       console.log(`[UPLOAD CONTROLLER] Upload completed: ${videoId}`);
 

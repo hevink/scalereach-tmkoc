@@ -14,7 +14,7 @@ import { WorkspaceModel } from "../models/workspace.model";
 import { ClipCaptionModel } from "../models/clip-caption.model";
 import { VideoConfigModel } from "../models/video-config.model";
 import { ClipGeneratorService, AspectRatio, VideoQuality } from "../services/clip-generator.service";
-import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
+import { addClipGenerationJob, getClipJobStatus, getPlanPriority } from "../jobs/queue";
 import { R2Service } from "../services/r2.service";
 import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config";
 import { canRegenerateVideo } from "../services/minutes-validation.service";
@@ -210,7 +210,7 @@ export class ClipGenerationController {
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
         splitScreen: splitScreenData,
-      });
+      }, getPlanPriority(ws?.plan));
 
       console.log(`[CLIP GENERATION CONTROLLER] Job queued: ${job.id}`);
 
@@ -417,7 +417,7 @@ export class ClipGenerationController {
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
         splitScreen: splitScreenData,
-      });
+      }, getPlanPriority(ws?.plan));
 
       console.log(`[CLIP GENERATION CONTROLLER] Regeneration job queued: ${job.id}`);
 

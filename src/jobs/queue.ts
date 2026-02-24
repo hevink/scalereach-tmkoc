@@ -56,6 +56,19 @@ export const QUEUE_NAMES = {
   SOCIAL_POSTING: "social-posting",
 } as const;
 
+/**
+ * Map workspace plan to BullMQ priority.
+ * Lower number = higher priority in BullMQ.
+ * pro=1, starter=2, free=3
+ */
+export function getPlanPriority(plan?: string | null): number {
+  switch (plan) {
+    case "pro": return 1;
+    case "starter": return 2;
+    default: return 3; // free
+  }
+}
+
 export interface SocialPostingJobData {
   postId: string;
   workspaceId: string;
@@ -181,11 +194,12 @@ setInterval(async () => {
   }
 }, 60 * 60 * 1000); // Run every hour
 
-export async function addVideoProcessingJob(data: VideoProcessingJobData) {
-  console.log(`[QUEUE] Adding video processing job for video: ${data.videoId}`);
+export async function addVideoProcessingJob(data: VideoProcessingJobData, priority?: number) {
+  console.log(`[QUEUE] Adding video processing job for video: ${data.videoId} (priority: ${priority ?? 3})`);
 
   const job = await videoProcessingQueue.add("process-video", data, {
     jobId: `video-${data.videoId}`,
+    priority: priority ?? 3,
   });
 
   console.log(`[QUEUE] Job added with ID: ${job.id}`);
@@ -311,8 +325,8 @@ setInterval(async () => {
  * Add a clip generation job to the queue
  * Validates: Requirements 7.5
  */
-export async function addClipGenerationJob(data: ClipGenerationJobData) {
-  console.log(`[QUEUE] Adding clip generation job for clip: ${data.clipId}`);
+export async function addClipGenerationJob(data: ClipGenerationJobData, priority?: number) {
+  console.log(`[QUEUE] Adding clip generation job for clip: ${data.clipId} (priority: ${priority ?? 3})`);
 
   const jobId = `clip-${data.clipId}`;
 
@@ -326,6 +340,7 @@ export async function addClipGenerationJob(data: ClipGenerationJobData) {
 
   const job = await clipGenerationQueue.add("generate-clip", data, {
     jobId,
+    priority: priority ?? 3,
   });
 
   console.log(`[QUEUE] Clip generation job added with ID: ${job.id}`);
