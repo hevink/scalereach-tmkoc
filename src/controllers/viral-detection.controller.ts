@@ -106,9 +106,9 @@ export class ViralDetectionController {
         maxDuration: body.maxDuration ?? DEFAULT_MAX_DURATION,
         maxClips: body.maxClips ?? DEFAULT_MAX_CLIPS,
         videoTitle: video.title || undefined,
-        // Editing options - emojis and intro title disabled for now
+        // Editing options
         enableEmojis: false,
-        enableIntroTitle: false,
+        enableIntroTitle: body.enableIntroTitle ?? true,
       };
 
       // Validate options

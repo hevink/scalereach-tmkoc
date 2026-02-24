@@ -265,7 +265,7 @@ async function processYouTubeVideo(
         customPrompt: videoConfig?.customPrompt ?? undefined,
         // Editing options from video config
         enableEmojis: false,
-        enableIntroTitle: false,
+        enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
       }
     );
 
@@ -369,7 +369,7 @@ async function processYouTubeVideo(
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
         // Emojis and intro title disabled for now
-        const introTitleEnabled = false;
+        const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
         const emojisEnabled = false;
 
         const splitScreenData = videoConfig?.enableSplitScreen
@@ -698,7 +698,7 @@ async function processUploadedVideo(
         customPrompt: videoConfig?.customPrompt ?? undefined,
         // Editing options from video config
         enableEmojis: false,
-        enableIntroTitle: false,
+        enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
       }
     );
 
@@ -802,7 +802,7 @@ async function processUploadedVideo(
 
         const captionsEnabled = videoConfig?.enableCaptions ?? true;
         // Emojis and intro title disabled for now
-        const introTitleEnabled = false;
+        const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
         const emojisEnabled = false;
 
         const splitScreenData = videoConfig?.enableSplitScreen

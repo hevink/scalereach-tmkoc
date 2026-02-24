@@ -145,7 +145,7 @@ export class ClipGenerationController {
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
       const captionsEnabled = videoConfig?.enableCaptions ?? true;
       // Emojis and intro title disabled for now
-      const introTitleEnabled = false;
+      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
       const emojisEnabled = false;
 
       // Resolve split-screen background video if enabled
@@ -353,7 +353,7 @@ export class ClipGenerationController {
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
       const captionsEnabled = videoConfig?.enableCaptions ?? true;
       // Emojis and intro title disabled for now
-      const introTitleEnabled = false;
+      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
       const emojisEnabled = false;
 
       // Resolve split-screen background video if enabled

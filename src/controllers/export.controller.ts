@@ -134,7 +134,7 @@ export class ExportController {
       const videoConfig = await VideoConfigModel.getByVideoId(clip.videoId);
       const captionsEnabled = videoConfig?.enableCaptions ?? true;
       // Emojis and intro title disabled for now
-      const introTitleEnabled = false;
+      const introTitleEnabled = videoConfig?.enableIntroTitle ?? true;
       const emojisEnabled = false;
 
       // Resolve split-screen background video if enabled
@@ -384,7 +384,7 @@ export class ExportController {
         // Use pre-fetched video config and background video (avoids per-clip DB queries)
         const batchVideoConfig = videoConfigMap.get(clip.videoId);
         const batchCaptionsEnabled = batchVideoConfig?.enableCaptions ?? true;
-        const batchIntroTitleEnabled = false;
+        const batchIntroTitleEnabled = batchVideoConfig?.enableIntroTitle ?? true;
         const batchEmojisEnabled = false;
 
         // Resolve split-screen from pre-fetched map

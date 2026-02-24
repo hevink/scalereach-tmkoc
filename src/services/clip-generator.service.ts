@@ -628,11 +628,10 @@ export class ClipGeneratorService {
       marginR = marginL;
     }
 
-    // Intro title style - slightly larger than captions, positioned at 25% from top
-    const introFontSize = Math.round(fontSize * 1.2);
-    // To position at 25% from top: use center alignment (5) with MarginV to push up
-    // MarginV pushes text away from center, so we need (height/2 - height*0.25) = height*0.25
-    const introMarginV = Math.round(height * 0.25);
+    // Intro title style - larger than captions, positioned at 20% from top
+    // Uses BorderStyle 3 (opaque box) with semi-transparent dark background for readability
+    const introFontSize = Math.round(fontSize * 1.4);
+    const introMarginV = Math.round(height * 0.20);
 
     // Emoji overlay style - large, centered above captions
     const emojiFontSize = Math.round(fontSize * 3);
@@ -667,7 +666,7 @@ WrapStyle: 0
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
 Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},${backColour},1,0,0,0,${highlightScale},${highlightScale},0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: IntroTitle,${fontFamily},${introFontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,1,${Math.round(4 * scaleFactor)},${Math.round(3 * scaleFactor)},8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},1
+Style: IntroTitle,${fontFamily},${introFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,3,${Math.round(2 * scaleFactor)},0,8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},1
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
 Style: Glow,${fontFamily},${fontSize},${glowColor},${glowColor},${glowColor},&H00000000,1,0,0,0,100,100,0,0,1,${Math.round(glowIntensity * scaleFactor)},0,${alignment},${marginL},${marginR},${marginV},1
 `;
@@ -677,11 +676,13 @@ Style: Glow,${fontFamily},${fontSize},${glowColor},${glowColor},${glowColor},&H0
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
-    // // Add intro title for first 3 seconds if provided
-    // if (introTitle) {
-    //   // Fade in effect: {\fad(300,300)} - 300ms fade in, 300ms fade out
-    //   ass += `Dialogue: 1,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(300,300)}${transformWord(introTitle)}\n`;
-    // }
+    // Add intro title for first 3 seconds if provided
+    if (introTitle) {
+      // Scale up + fade in from top, then fade out
+      // {\fad(400,500)} = 400ms fade in, 500ms fade out
+      // {\fscx80\fscy80\t(0,300,\fscx100\fscy100)} = start at 80% scale, animate to 100% in 300ms
+      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${transformWord(introTitle)}\n`;
+    }
 
     // Group words into lines based on wordsPerLine setting
     const lines: Array<{ words: typeof words; start: number; end: number }> = [];
