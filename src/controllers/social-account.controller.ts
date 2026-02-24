@@ -2,6 +2,7 @@ import { Context } from "hono";
 import { SocialAccountModel } from "../models/social-account.model";
 import { WorkspaceModel } from "../models/workspace.model";
 import { redisConnection } from "../jobs/queue";
+import { getPlanConfig } from "../config/plan-config";
 import { TikTokService } from "../services/social/tiktok.service";
 import { InstagramService } from "../services/social/instagram.service";
 import { YouTubeShortsService } from "../services/social/youtube-shorts.service";
@@ -57,6 +58,22 @@ export class SocialAccountController {
       const members = await WorkspaceModel.getMembers(workspaceId);
       if (!members.some((m) => m.userId === user.id)) {
         return c.json({ error: "Access denied" }, 403);
+      }
+
+      // Enforce social account limit based on workspace plan
+      const ws = await WorkspaceModel.getById(workspaceId);
+      const planConfig = getPlanConfig(ws?.plan || "free");
+      const limit = planConfig.limits.socialAccounts;
+
+      if (limit === 0) {
+        return c.json({ error: "Social account integration is not available on the free plan. Please upgrade to connect social accounts." }, 403);
+      }
+
+      if (limit > 0) {
+        const existing = await SocialAccountModel.getByWorkspace(workspaceId);
+        if (existing.length >= limit) {
+          return c.json({ error: `Your ${planConfig.plan} plan allows up to ${limit} connected social account${limit === 1 ? "" : "s"}. Please upgrade to connect more.` }, 403);
+        }
       }
 
       const state = Math.random().toString(36).substring(2) + Date.now().toString(36);

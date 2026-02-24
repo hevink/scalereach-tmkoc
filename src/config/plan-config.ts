@@ -15,6 +15,7 @@ export interface PlanLimits {
   dubbingMinutesPerMonth: number; // 0 = disabled, -1 = unlimited
   splitScreen: boolean; // split-screen clip generation
   maxClipQuality: "1080p" | "2k" | "4k"; // max output quality for clips
+  socialAccounts: number; // 0 = disabled, -1 = unlimited
 }
 
 export interface PlanConfig {
@@ -38,6 +39,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       dubbingMinutesPerMonth: 0,
       splitScreen: false,
       maxClipQuality: "1080p",
+      socialAccounts: 0,
     },
   },
   starter: {
@@ -54,6 +56,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       dubbingMinutesPerMonth: 10,
       splitScreen: true,
       maxClipQuality: "1080p",
+      socialAccounts: 1,
     },
   },
   pro: {
@@ -70,6 +73,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       dubbingMinutesPerMonth: 30,
       splitScreen: true,
       maxClipQuality: "2k",
+      socialAccounts: 5,
     },
   },
 };
