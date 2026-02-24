@@ -16,6 +16,7 @@ export interface PlanLimits {
   splitScreen: boolean; // split-screen clip generation
   maxClipQuality: "720p" | "1080p" | "2k" | "4k"; // max output quality for clips
   socialAccounts: number; // 0 = disabled, -1 = unlimited
+  creditExpiryDays: number | null; // null = never expires (paid plans), number = days until expiry
 }
 
 export interface PlanConfig {
@@ -40,6 +41,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       splitScreen: false,
       maxClipQuality: "720p",
       socialAccounts: 0,
+      creditExpiryDays: 60, // Free credits expire after 60 days
     },
   },
   starter: {
@@ -57,6 +59,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       splitScreen: true,
       maxClipQuality: "1080p",
       socialAccounts: 1,
+      creditExpiryDays: null, // Paid plan — credits never expire (monthly renewal)
     },
   },
   pro: {
@@ -74,6 +77,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       splitScreen: true,
       maxClipQuality: "4k",
       socialAccounts: 5,
+      creditExpiryDays: null, // Paid plan — credits never expire (monthly renewal)
     },
   },
 };

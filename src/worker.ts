@@ -12,6 +12,7 @@ import { startTranslationWorker, translationQueue } from "./jobs/translation.wor
 import { startDubbingWorker, dubbingQueue } from "./jobs/dubbing.worker";
 import { startSocialWorker } from "./jobs/social.worker";
 import { startStorageCleanupJob } from "./jobs/storage-cleanup.job";
+import { startCreditExpiryJob } from "./jobs/credit-expiry.job";
 import { redisConnection, videoProcessingQueue, clipGenerationQueue, socialPostingQueue } from "./jobs/queue";
 
 const VIDEO_WORKER_CONCURRENCY = parseInt(process.env.VIDEO_WORKER_CONCURRENCY || "2", 10);
@@ -281,6 +282,9 @@ const socialWorker = startSocialWorker();
 
 console.log("[WORKER] Starting storage cleanup job...");
 startStorageCleanupJob();
+
+console.log("[WORKER] Starting credit expiry job...");
+startCreditExpiryJob();
 
 async function checkRedisHealth(): Promise<{ status: string; latency?: number; error?: string }> {
   const start = Date.now();

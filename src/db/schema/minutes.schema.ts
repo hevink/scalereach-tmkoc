@@ -23,6 +23,7 @@ export const workspaceMinutes = pgTable(
     minutesUsed: integer("minutes_used").notNull().default(0),
     minutesRemaining: integer("minutes_remaining").notNull().default(0),
     minutesResetDate: timestamp("minutes_reset_date"),
+    expiresAt: timestamp("expires_at"), // Free plan credits expire after 60 days
     editingOperationsUsed: integer("editing_operations_used").notNull().default(0),
     updatedAt: timestamp("updated_at")
       .defaultNow()

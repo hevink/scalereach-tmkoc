@@ -67,6 +67,26 @@ export class MinutesModel {
 
       // Lazy monthly reset: check if reset date has passed for paid plans
       const balance = result[0];
+
+      // Free plan credit expiry: zero out if past expiresAt
+      if (balance.expiresAt && new Date() >= balance.expiresAt && balance.minutesRemaining > 0) {
+        await db
+          .update(workspaceMinutes)
+          .set({ minutesRemaining: 0, minutesUsed: balance.minutesTotal })
+          .where(eq(workspaceMinutes.workspaceId, workspaceId));
+        await db.insert(minuteTransaction).values({
+          id: this.generateId(),
+          workspaceId,
+          type: "adjustment",
+          minutesAmount: -balance.minutesRemaining,
+          minutesBefore: balance.minutesRemaining,
+          minutesAfter: 0,
+          description: "Free plan credits expired after 60 days",
+        });
+        console.log(`[MINUTES MODEL] Free credits expired for workspace ${workspaceId}`);
+        return { ...balance, minutesRemaining: 0, minutesUsed: balance.minutesTotal };
+      }
+
       if (balance.minutesResetDate && new Date() >= balance.minutesResetDate) {
         const ws = await db
           .select({ plan: workspace.plan })
@@ -98,6 +118,12 @@ export class MinutesModel {
       const minutesTotal = overrideMinutes !== undefined ? overrideMinutes : planConfig.minutes.total;
       const resetDate = planConfig.minutes.type === "monthly" ? this.getNextMonthDate() : null;
 
+      // Free plan credits expire after 60 days
+      const expiryDays = planConfig.limits.creditExpiryDays;
+      const expiresAt = expiryDays !== null
+        ? new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000)
+        : null;
+
       const result = await db
         .insert(workspaceMinutes)
         .values({
@@ -107,6 +133,7 @@ export class MinutesModel {
           minutesUsed: 0,
           minutesRemaining: minutesTotal,
           minutesResetDate: resetDate,
+          expiresAt,
           editingOperationsUsed: 0,
         })
         .onConflictDoNothing()
