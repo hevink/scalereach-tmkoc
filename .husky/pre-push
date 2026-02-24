@@ -1,0 +1,2 @@
+echo "🔨 Running build check before push..."
+bun run build
