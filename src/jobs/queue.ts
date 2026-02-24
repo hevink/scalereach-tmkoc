@@ -89,7 +89,7 @@ export interface ClipGenerationJobData {
   startTime: number;
   endTime: number;
   aspectRatio: "9:16" | "1:1" | "16:9";
-  quality: "720p" | "1080p" | "4k";
+  quality: "720p" | "1080p" | "2k" | "4k";
   creditCost: number; // Credits to consume for this generation
   watermark?: boolean; // Burn watermark overlay (free plan)
   // Transcript with emojis for animated emoji overlays

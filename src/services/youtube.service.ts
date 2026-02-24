@@ -33,10 +33,11 @@ export const MAX_VIDEO_DURATION_SECONDS = 14400;
  * Determine the best output quality based on source video height and plan limit.
  * Pro plan: up to 4k. Free/Starter: capped at 1080p.
  */
-export function getQualityFromHeight(videoHeight?: number, maxQuality: "1080p" | "4k" = "4k"): "720p" | "1080p" | "4k" {
+export function getQualityFromHeight(videoHeight?: number, maxQuality: "1080p" | "2k" | "4k" = "2k"): "720p" | "1080p" | "2k" | "4k" {
   if (maxQuality === "1080p") return "1080p";
+  if (maxQuality === "2k") return "2k";
   if (videoHeight && videoHeight >= 2160) return "4k";
-  return "1080p";
+  return "2k";
 }
 
 export class YouTubeService {

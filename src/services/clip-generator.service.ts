@@ -19,7 +19,7 @@ import { extractEmojiTimings } from "../utils/emoji-timing";
 const FONTS_DIR = path.resolve(__dirname, "../../assets/fonts");
 
 export type AspectRatio = "9:16" | "1:1" | "16:9";
-export type VideoQuality = "720p" | "1080p" | "4k";
+export type VideoQuality = "720p" | "1080p" | "2k" | "4k";
 
 export interface ClipGenerationOptions {
   userId: string;
@@ -94,6 +94,7 @@ function getOutputDimensions(
   const qualityMap: Record<VideoQuality, number> = {
     "720p": 720,
     "1080p": 1080,
+    "2k": 1440,   // actual encode — shown as "4K" in UI
     "4k": 2160,
   };
 
@@ -1645,7 +1646,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       return { valid: false, error: `Invalid aspect ratio. Must be one of: ${validAspectRatios.join(", ")}` };
     }
 
-    const validQualities: VideoQuality[] = ["720p", "1080p", "4k"];
+    const validQualities: VideoQuality[] = ["720p", "1080p", "2k", "4k"];
     if (!validQualities.includes(options.quality)) {
       return { valid: false, error: `Invalid quality. Must be one of: ${validQualities.join(", ")}` };
     }
