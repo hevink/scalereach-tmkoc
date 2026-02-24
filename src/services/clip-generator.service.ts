@@ -113,6 +113,18 @@ function getOutputDimensions(
 }
 
 /**
+ * Get FFmpeg encoding params based on quality.
+ * Pro plan (2k/4k) → slow preset + CRF 16 for maximum quality.
+ * Free/Starter (720p/1080p) → veryfast + CRF 18 to keep CPU usage low.
+ */
+function getEncodingParams(quality: VideoQuality): { preset: string; crf: string } {
+  if (quality === "2k" || quality === "4k") {
+    return { preset: "slow", crf: "16" };
+  }
+  return { preset: "veryfast", crf: "18" };
+}
+
+/**
  * Format seconds to HH:MM:SS.mmm format for FFmpeg
  */
 function formatTimestamp(seconds: number): string {
@@ -333,6 +345,7 @@ export class ClipGeneratorService {
           targetHeight: height,
           clipDuration: duration,
           backgroundDuration: options.splitScreen.backgroundDuration,
+          quality: options.quality,
         });
         clipWithCaptionsBuffer = await fs.promises.readFile(composedWith);
 
@@ -351,6 +364,7 @@ export class ClipGeneratorService {
           targetHeight: height,
           clipDuration: duration,
           backgroundDuration: options.splitScreen.backgroundDuration,
+          quality: options.quality,
         });
         clipWithoutCaptionsBuffer = await fs.promises.readFile(composedRaw);
 
@@ -379,7 +393,8 @@ export class ClipGeneratorService {
             width,
             height,
             options.introTitle,
-            options.emojis
+            options.emojis,
+            options.quality
           );
         }
 
@@ -398,7 +413,8 @@ export class ClipGeneratorService {
             width,
             height,
             options.introTitle,
-            options.emojis
+            options.emojis,
+            options.quality
           );
         }
       } finally {
@@ -446,7 +462,8 @@ export class ClipGeneratorService {
     width: number,
     height: number,
     introTitle?: string,
-    emojis?: string
+    emojis?: string,
+    quality: VideoQuality = "1080p"
   ): Promise<Buffer> {
     const tempId = nanoid();
     const tempDir = os.tmpdir();
@@ -483,12 +500,13 @@ export class ClipGeneratorService {
     const escapedSubsPath = subsPath.replace(/\\/g, "/").replace(/:/g, "\\:");
     const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
 
+    const { preset, crf } = getEncodingParams(quality);
     const args = [
       "-i", inputPath,
       "-vf", `ass=${escapedSubsPath}:fontsdir=${escapedFontsDir}`,
       "-c:v", "libx264",
-      "-preset", "veryfast",
-      "-crf", "18",
+      "-preset", preset,
+      "-crf", crf,
       "-c:a", "copy",
       "-movflags", "+faststart",
       "-y",
@@ -965,7 +983,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         width,
         height,
         (captions?.words?.length || introTitle || emojis) ? tempSubsPath : undefined,
-        watermark
+        watermark,
+        quality
       );
 
       // Step 4: Read the output file
@@ -1170,6 +1189,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         ? this.getWatermarkFilterConfig(width, height, await this.getWatermarkLogoPath())
         : null;
 
+      const { preset, crf } = getEncodingParams(quality);
+
       return await new Promise((resolve, reject) => {
         const targetAspect = width / height;
         const isVertical = targetAspect < 1;
@@ -1204,8 +1225,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-map", "[outv]",
             "-map", "0:a?",
             "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "18",
+            "-preset", preset,
+            "-crf", crf,
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -1239,8 +1260,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
               "-map", "[outv]",
               "-map", "0:a?",
               "-c:v", "libx264",
-              "-preset", "veryfast",
-              "-crf", "18",
+              "-preset", preset,
+              "-crf", crf,
               "-c:a", "aac",
               "-b:a", "192k",
               "-movflags", "frag_keyframe+empty_moov",
@@ -1254,8 +1275,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
               "-t", duration.toString(),
               "-vf", videoFilter,
               "-c:v", "libx264",
-              "-preset", "veryfast",
-              "-crf", "18",
+              "-preset", preset,
+              "-crf", crf,
               "-c:a", "aac",
               "-b:a", "192k",
               "-movflags", "frag_keyframe+empty_moov",
@@ -1340,11 +1361,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     targetWidth: number,
     targetHeight: number,
     subtitlesPath?: string,
-    watermark?: boolean
+    watermark?: boolean,
+    quality: VideoQuality = "1080p"
   ): Promise<void> {
     const wmConfig = watermark
       ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())
       : null;
+
+    const { preset, crf } = getEncodingParams(quality);
 
     return new Promise((resolve, reject) => {
       const targetAspect = targetWidth / targetHeight;
@@ -1378,8 +1402,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           "-map", "[outv]",
           "-map", "0:a?",
           "-c:v", "libx264",
-          "-preset", "veryfast",
-          "-crf", "18",
+          "-preset", preset,
+          "-crf", crf,
           "-profile:v", "high",
           "-level", "4.0",
           "-c:a", "aac",
@@ -1410,8 +1434,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-map", "[outv]",
             "-map", "0:a?",
             "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "18",
+            "-preset", preset,
+            "-crf", crf,
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -1426,8 +1450,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             "-i", inputPath,
             "-vf", videoFilter,
             "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "18",
+            "-preset", preset,
+            "-crf", crf,
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -1502,7 +1526,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       await fs.promises.writeFile(tempInputPath, input);
 
       // Convert aspect ratio
-      await this.convertAspectRatioFile(tempInputPath, tempOutputPath, width, height);
+      await this.convertAspectRatioFile(tempInputPath, tempOutputPath, width, height, undefined, undefined, quality);
 
       // Read output file
       const outputBuffer = await fs.promises.readFile(tempOutputPath);

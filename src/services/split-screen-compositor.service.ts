@@ -20,6 +20,7 @@ export interface SplitScreenOptions {
   targetHeight: number;
   clipDuration: number;
   backgroundDuration: number;
+  quality?: "720p" | "1080p" | "2k" | "4k"; // drives FFmpeg preset/CRF
 }
 
 export class SplitScreenCompositorService {
@@ -131,6 +132,10 @@ export class SplitScreenCompositorService {
     const filterComplex = this.buildFilterComplex(options);
     const bgArgs = this.getBackgroundInputArgs(options.clipDuration, options.backgroundDuration);
 
+    const isHighQuality = options.quality === "2k" || options.quality === "4k";
+    const preset = isHighQuality ? "slow" : "veryfast";
+    const crf = isHighQuality ? "16" : "18";
+
     const args = [
       // Input 0: main clip
       "-i", options.mainClipPath,
@@ -144,8 +149,8 @@ export class SplitScreenCompositorService {
       "-map", "0:a",
       // Encoding (match existing pipeline)
       "-c:v", "libx264",
-      "-preset", "veryfast",
-      "-crf", "18",
+      "-preset", preset,
+      "-crf", crf,
       "-c:a", "aac",
       "-b:a", "192k",
       // Trim to clip duration
