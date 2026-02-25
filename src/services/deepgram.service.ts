@@ -121,15 +121,21 @@ export class DeepgramService {
       diarize: options?.diarize !== false,
     };
 
-    // If language is specified, use it; otherwise use multilingual mode for best results
+    // If language is specified, use it; otherwise use detect_language for best results
     if (options?.language && isValidLanguageCode(options.language)) {
-      transcriptionConfig.language = options.language;
-      console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
+      if (options.language === "multi") {
+        // Explicit multilingual (code-switching) — use nova-3 multi mode
+        transcriptionConfig.language = "multi";
+        console.log(`[DEEPGRAM] Using multilingual mode (code-switching)`);
+      } else {
+        transcriptionConfig.language = options.language;
+        console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
+      }
     } else {
-      // Use multilingual mode by default — handles code-switching (e.g. Hindi + English)
-      // better than detect_language which only picks one dominant language
-      transcriptionConfig.language = "multi";
-      console.log(`[DEEPGRAM] Using multilingual mode (auto)`);
+      // Auto-detect: use nova-2 + detect_language — more reliable for non-English audio
+      transcriptionConfig.model = "nova-2";
+      transcriptionConfig.detect_language = true;
+      console.log(`[DEEPGRAM] Using auto language detection (nova-2)`);
     }
 
     const { result, error } = await client.listen.prerecorded.transcribeUrl(
@@ -174,14 +180,20 @@ export class DeepgramService {
       mimetype: mimeType,
     };
 
-    // If language is specified, use it; otherwise use multilingual mode for best results
+    // If language is specified, use it; otherwise use detect_language for best results
     if (options?.language && isValidLanguageCode(options.language)) {
-      transcriptionConfig.language = options.language;
-      console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
+      if (options.language === "multi") {
+        transcriptionConfig.language = "multi";
+        console.log(`[DEEPGRAM] Using multilingual mode (code-switching)`);
+      } else {
+        transcriptionConfig.language = options.language;
+        console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
+      }
     } else {
-      // Use multilingual mode by default — handles code-switching (e.g. Hindi + English)
-      transcriptionConfig.language = "multi";
-      console.log(`[DEEPGRAM] Using multilingual mode (auto)`);
+      // Auto-detect: use nova-2 + detect_language — more reliable for non-English audio
+      transcriptionConfig.model = "nova-2";
+      transcriptionConfig.detect_language = true;
+      console.log(`[DEEPGRAM] Using auto language detection (nova-2)`);
     }
 
     const { result, error } = await client.listen.prerecorded.transcribeFile(
