@@ -18,7 +18,7 @@
     "clear:queues": "bun run scripts/clear-queues.ts",
     "list:jobs": "bun run scripts/list-jobs.ts",
     "cleanup:orphans": "bun run scripts/cleanup-orphaned-files.ts",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.44",

@@ -1196,6 +1196,8 @@ export class AdminModel {
   }
 
   /**
+   * Get a single user by ID
+   */
   static async getUserById(userId: string) {
     this.logOperation("GET_USER_BY_ID", { userId });
     try {
