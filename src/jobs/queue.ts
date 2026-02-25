@@ -214,16 +214,34 @@ export async function addVideoProcessingJob(data: VideoProcessingJobData, priori
 export async function removeVideoJob(videoId: string) {
   const job = await videoProcessingQueue.getJob(`video-${videoId}`);
   if (job) {
-    await job.remove();
-    console.log(`[QUEUE] Removed video processing job for: ${videoId}`);
+    try {
+      await job.remove();
+      console.log(`[QUEUE] Removed video processing job for: ${videoId}`);
+    } catch (err: any) {
+      // Job is locked (actively being processed by a worker) — ignore, the worker
+      // will finish or fail on its own. DB/R2 deletion proceeds regardless.
+      if (err?.message?.includes("locked by another worker")) {
+        console.warn(`[QUEUE] Job video-${videoId} is locked by a worker, skipping removal`);
+      } else {
+        throw err;
+      }
+    }
   }
 }
 
 export async function removeClipJob(clipId: string) {
   const job = await clipGenerationQueue.getJob(`clip-${clipId}`);
   if (job) {
-    await job.remove();
-    console.log(`[QUEUE] Removed clip generation job for: ${clipId}`);
+    try {
+      await job.remove();
+      console.log(`[QUEUE] Removed clip generation job for: ${clipId}`);
+    } catch (err: any) {
+      if (err?.message?.includes("locked by another worker")) {
+        console.warn(`[QUEUE] Job clip-${clipId} is locked by a worker, skipping removal`);
+      } else {
+        throw err;
+      }
+    }
   }
 }
 
