@@ -18,6 +18,7 @@ export interface TranscriptResult {
 
 /**
  * Supported languages for transcription
+ * All languages require nova-3 model (default). nova-2 only supports a subset.
  * Validates: Requirements 24.1, 24.2, 24.3
  */
 export const SUPPORTED_LANGUAGES = {
@@ -34,6 +35,15 @@ export const SUPPORTED_LANGUAGES = {
   ru: "Russian",
   ar: "Arabic",
   hi: "Hindi",
+  tr: "Turkish",
+  pl: "Polish",
+  uk: "Ukrainian",
+  id: "Indonesian",
+  vi: "Vietnamese",
+  ta: "Tamil",
+  te: "Telugu",
+  bn: "Bengali",
+  ur: "Urdu",
   multi: "Multilingual (e.g. Hindi + English)",
 } as const;
 
@@ -49,7 +59,7 @@ export interface TranscriptionOptions {
    */
   language?: SupportedLanguageCode;
   /** Model to use for transcription */
-  model?: "nova-2" | "nova" | "enhanced";
+  model?: "nova-3" | "nova-2" | "nova" | "enhanced";
   /** Enable punctuation */
   punctuate?: boolean;
   /** Enable speaker diarization */
@@ -103,7 +113,7 @@ export class DeepgramService {
 
     // Build transcription options
     const transcriptionConfig: Record<string, any> = {
-      model: options?.model || "nova-2",
+      model: options?.model || "nova-3",
       smart_format: true,
       punctuate: options?.punctuate !== false,
       paragraphs: true,
@@ -155,7 +165,7 @@ export class DeepgramService {
 
     // Build transcription options
     const transcriptionConfig: Record<string, any> = {
-      model: options?.model || "nova-2",
+      model: options?.model || "nova-3",
       smart_format: true,
       punctuate: options?.punctuate !== false,
       paragraphs: true,
