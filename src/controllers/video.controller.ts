@@ -59,21 +59,29 @@ export class VideoController {
         return c.json({ error: "Invalid YouTube URL" }, 400);
       }
 
-      // Get video info — proxy to worker if available (yt-dlp only on EC2)
+      // Get video info — proxy to worker if available (yt-dlp only on EC2), fallback to HTTP API
       let videoInfo;
       try {
         const workerUrl = process.env.WORKER_URL;
+        let workerSucceeded = false;
         if (workerUrl) {
-          const workerRes = await fetch(
-            `${workerUrl}/validate-youtube?url=${encodeURIComponent(youtubeUrl)}`,
-            { signal: AbortSignal.timeout(30000) }
-          );
-          const data = await workerRes.json() as any;
-          if (!data.valid || !data.videoInfo) {
-            return c.json({ error: data.error || "Failed to retrieve video information. The video may be unavailable or private." }, 400);
+          try {
+            const workerRes = await fetch(
+              `${workerUrl}/validate-youtube?url=${encodeURIComponent(youtubeUrl)}`,
+              { signal: AbortSignal.timeout(30000) }
+            );
+            const data = await workerRes.json() as any;
+            if (data.valid && data.videoInfo) {
+              videoInfo = data.videoInfo;
+              workerSucceeded = true;
+            } else if (!data.valid) {
+              return c.json({ error: data.error || "Failed to retrieve video information. The video may be unavailable or private." }, 400);
+            }
+          } catch (workerErr: any) {
+            console.error(`[VIDEO CONTROLLER] Worker proxy failed, falling back to HTTP API:`, workerErr?.message);
           }
-          videoInfo = data.videoInfo;
-        } else {
+        }
+        if (!workerSucceeded) {
           videoInfo = await YouTubeService.getVideoInfo(youtubeUrl);
         }
       } catch (error) {
@@ -432,12 +440,12 @@ export class VideoController {
           const data = await workerRes.json();
           return c.json(data);
         } catch (proxyErr: any) {
-          console.error("[VIDEO CONTROLLER] Worker proxy failed:", proxyErr?.message);
-          return c.json({ valid: false, error: "Video validation service unavailable. Please try again." });
+          console.error("[VIDEO CONTROLLER] Worker proxy failed, falling back to HTTP API:", proxyErr?.message);
+          // Fall through to direct HTTP API fallback below
         }
       }
 
-      // Fallback: try direct (only works if yt-dlp is installed locally)
+      // Fallback: YouTube Data API (works on API server) or yt-dlp (worker only)
       const videoInfo = await YouTubeService.getVideoInfo(url);
       const durationValidation = YouTubeService.validateVideoDuration(videoInfo.duration);
       if (!durationValidation.valid) {
