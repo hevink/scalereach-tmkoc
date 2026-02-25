@@ -4,24 +4,42 @@ import { MinutesModel } from "../models/minutes.model";
 import { WorkspaceModel } from "../models/workspace.model";
 import { DodoService, DodoWebhookPayload } from "../services/dodo.service";
 
-// Map product IDs to plan names
-const PRODUCT_TO_PLAN: Record<string, string> = {
-  // Starter plans
-  "pdt_0NZGBR6GtydxMB2lNeh09": "starter", // Starter Monthly
-  "pdt_0NZGBRV0VGyAffgoPOiMx": "starter", // Starter Annual
-  // Pro plans
-  "pdt_0NZGBRrun07eXzoWlmzm2": "pro", // Pro Monthly
-  "pdt_0NZGBSH8bWPajakeSOO8B": "pro", // Pro Annual
-  // Agency plans
-  "pdt_0NZGBScekA4L6yNm7r3BX": "agency", // Agency Monthly
-  "pdt_0NZGBSvywqWyfQBbnGecS": "agency", // Agency Annual
-};
+const isLiveMode = process.env.DODO_ENVIRONMENT === "live_mode";
 
-const ANNUAL_PRODUCT_IDS = new Set([
-  "pdt_0NZGBRV0VGyAffgoPOiMx", // Starter Annual
-  "pdt_0NZGBSH8bWPajakeSOO8B", // Pro Annual
-  "pdt_0NZGBSvywqWyfQBbnGecS", // Agency Annual
-]);
+// Map product IDs to plan names — switches between test and live based on DODO_ENVIRONMENT
+const PRODUCT_TO_PLAN: Record<string, string> = isLiveMode
+  ? {
+      // Live mode product IDs
+      "pdt_0NZGBR6GtydxMB2lNeh09": "starter", // Starter Monthly
+      "pdt_0NZGBRV0VGyAffgoPOiMx": "starter", // Starter Annual
+      "pdt_0NZGBRrun07eXzoWlmzm2": "pro",     // Pro Monthly
+      "pdt_0NZGBSH8bWPajakeSOO8B": "pro",     // Pro Annual
+      "pdt_0NZGBScekA4L6yNm7r3BX": "agency",  // Agency Monthly
+      "pdt_0NZGBSvywqWyfQBbnGecS": "agency",  // Agency Annual
+    }
+  : {
+      // Test mode product IDs
+      "pdt_0NY6k5d7b4MxSsVM7KzEV": "starter", // Starter Monthly
+      "pdt_0NY6kJuPXxJUv7SFNbQOB": "starter", // Starter Annual
+      "pdt_0NY6llF7a0oFiFsaeVOW7": "pro",     // Pro Monthly
+      "pdt_0NY6lyuXXpnq6BWWOeDTy": "pro",     // Pro Annual
+      "pdt_0NZFx5ffGwT1YxA1hGbe4": "agency",  // Agency Monthly
+      "pdt_0NZFxhZt01qOI9OLNEaSd": "agency",  // Agency Annual
+    };
+
+const ANNUAL_PRODUCT_IDS = new Set(
+  isLiveMode
+    ? [
+        "pdt_0NZGBRV0VGyAffgoPOiMx", // Starter Annual
+        "pdt_0NZGBSH8bWPajakeSOO8B", // Pro Annual
+        "pdt_0NZGBSvywqWyfQBbnGecS", // Agency Annual
+      ]
+    : [
+        "pdt_0NY6kJuPXxJUv7SFNbQOB", // Starter Annual
+        "pdt_0NY6lyuXXpnq6BWWOeDTy", // Pro Annual
+        "pdt_0NZFxhZt01qOI9OLNEaSd", // Agency Annual
+      ]
+);
 
 function getBillingCycle(productId: string): "annual" | "monthly" {
   return ANNUAL_PRODUCT_IDS.has(productId) ? "annual" : "monthly";
