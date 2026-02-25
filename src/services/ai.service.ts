@@ -1,5 +1,6 @@
-import { generateText as aiGenerateText } from "ai";
+import { generateText as aiGenerateText, generateObject as aiGenerateObject } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
+import type { z } from "zod";
 
 // ============================================================
 // CHANGE MODEL HERE — one line swap
@@ -42,6 +43,37 @@ export class AIService {
     return result.text;
   }
 
+  /**
+   * Generate structured JSON using Vercel AI SDK's generateObject with Zod schema validation.
+   * This ensures the AI response always matches the expected schema — no JSON parsing errors.
+   */
+  async generateObject<T>(
+    prompt: string,
+    options: {
+      schema: z.ZodType<T>;
+      systemPrompt?: string;
+      temperature?: number;
+      maxTokens?: number;
+    }
+  ): Promise<T> {
+    const { schema, systemPrompt, temperature = 0.7, maxTokens } = options;
+
+    const result = await aiGenerateObject({
+      model: anthropic(AI_MODEL),
+      schema,
+      system: systemPrompt,
+      prompt,
+      temperature,
+      maxOutputTokens: maxTokens,
+    });
+
+    console.log(`[AI] generateObject: ${result.usage?.outputTokens ?? "?"} tokens`);
+    return result.object as T;
+  }
+
+  /**
+   * @deprecated Use generateObject() with a Zod schema instead for reliable structured output.
+   */
   async generateJSON<T>(
     prompt: string,
     options: {

@@ -335,42 +335,18 @@ ${enableIntroTitle && enableEmojis ? "9" : enableIntroTitle || enableEmojis ? "8
 ${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "9" : "8"}. Recommended platforms`;
 
     try {
-      console.log(`[VIRAL DETECTION] Calling Groq API...`);
+      console.log(`[VIRAL DETECTION] Calling AI (generateObject with Zod schema)...`);
       
-      // Create JSON schema description for Groq
-      const schemaDescription = `{
-  "clips": [
-    {
-      "title": "string - A catchy title for this viral clip",
-      "introTitle": "string - A short, punchy intro title (max 5-7 words) to display in the first 3 seconds",
-      "startTime": "number - Start time in seconds",
-      "endTime": "number - End time in seconds",
-      "transcript": "string - The transcript text for this clip segment",
-      "transcriptWithEmojis": "string - The same transcript but with relevant emojis added naturally",
-      "viralityScore": "number - Virality score from 0-100",
-      "viralityReason": "string - Detailed explanation of why this clip would go viral",
-      "hooks": ["string array - Key hooks or attention-grabbing elements"],
-      "emotions": ["string array - Primary emotions this clip evokes"],
-      "recommendedPlatforms": ["string array - Must include at least 1 platform from: youtube_shorts, instagram_reels, tiktok, linkedin, twitter, facebook_reels"]
-    }
-  ]
-}`;
-
-      const responseText = await aiService.generateJSON<{ clips: ViralClip[] }>(
+      const output = await aiService.generateObject(
         userPrompt,
         {
+          schema: ViralClipSchema,
           systemPrompt,
           temperature: 0.7,
           maxTokens: 16000,
-          schema: schemaDescription,
         }
       );
 
-      if (!responseText || !responseText.clips) {
-        throw new Error("No clips generated from model");
-      }
-
-      const output = responseText;
       console.log(`[VIRAL DETECTION] Found ${output.clips.length} viral clips`);
 
       // Log all clip durations for debugging
