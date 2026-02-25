@@ -17,11 +17,11 @@ const ViralClipSchema = z.object({
   clips: z.array(
     z.object({
       title: z.string().describe("A catchy title for this viral clip"),
-      introTitle: z.string().describe("A short, punchy intro title (max 5-7 words) to display in the first 3 seconds of the video - should hook viewers immediately. Use empty string if not needed."),
+      introTitle: z.string().optional().default("").describe("A short, punchy intro title (max 5-7 words) to display in the first 3 seconds of the video - should hook viewers immediately. Use empty string if not needed."),
       startTime: z.number().describe("Start time in seconds"),
       endTime: z.number().describe("End time in seconds"),
       transcript: z.string().describe("The transcript text for this clip segment"),
-      transcriptWithEmojis: z.string().describe("The same transcript but with relevant emojis added naturally throughout to enhance engagement (e.g., 'This is amazing 🔥 and you won't believe 😱 what happens next'). Use empty string if emojis not needed."),
+      transcriptWithEmojis: z.string().optional().default("").describe("The same transcript but with relevant emojis added naturally throughout to enhance engagement. Use empty string if emojis not needed."),
       viralityScore: z
         .number()
         .min(0)
@@ -29,17 +29,24 @@ const ViralClipSchema = z.object({
         .describe("Virality score from 0-100"),
       viralityReason: z
         .string()
+        .optional()
+        .default("")
         .describe("Detailed explanation of why this clip would go viral"),
       hooks: z
         .array(z.string())
+        .optional()
+        .default([])
         .describe("Key hooks or attention-grabbing elements in this clip"),
       emotions: z
         .array(z.string())
+        .optional()
+        .default([])
         .describe("Primary emotions this clip evokes (e.g., humor, shock, inspiration)"),
       recommendedPlatforms: z
         .array(z.enum(PLATFORM_OPTIONS))
-        .min(1)
-        .describe("REQUIRED: Best platforms for this clip based on content style, tone, and audience fit. Must include at least 1 platform."),
+        .optional()
+        .default([])
+        .describe("Best platforms for this clip based on content style, tone, and audience fit."),
     })
   ).describe("Array of viral clip opportunities"),
 });
