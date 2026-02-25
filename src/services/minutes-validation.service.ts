@@ -51,22 +51,28 @@ export function canUploadVideo(
 ): ValidationResult {
   const plan = planConfig.plan;
 
+  // Agency plan: unlimited everything, skip all checks
+  if (plan === "agency") {
+    const billingDuration = effectiveDurationInSeconds ?? durationInSeconds;
+    return { allowed: true, minutesWillBeDeducted: calculateMinuteConsumption(billingDuration) };
+  }
+
   // Check 1: Video length limit (always check full video duration)
-  if (durationInSeconds > planConfig.limits.videoLength) {
+  if (planConfig.limits.videoLength !== -1 && durationInSeconds > planConfig.limits.videoLength) {
     return {
       allowed: false,
       reason: "VIDEO_TOO_LONG",
-      message: ERROR_MESSAGES.VIDEO_TOO_LONG[plan],
+      message: ERROR_MESSAGES.VIDEO_TOO_LONG[plan] ?? ERROR_MESSAGES.VIDEO_TOO_LONG.pro,
       upgrade: plan !== "pro",
     };
   }
 
   // Check 2: File size limit (skip for YouTube where size is 0)
-  if (sizeInBytes > 0 && sizeInBytes > planConfig.limits.uploadSize) {
+  if (sizeInBytes > 0 && planConfig.limits.uploadSize !== -1 && sizeInBytes > planConfig.limits.uploadSize) {
     return {
       allowed: false,
       reason: "FILE_TOO_LARGE",
-      message: ERROR_MESSAGES.FILE_TOO_LARGE[plan],
+      message: ERROR_MESSAGES.FILE_TOO_LARGE[plan] ?? ERROR_MESSAGES.FILE_TOO_LARGE.pro,
       upgrade: plan === "free",
     };
   }
@@ -78,9 +84,9 @@ export function canUploadVideo(
     return {
       allowed: false,
       reason: "INSUFFICIENT_MINUTES",
-      message: ERROR_MESSAGES.INSUFFICIENT_MINUTES[plan],
+      message: ERROR_MESSAGES.INSUFFICIENT_MINUTES[plan] ?? ERROR_MESSAGES.INSUFFICIENT_MINUTES.pro,
       upgrade: plan !== "pro",
-      minutesWillBeDeducted: minutesNeeded, // include so caller can show the actual number
+      minutesWillBeDeducted: minutesNeeded,
     };
   }
 
@@ -98,12 +104,17 @@ export function canRegenerateVideo(
 ): ValidationResult {
   const plan = planConfig.plan;
 
-  // Check 1: Regeneration limit
-  if (regenerationCount >= planConfig.limits.regenerations) {
+  // Agency plan: unlimited regenerations and minutes
+  if (plan === "agency") {
+    return { allowed: true, minutesWillBeDeducted: calculateMinuteConsumption(durationInSeconds) };
+  }
+
+  // Check 1: Regeneration limit (-1 = unlimited)
+  if (planConfig.limits.regenerations !== -1 && regenerationCount >= planConfig.limits.regenerations) {
     return {
       allowed: false,
       reason: "REGENERATION_LIMIT_REACHED",
-      message: ERROR_MESSAGES.REGENERATION_LIMIT_REACHED[plan],
+      message: ERROR_MESSAGES.REGENERATION_LIMIT_REACHED[plan] ?? ERROR_MESSAGES.REGENERATION_LIMIT_REACHED.pro,
       upgrade: plan === "free",
     };
   }
@@ -114,7 +125,7 @@ export function canRegenerateVideo(
     return {
       allowed: false,
       reason: "INSUFFICIENT_MINUTES",
-      message: ERROR_MESSAGES.INSUFFICIENT_MINUTES[plan],
+      message: ERROR_MESSAGES.INSUFFICIENT_MINUTES[plan] ?? ERROR_MESSAGES.INSUFFICIENT_MINUTES.pro,
       upgrade: plan !== "pro",
       minutesWillBeDeducted: minutesNeeded,
     };
@@ -153,11 +164,16 @@ export function validateFileSize(
   planConfig: PlanConfig,
   sizeInBytes: number
 ): ValidationResult {
+  // -1 = unlimited (agency plan)
+  if (planConfig.limits.uploadSize === -1) {
+    return { allowed: true };
+  }
+
   if (sizeInBytes > planConfig.limits.uploadSize) {
     return {
       allowed: false,
       reason: "FILE_TOO_LARGE",
-      message: ERROR_MESSAGES.FILE_TOO_LARGE[planConfig.plan],
+      message: ERROR_MESSAGES.FILE_TOO_LARGE[planConfig.plan] ?? ERROR_MESSAGES.FILE_TOO_LARGE.pro,
       upgrade: planConfig.plan === "free",
     };
   }

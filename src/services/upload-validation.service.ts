@@ -85,10 +85,15 @@ export class UploadValidationService {
     }
 
     const maxSize = planConfig.limits.uploadSize;
+
+    // -1 means unlimited (agency plan)
+    if (maxSize === -1) {
+      return { valid: true };
+    }
     
     if (fileSize > maxSize) {
-      const canUpgrade = planConfig.plan === "free" || planConfig.plan === "starter";
-      const nextPlan = planConfig.plan === "free" ? "starter" : "pro";
+      const canUpgrade = planConfig.plan === "free" || planConfig.plan === "starter" || planConfig.plan === "pro";
+      const nextPlan = planConfig.plan === "free" ? "starter" : planConfig.plan === "starter" ? "pro" : "agency";
       const planName = planConfig.plan.charAt(0).toUpperCase() + planConfig.plan.slice(1);
       
       return {

@@ -19,7 +19,7 @@ export interface PlanLimits {
 }
 
 export interface PlanConfig {
-  plan: "free" | "starter" | "pro";
+  plan: "free" | "starter" | "pro" | "agency";
   minutes: PlanMinutes;
   limits: PlanLimits;
 }
@@ -61,7 +61,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
   },
   pro: {
     plan: "pro",
-    minutes: { total: 500, type: "monthly", renewable: true },
+    minutes: { total: 400, type: "monthly", renewable: true },
     limits: {
       videoLength: 10800, // 3 hours
       uploadSize: 4 * 1024 * 1024 * 1024, // 4GB
@@ -76,6 +76,23 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       socialAccounts: 5,
     },
   },
+  agency: {
+    plan: "agency",
+    minutes: { total: -1, type: "monthly", renewable: true }, // -1 = unlimited
+    limits: {
+      videoLength: -1, // unlimited
+      uploadSize: -1, // unlimited
+      storageDuration: -1, // unlimited
+      regenerations: -1, // unlimited
+      editing: -1, // unlimited
+      watermark: false,
+      translationsPerVideo: -1, // unlimited
+      dubbingMinutesPerMonth: -1, // unlimited
+      splitScreen: true,
+      maxClipQuality: "4k",
+      socialAccounts: -1, // unlimited
+    },
+  },
 };
 
 export function getPlanConfig(plan: string): PlanConfig {
@@ -86,8 +103,9 @@ export function getPlanConfig(plan: string): PlanConfig {
  * Calculate the expiry date for a video based on the workspace plan.
  * Returns a Date object set to now + storageDuration seconds.
  */
-export function getVideoExpiryDate(plan: string): Date {
+export function getVideoExpiryDate(plan: string): Date | null {
   const config = getPlanConfig(plan);
+  if (config.limits.storageDuration === -1) return null; // unlimited storage
   const now = new Date();
   return new Date(now.getTime() + config.limits.storageDuration * 1000);
 }
@@ -106,6 +124,7 @@ export function formatDuration(seconds: number): string {
 }
 
 export function formatBytes(bytes: number): string {
+  if (bytes === -1) return "Unlimited";
   const gb = bytes / (1024 * 1024 * 1024);
   if (gb >= 1) return `${gb.toFixed(0)}GB`;
   const mb = bytes / (1024 * 1024);
