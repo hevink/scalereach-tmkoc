@@ -170,8 +170,11 @@ export class WorkspaceController {
 
       // Check workspace creation eligibility
       // Free plan users can only have 1 workspace. To create more, at least one existing workspace must be on a paid plan.
+      // Exception: users who haven't completed onboarding yet are always allowed to create their first workspace
+      // (handles the case where onboarding was interrupted after workspace creation but before isOnboarded was set)
       const existingWorkspaces = await WorkspaceModel.getByOwnerId(user.id);
-      if (existingWorkspaces.length > 0) {
+      const isOnboarded = (user as any).isOnboarded ?? true; // default true to be safe for existing users
+      if (existingWorkspaces.length > 0 && isOnboarded) {
         const hasPaidWorkspace = existingWorkspaces.some(
           (ws) => ws.plan === "starter" || ws.plan === "pro" || ws.plan === "agency"
         );
