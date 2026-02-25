@@ -45,7 +45,7 @@ export class AIService {
 
   /**
    * Generate structured JSON using Vercel AI SDK's generateObject with Zod schema validation.
-   * This ensures the AI response always matches the expected schema — no JSON parsing errors.
+   * Falls back to generateText + JSON parsing if tool calling is unsupported by the proxy.
    */
   async generateObject<T>(
     prompt: string,
@@ -58,17 +58,49 @@ export class AIService {
   ): Promise<T> {
     const { schema, systemPrompt, temperature = 0.7, maxTokens } = options;
 
-    const result = await aiGenerateObject({
-      model: anthropic(AI_MODEL),
-      schema,
-      system: systemPrompt,
-      prompt,
-      temperature,
-      maxOutputTokens: maxTokens,
-    });
+    try {
+      const result = await aiGenerateObject({
+        model: anthropic(AI_MODEL),
+        schema,
+        system: systemPrompt,
+        prompt,
+        temperature,
+        maxOutputTokens: maxTokens,
+      });
 
-    console.log(`[AI] generateObject: ${result.usage?.outputTokens ?? "?"} tokens`);
-    return result.object as T;
+      console.log(`[AI] generateObject: ${result.usage?.outputTokens ?? "?"} tokens`);
+      return result.object as T;
+    } catch (err: any) {
+      // Proxy doesn't support tool calling — fall back to text + JSON parse
+      if (err?.name === "AI_JSONParseError" || err?.name === "AI_NoObjectGeneratedError" || err?.message?.includes("could not parse")) {
+        console.warn(`[AI] generateObject failed (proxy may not support tool calling), falling back to text mode`);
+
+        const jsonSystemPrompt = `${systemPrompt || ""}
+
+CRITICAL: You must respond with ONLY valid JSON that matches the required schema. No markdown, no code blocks, no explanations, no headers. Start directly with { and end with }.`;
+
+        const text = await this.generateText(prompt, {
+          systemPrompt: jsonSystemPrompt,
+          temperature,
+          maxTokens,
+        });
+
+        let jsonText = text.trim();
+        // Strip markdown code blocks if present
+        if (jsonText.startsWith("```json")) {
+          jsonText = jsonText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+        } else if (jsonText.startsWith("```")) {
+          jsonText = jsonText.replace(/^```\s*/, "").replace(/\s*```$/, "");
+        }
+        // Find first { to strip any leading text
+        const firstBrace = jsonText.indexOf("{");
+        if (firstBrace > 0) jsonText = jsonText.slice(firstBrace);
+
+        const parsed = JSON.parse(jsonText) as T;
+        return schema.parse(parsed);
+      }
+      throw err;
+    }
   }
 
   /**
