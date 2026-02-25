@@ -64,6 +64,7 @@ export interface ViralDetectionOptions {
   genre?: string;           // Content genre for better detection (Auto, Podcast, Gaming, etc.)
   clipType?: string;        // Clip type template ID for targeted detection
   customPrompt?: string;    // Custom prompt for specific moment detection
+  language?: string;        // Detected transcript language (e.g. "hi", "en", "ar")
   // Model is configured globally via AI_PROVIDER + AI_MODEL env vars
   // Editing options
   enableEmojis?: boolean;   // Whether to generate transcript with emojis
@@ -174,7 +175,13 @@ export class ViralDetectionService {
       clipType = "viral-clips",
       enableEmojis = false,
       enableIntroTitle = false,
+      language = "en",
     } = options;
+
+    const isNonEnglish = language !== "en";
+    const languageNote = isNonEnglish
+      ? `\nTRANSCRIPT LANGUAGE: The transcript is in "${language}" (non-English). Analyze it as-is — do NOT translate. Return titles and virality reasons in English, but keep transcript/transcriptWithEmojis fields in the original language.\n`
+      : "";
 
     const isAutoMode = options.minDuration === undefined && options.maxDuration === undefined;
     const minDuration = options.minDuration ?? DEFAULT_MIN_DURATION;
@@ -289,7 +296,7 @@ PLATFORM RECOMMENDATIONS (required for every clip):
 - **tiktok**: Trendy, humorous, raw/authentic, fast-paced
 - **linkedin**: Professional insights, business tips, thought leadership
 - **twitter**: Hot takes, controversial opinions, quick wit
-- **facebook_reels**: Family-friendly, relatable, shareable stories`;
+- **facebook_reels**: Family-friendly, relatable, shareable stories${languageNote}`;
 
     // Build dynamic user prompt based on options
     const introTitleInstruction = enableIntroTitle 

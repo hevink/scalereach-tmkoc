@@ -124,7 +124,6 @@ export class DeepgramService {
     // If language is specified, use it; otherwise use detect_language for best results
     if (options?.language && isValidLanguageCode(options.language)) {
       if (options.language === "multi") {
-        // Explicit multilingual (code-switching) — use nova-3 multi mode
         transcriptionConfig.language = "multi";
         console.log(`[DEEPGRAM] Using multilingual mode (code-switching)`);
       } else {
@@ -132,10 +131,9 @@ export class DeepgramService {
         console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
       }
     } else {
-      // Auto-detect: use nova-2 + detect_language — more reliable for non-English audio
-      transcriptionConfig.model = "nova-2";
+      // Auto-detect with nova-3
       transcriptionConfig.detect_language = true;
-      console.log(`[DEEPGRAM] Using auto language detection (nova-2)`);
+      console.log(`[DEEPGRAM] Using auto language detection (nova-3)`);
     }
 
     const { result, error } = await client.listen.prerecorded.transcribeUrl(
@@ -190,10 +188,9 @@ export class DeepgramService {
         console.log(`[DEEPGRAM] Language set to: ${options.language} (${SUPPORTED_LANGUAGES[options.language]})`);
       }
     } else {
-      // Auto-detect: use nova-2 + detect_language — more reliable for non-English audio
-      transcriptionConfig.model = "nova-2";
+      // Auto-detect with nova-3
       transcriptionConfig.detect_language = true;
-      console.log(`[DEEPGRAM] Using auto language detection (nova-2)`);
+      console.log(`[DEEPGRAM] Using auto language detection (nova-3)`);
     }
 
     const { result, error } = await client.listen.prerecorded.transcribeFile(
@@ -252,25 +249,16 @@ export class DeepgramService {
     const transcript = alternative.transcript || "";
     const confidence = alternative.confidence || 0;
     const duration = result.metadata?.duration || 0;
-    
+
     // Extract detected language from response
-    // Deepgram returns detected_language in the channel or metadata
-    let language = "en"; // Default to English
-    
-    // Check for detected language in channel
+    let language = "en";
     if (channel?.detected_language) {
       language = channel.detected_language;
-    }
-    // Check for language in alternative
-    else if (alternative?.languages && alternative.languages.length > 0) {
+    } else if (alternative?.languages && alternative.languages.length > 0) {
       language = alternative.languages[0];
-    }
-    // Check for detected language in metadata
-    else if (result.metadata?.detected_language) {
+    } else if (result.metadata?.detected_language) {
       language = result.metadata.detected_language;
-    }
-    // Check for model info which may contain language
-    else if (result.metadata?.model_info?.language) {
+    } else if (result.metadata?.model_info?.language) {
       language = result.metadata.model_info.language;
     }
 

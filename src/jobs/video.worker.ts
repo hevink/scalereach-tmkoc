@@ -263,6 +263,7 @@ async function processYouTubeVideo(
         genre: videoConfig?.genre ?? "Auto",
         clipType: videoConfig?.clipType ?? "viral-clips",
         customPrompt: videoConfig?.customPrompt ?? undefined,
+        language: transcriptResult.language,
         // Editing options from video config
         enableEmojis: false,
         enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
@@ -696,6 +697,7 @@ async function processUploadedVideo(
         genre: videoConfig?.genre ?? "Auto",
         clipType: videoConfig?.clipType ?? "viral-clips",
         customPrompt: videoConfig?.customPrompt ?? undefined,
+        language: transcriptResult.language,
         // Editing options from video config
         enableEmojis: false,
         enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
