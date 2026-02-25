@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { VideoModel } from "../models/video.model";
 import { ProjectModel } from "../models/project.model";
 import { MinutesModel } from "../models/minutes.model";
-import { YouTubeService, MAX_VIDEO_DURATION_SECONDS } from "../services/youtube.service";
+import { YouTubeService } from "../services/youtube.service";
 import { addVideoProcessingJob, getJobStatus, removeVideoJob, removeClipJob, getPlanPriority } from "../jobs/queue";
 import { getPlanConfig, calculateMinuteConsumption, formatDuration, getVideoExpiryDate } from "../config/plan-config";
 import { canUploadVideo } from "../services/minutes-validation.service";
@@ -279,10 +279,22 @@ export class VideoController {
   }
 
   static async getVideosByProject(c: Context) {
+    const user = c.get("user") as { id: string };
     const projectId = c.req.param("projectId");
     VideoController.logRequest(c, "GET_VIDEOS_BY_PROJECT", { projectId });
 
     try {
+      const proj = await ProjectModel.getById(projectId);
+      if (!proj) {
+        return c.json({ error: "Project not found" }, 404);
+      }
+
+      const { WorkspaceModel } = await import("../models/workspace.model");
+      const member = await WorkspaceModel.getMemberByUserAndWorkspace(user.id, proj.workspaceId);
+      if (!member) {
+        return c.json({ error: "You don't have access to this project" }, 403);
+      }
+
       const videos = await VideoModel.getByProjectId(projectId);
       return c.json(videos);
     } catch (error) {
