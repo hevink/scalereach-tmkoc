@@ -379,7 +379,7 @@ async function processYouTubeVideo(
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
-          workspaceId: "", // Will be populated from video record
+          workspaceId: workspaceId || "",
           userId: userId,
           creditCost: 0, // Minutes already deducted at video level
           sourceType: "youtube",
@@ -812,7 +812,7 @@ async function processUploadedVideo(
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
-          workspaceId: "", // Will be populated from video record
+          workspaceId: workspaceId || "",
           userId: userId,
           creditCost: 0, // Minutes already deducted at video level
           sourceType: "upload",

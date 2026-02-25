@@ -84,9 +84,9 @@ export const auth = betterAuth({
   plugins: [
     username(),
     passkey({
-      rpID: "localhost",
+      rpID: process.env.NODE_ENV === "production" ? "scalereach.ai" : "localhost",
       rpName: "Scalereach",
-      origin: "http://localhost:3000",
+      origin: process.env.NODE_ENV === "production" ? "https://app.scalereach.ai" : "http://localhost:3000",
     }),
     twoFactor({
       issuer: "Scalereach",

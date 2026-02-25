@@ -247,9 +247,8 @@ export class CreditController {
     try {
       const body = await c.req.text();
 
-      // Log headers for debugging
-      const headers = Object.fromEntries(c.req.raw.headers.entries());
-      console.log(`[CREDIT CONTROLLER] Webhook headers:`, JSON.stringify(headers, null, 2));
+      // Log webhook event type for debugging
+      console.log(`[CREDIT CONTROLLER] Webhook received`);
 
       // Verify webhook signature if secret is configured
       const webhookSecret = process.env.DODO_WEBHOOK_SECRET;
