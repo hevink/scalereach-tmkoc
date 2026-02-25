@@ -175,23 +175,37 @@ export class DodoService {
     }
   }
 
-  // Verify webhook signature
+  // Verify webhook signature (Standard Webhooks spec used by Dodo)
   static verifyWebhookSignature(
     payload: string,
+    webhookId: string,
+    webhookTimestamp: string,
     signature: string,
     webhookSecret: string
   ): boolean {
     try {
       const crypto = require("crypto");
-      const expectedSignature = crypto
-        .createHmac("sha256", webhookSecret)
-        .update(payload)
-        .digest("hex");
 
-      return crypto.timingSafeEqual(
-        Buffer.from(signature),
-        Buffer.from(expectedSignature)
-      );
+      // Standard Webhooks: signed message = webhook-id + "." + webhook-timestamp + "." + body
+      const signedContent = `${webhookId}.${webhookTimestamp}.${payload}`;
+
+      // Dodo webhook secret is base64-encoded — decode it first
+      const secretBytes = Buffer.from(webhookSecret.replace(/^whsec_/, ""), "base64");
+
+      const expectedSignature = crypto
+        .createHmac("sha256", secretBytes)
+        .update(signedContent)
+        .digest("base64");
+
+      // Dodo sends comma-separated list of "v1,<sig>" entries
+      const signatures = signature.split(" ");
+      const isValid = signatures.some((sig) => {
+        const sigValue = sig.startsWith("v1,") ? sig.slice(3) : sig;
+        return sigValue === expectedSignature;
+      });
+
+      console.log(`[DODO SERVICE] Signature check — expected: v1,${expectedSignature}, received: ${signature}, valid: ${isValid}`);
+      return isValid;
     } catch (error) {
       console.error(`[DODO SERVICE] Webhook signature verification failed:`, error);
       return false;

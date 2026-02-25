@@ -7,12 +7,25 @@ import { DodoService, DodoWebhookPayload } from "../services/dodo.service";
 // Map product IDs to plan names
 const PRODUCT_TO_PLAN: Record<string, string> = {
   // Starter plans
-  "pdt_0NY6k5d7b4MxSsVM7KzEV": "starter", // Starter Monthly
-  "pdt_0NY6kJuPXxJUv7SFNbQOB": "starter", // Starter Annual
+  "pdt_0NZGBR6GtydxMB2lNeh09": "starter", // Starter Monthly
+  "pdt_0NZGBRV0VGyAffgoPOiMx": "starter", // Starter Annual
   // Pro plans
-  "pdt_0NY6llF7a0oFiFsaeVOW7": "pro", // Pro Monthly
-  "pdt_0NY6lyuXXpnq6BWWOeDTy": "pro", // Pro Annual
+  "pdt_0NZGBRrun07eXzoWlmzm2": "pro", // Pro Monthly
+  "pdt_0NZGBSH8bWPajakeSOO8B": "pro", // Pro Annual
+  // Agency plans
+  "pdt_0NZGBScekA4L6yNm7r3BX": "agency", // Agency Monthly
+  "pdt_0NZGBSvywqWyfQBbnGecS": "agency", // Agency Annual
 };
+
+const ANNUAL_PRODUCT_IDS = new Set([
+  "pdt_0NZGBRV0VGyAffgoPOiMx", // Starter Annual
+  "pdt_0NZGBSH8bWPajakeSOO8B", // Pro Annual
+  "pdt_0NZGBSvywqWyfQBbnGecS", // Agency Annual
+]);
+
+function getBillingCycle(productId: string): "annual" | "monthly" {
+  return ANNUAL_PRODUCT_IDS.has(productId) ? "annual" : "monthly";
+}
 
 export class CreditController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -222,20 +235,21 @@ export class CreditController {
 
       // Verify webhook signature if secret is configured
       const webhookSecret = process.env.DODO_WEBHOOK_SECRET;
-      const signature = c.req.header("webhook-signature") ||
-                        c.req.header("x-webhook-signature") ||
-                        c.req.header("dodo-signature") ||
-                        c.req.header("x-dodo-signature");
+      const webhookId = c.req.header("webhook-id") || "";
+      const webhookTimestamp = c.req.header("webhook-timestamp") || "";
+      const signature = c.req.header("webhook-signature") || "";
 
-      if (webhookSecret && signature) {
-        const isValid = DodoService.verifyWebhookSignature(body, signature, webhookSecret);
+      if (webhookSecret) {
+        if (!webhookId || !webhookTimestamp || !signature) {
+          console.warn("[CREDIT CONTROLLER] Missing required webhook headers (webhook-id, webhook-timestamp, webhook-signature)");
+          return c.json({ error: "Missing signature headers" }, 401);
+        }
+
+        const isValid = DodoService.verifyWebhookSignature(body, webhookId, webhookTimestamp, signature, webhookSecret);
         if (!isValid) {
           console.warn("[CREDIT CONTROLLER] Webhook signature verification failed");
           return c.json({ error: "Invalid signature" }, 401);
         }
-      } else if (webhookSecret && !signature) {
-        console.warn("[CREDIT CONTROLLER] No webhook signature provided but secret is configured");
-        return c.json({ error: "Missing signature" }, 401);
       }
 
       const payload: DodoWebhookPayload = JSON.parse(body);
@@ -342,9 +356,7 @@ export class CreditController {
       const plan = PRODUCT_TO_PLAN[productId];
       if (plan && workspaceId) {
         // Determine billing cycle from product ID
-        const billingCycle = productId.includes("0NY6kJuPXxJUv7SFNbQOB") || productId.includes("0NY6lyuXXpnq6BWWOeDTy") 
-          ? "annual" 
-          : "monthly";
+        const billingCycle = getBillingCycle(productId);
         
         await WorkspaceModel.update(workspaceId, { 
           plan,
@@ -418,9 +430,7 @@ export class CreditController {
       const plan = PRODUCT_TO_PLAN[productId];
       if (plan) {
         // Determine billing cycle from product ID
-        const billingCycle = productId.includes("0NY6kJuPXxJUv7SFNbQOB") || productId.includes("0NY6lyuXXpnq6BWWOeDTy") 
-          ? "annual" 
-          : "monthly";
+        const billingCycle = getBillingCycle(productId);
         
         await WorkspaceModel.update(workspaceId, {
           plan,

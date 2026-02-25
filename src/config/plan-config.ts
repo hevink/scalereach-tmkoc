@@ -82,7 +82,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
     limits: {
       videoLength: -1, // unlimited
       uploadSize: -1, // unlimited
-      storageDuration: -1, // unlimited
+      storageDuration: 180 * 24 * 60 * 60, // 6 months
       regenerations: -1, // unlimited
       editing: -1, // unlimited
       watermark: false,
