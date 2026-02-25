@@ -103,9 +103,9 @@ export function getPlanConfig(plan: string): PlanConfig {
  * Calculate the expiry date for a video based on the workspace plan.
  * Returns a Date object set to now + storageDuration seconds.
  */
-export function getVideoExpiryDate(plan: string): Date | null {
+export function getVideoExpiryDate(plan: string): Date | undefined {
   const config = getPlanConfig(plan);
-  if (config.limits.storageDuration === -1) return null; // unlimited storage
+  if (config.limits.storageDuration === -1) return undefined; // unlimited storage
   const now = new Date();
   return new Date(now.getTime() + config.limits.storageDuration * 1000);
 }
