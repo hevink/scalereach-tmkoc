@@ -1,5 +1,6 @@
 import { db } from "../db";
 import { scheduledPost } from "../db/schema/social.schema";
+import { viralClip } from "../db/schema/project.schema";
 import { eq, and, desc } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
@@ -21,8 +22,32 @@ export class ScheduledPostModel {
       if (filters?.clipId) conditions.push(eq(scheduledPost.clipId, filters.clipId));
 
       const result = await db
-        .select()
+        .select({
+          id: scheduledPost.id,
+          workspaceId: scheduledPost.workspaceId,
+          clipId: scheduledPost.clipId,
+          socialAccountId: scheduledPost.socialAccountId,
+          platform: scheduledPost.platform,
+          postType: scheduledPost.postType,
+          status: scheduledPost.status,
+          caption: scheduledPost.caption,
+          hashtags: scheduledPost.hashtags,
+          scheduledAt: scheduledPost.scheduledAt,
+          dripGroupId: scheduledPost.dripGroupId,
+          dripOrder: scheduledPost.dripOrder,
+          platformPostId: scheduledPost.platformPostId,
+          platformPostUrl: scheduledPost.platformPostUrl,
+          errorMessage: scheduledPost.errorMessage,
+          retryCount: scheduledPost.retryCount,
+          postedAt: scheduledPost.postedAt,
+          createdBy: scheduledPost.createdBy,
+          createdAt: scheduledPost.createdAt,
+          updatedAt: scheduledPost.updatedAt,
+          clipTitle: viralClip.title,
+          clipThumbnailUrl: viralClip.thumbnailUrl,
+        })
         .from(scheduledPost)
+        .leftJoin(viralClip, eq(scheduledPost.clipId, viralClip.id))
         .where(and(...conditions))
         .orderBy(desc(scheduledPost.createdAt));
 
