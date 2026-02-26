@@ -85,7 +85,8 @@ log(f"Video: {src_w}x{src_h} @ {fps:.1f}fps, {duration:.1f}s")
 crop_w = int(src_h * 9 / 16)
 if crop_w > src_w:
     crop_w = src_w
-crop_h = src_h
+crop_w = crop_w - (crop_w % 2)  # ensure even for libx264
+crop_h = src_h - (src_h % 2)    # ensure even for libx264
 
 # ── Step 3: Face detection setup ──────────────────────────────────────────────
 

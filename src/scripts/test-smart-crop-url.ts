@@ -65,7 +65,10 @@ async function main() {
   const coordsRaw = await fs.readFile(coordsPath, "utf-8");
   const result = JSON.parse(coordsRaw);
 
-  if (result.mode === "split") {
+  if (result.mode === "skip") {
+    console.log("[SKIP] No face detected — keeping original 16:9, no reframe");
+    await fs.copyFile(trimmedVideo, outputVideo);
+  } else if (result.mode === "split") {
     // Screen recording + PiP → split screen
     const { screen, pip, split_ratio } = result;
     const outH = 1080;
@@ -89,6 +92,44 @@ async function main() {
       "-c:a", "aac", "-b:a", "128k",
       outputVideo,
     ]);
+  } else if (result.mode === "mixed") {
+    // Mixed: face sections → 9:16 crop, no-face sections → letterbox, then concat
+    const { segments, crop_w, crop_h } = result;
+    const segFiles: string[] = [];
+
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      const segOut = path.join(TMP_DIR, `${clipId}_seg${i}.mp4`);
+      segFiles.push(segOut);
+      const duration = seg.end - seg.start;
+
+      if (seg.type === "face") {
+        const cmdFile = path.join(TMP_DIR, `${clipId}_seg${i}_cmds.txt`);
+        const cmdLines = seg.coords.flatMap(({ t, x, y, w, h }: any) => [
+          `${t} crop x ${x};`, `${t} crop y ${y};`, `${t} crop w ${w};`, `${t} crop h ${h};`,
+        ]);
+        await fs.writeFile(cmdFile, cmdLines.join("\n"));
+        const first = seg.coords[0];
+        await run("ffmpeg", [
+          "-y", "-ss", seg.start.toString(), "-t", duration.toString(), "-i", trimmedVideo,
+          "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h}`,
+          "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-c:a", "aac", "-b:a", "128k", segOut,
+        ]);
+        await fs.unlink(cmdFile).catch(() => {});
+      } else {
+        await run("ffmpeg", [
+          "-y", "-ss", seg.start.toString(), "-t", duration.toString(), "-i", trimmedVideo,
+          "-vf", `scale=${crop_w}:-2,pad=${crop_w}:${crop_h}:(ow-iw)/2:(oh-ih)/2:black,setsar=1`,
+          "-c:v", "libx264", "-preset", "fast", "-crf", "23", "-c:a", "aac", "-b:a", "128k", segOut,
+        ]);
+      }
+    }
+
+    const concatFile = path.join(TMP_DIR, `${clipId}_concat.txt`);
+    await fs.writeFile(concatFile, segFiles.map(f => `file '${f}'`).join("\n"));
+    await run("ffmpeg", ["-y", "-f", "concat", "-safe", "0", "-i", concatFile, "-c", "copy", outputVideo]);
+    await fs.unlink(concatFile).catch(() => {});
+    for (const f of segFiles) await fs.unlink(f).catch(() => {});
   } else {
     // Podcast / face tracking → dynamic crop
     const coords: Array<{ t: number; x: number; y: number; w: number; h: number }> = result.coords;
