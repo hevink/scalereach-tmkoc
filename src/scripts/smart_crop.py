@@ -322,9 +322,10 @@ last_x = (src_w - crop_w) // 2
 raw_coords = []
 for fd in frame_data:
     x = get_crop_x(fd["faces"], fd["t"])
+    has_face = bool(fd["faces"])
     if x is None:
         x = last_x
-    raw_coords.append({"t": fd["t"], "x": x})
+    raw_coords.append({"t": fd["t"], "x": x, "face": has_face})
     last_x = x
 
 # EMA smoothing + dead zone + snap
@@ -341,7 +342,7 @@ for rc in raw_coords:
         smoothed_x = raw_x
     elif delta > DEAD_ZONE:
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
-    coords.append({"t": rc["t"], "x": int(smoothed_x), "y": 0, "w": crop_w, "h": crop_h})
+    coords.append({"t": rc["t"], "x": int(smoothed_x), "y": 0, "w": crop_w, "h": crop_h, "face": rc["face"]})
 
 log(f"Generated {len(coords)} crop keyframes")
 
@@ -354,13 +355,42 @@ for i in range(len(coords) - 1):
     for step in range(steps):
         alpha    = step / steps
         interp_x = int(a["x"] + alpha * (b["x"] - a["x"]))
-        frame_coords.append({"t": round(a["t"] + step * frame_interval, 4), "x": interp_x, "y": 0, "w": crop_w, "h": crop_h})
+        frame_coords.append({"t": round(a["t"] + step * frame_interval, 4), "x": interp_x, "y": 0, "w": crop_w, "h": crop_h, "face": a["face"]})
 frame_coords.append(coords[-1])
 log(f"Interpolated to {len(frame_coords)} per-frame coords ({fps}fps)")
 
+# Build segments: contiguous face / no-face blocks
+segments = []
+if frame_coords:
+    seg_type = "face" if frame_coords[0].get("face") else "letterbox"
+    seg_start = frame_coords[0]["t"]
+    seg_coords = [frame_coords[0]]
+    for fc in frame_coords[1:]:
+        t = "face" if fc.get("face") else "letterbox"
+        if t != seg_type:
+            segments.append({"type": seg_type, "start": seg_start, "end": fc["t"], "coords": seg_coords})
+            seg_type = t
+            seg_start = fc["t"]
+            seg_coords = [fc]
+        else:
+            seg_coords.append(fc)
+    segments.append({"type": seg_type, "start": seg_start, "end": round(duration, 4), "coords": seg_coords})
+
+has_face     = any(s["type"] == "face"      for s in segments)
+has_letterbox = any(s["type"] == "letterbox" for s in segments)
+
 # Write output
 with open(coords_path, "w") as f:
-    json.dump({"mode": "crop", "coords": frame_coords}, f)
+    if has_face and has_letterbox:
+        # Mixed: face sections cropped 9:16, no-face sections letterboxed
+        json.dump({"mode": "mixed", "segments": segments, "crop_w": crop_w, "crop_h": crop_h}, f)
+    elif has_face:
+        # All face — simple crop mode
+        clean = [{k: v for k, v in c.items() if k != "face"} for c in frame_coords]
+        json.dump({"mode": "crop", "coords": clean}, f)
+    else:
+        # No face at all — skip
+        json.dump({"mode": "skip"}, f)
 
 # Cleanup
 for path in [audio_path, local_video]:

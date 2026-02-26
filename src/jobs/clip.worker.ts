@@ -276,6 +276,9 @@ async function processClipGenerationJob(
         } else if (result.mode === "split") {
           ({ storageKey: smartCropStorageKey, storageUrl: smartCropStorageUrl } =
             await FFmpegService.applySplitScreen(rawVideoUrl, result, outputKey, TMP_DIR));
+        } else if (result.mode === "mixed") {
+          ({ storageKey: smartCropStorageKey, storageUrl: smartCropStorageUrl } =
+            await FFmpegService.applyMixedCrop(rawVideoUrl, result.segments, result.crop_w, result.crop_h, outputKey, TMP_DIR));
         } else {
           ({ storageKey: smartCropStorageKey, storageUrl: smartCropStorageUrl } =
             await FFmpegService.applySmartCrop(rawVideoUrl, result.coords, outputKey, TMP_DIR));

@@ -437,4 +437,126 @@ export class FFmpegService {
       });
     });
   }
+
+  /**
+   * Apply mixed crop: face sections → 9:16 crop, no-face sections → letterbox
+   * Uses FFmpeg segment concat approach
+   */
+  static async applyMixedCrop(
+    videoUrl: string,
+    segments: Array<{
+      type: "face" | "letterbox";
+      start: number;
+      end: number;
+      coords: Array<{ t: number; x: number; y: number; w: number; h: number }>;
+    }>,
+    cropW: number,
+    cropH: number,
+    outputStorageKey: string,
+    tmpDir: string = "/tmp"
+  ): Promise<{ storageKey: string; storageUrl: string }> {
+    console.log(`[FFMPEG SERVICE] Applying mixed crop → ${outputStorageKey} (${segments.length} segments)`);
+
+    const id = Date.now();
+    const segFiles: string[] = [];
+    const concatFile = `${tmpDir}/mixed-concat-${id}.txt`;
+
+    // Process each segment into a temp file
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      const segOut = `${tmpDir}/mixed-seg-${id}-${i}.mp4`;
+      segFiles.push(segOut);
+      const duration = seg.end - seg.start;
+
+      if (seg.type === "face") {
+        // Crop to 9:16 using sendcmd
+        const cmdFile = `${tmpDir}/mixed-cmd-${id}-${i}.txt`;
+        const cmdLines = seg.coords.flatMap(({ t, x, y, w, h }) => [
+          `${t} crop x ${x};`,
+          `${t} crop y ${y};`,
+          `${t} crop w ${w};`,
+          `${t} crop h ${h};`,
+        ]);
+        await fs.writeFile(cmdFile, cmdLines.join("\n"));
+        const first = seg.coords[0];
+
+        await new Promise<void>((resolve, reject) => {
+          const args = [
+            "-ss", seg.start.toString(), "-t", duration.toString(),
+            "-i", videoUrl,
+            "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h}`,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            "-y", segOut,
+          ];
+          const proc = spawn("ffmpeg", args);
+          let stderr = "";
+          proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+          proc.on("error", reject);
+          proc.on("close", (code) => {
+            fs.unlink(cmdFile).catch(() => {});
+            code === 0 ? resolve() : reject(new Error(`FFmpeg seg ${i} failed: ${stderr.slice(-300)}`));
+          });
+        });
+      } else {
+        // Letterbox: scale 16:9 to fit inside 9:16 with black bars
+        await new Promise<void>((resolve, reject) => {
+          const args = [
+            "-ss", seg.start.toString(), "-t", duration.toString(),
+            "-i", videoUrl,
+            "-vf", `scale=${cropW}:-2,pad=${cropW}:${cropH}:(ow-iw)/2:(oh-ih)/2:black,setsar=1`,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "128k",
+            "-y", segOut,
+          ];
+          const proc = spawn("ffmpeg", args);
+          let stderr = "";
+          proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+          proc.on("error", reject);
+          proc.on("close", (code) => {
+            code === 0 ? resolve() : reject(new Error(`FFmpeg letterbox seg ${i} failed: ${stderr.slice(-300)}`));
+          });
+        });
+      }
+    }
+
+    // Write concat list
+    const concatLines = segFiles.map((f) => `file '${f}'`).join("\n");
+    await fs.writeFile(concatFile, concatLines);
+
+    // Concat all segments → stream to R2
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-f", "concat", "-safe", "0", "-i", concatFile,
+        "-c", "copy",
+        "-f", "mp4", "-movflags", "frag_keyframe+empty_moov",
+        "-",
+      ];
+
+      const ffmpegProcess = spawn("ffmpeg", args);
+      if (!ffmpegProcess.stdout) { reject(new Error("No stdout")); return; }
+
+      const videoStream = new PassThrough();
+      ffmpegProcess.stdout.pipe(videoStream);
+
+      let stderr = "";
+      ffmpegProcess.stderr?.on("data", (d) => { stderr += d.toString(); });
+      ffmpegProcess.on("error", (err) => reject(new Error(`FFmpeg concat failed: ${err.message}`)));
+
+      R2Service.uploadFromStream(outputStorageKey, videoStream, "video/mp4")
+        .then(({ key, url }) => {
+          // Cleanup temp files
+          for (const f of [...segFiles, concatFile]) fs.unlink(f).catch(() => {});
+          console.log(`[FFMPEG SERVICE] Mixed crop uploaded: ${key}`);
+          resolve({ storageKey: key, storageUrl: url });
+        })
+        .catch((err) => { ffmpegProcess.kill(); reject(err); });
+
+      ffmpegProcess.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          console.error(`[FFMPEG SERVICE] Mixed crop concat exited ${code}: ${stderr.slice(-500)}`);
+        }
+      });
+    });
+  }
 }
