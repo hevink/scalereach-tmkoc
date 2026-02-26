@@ -4,7 +4,8 @@
  */
 
 import { spawn } from "child_process";
-import { Readable, PassThrough } from "stream";
+import { promises as fs } from "fs";
+import { PassThrough } from "stream";
 import { R2Service } from "./r2.service";
 
 export interface AudioExtractionResult {
@@ -304,6 +305,134 @@ export class FFmpegService {
           resolve({ thumbnailKey: thumbnailStorageKey, thumbnailUrl: url });
         } catch (uploadErr) {
           reject(new Error(`Failed to upload thumbnail: ${uploadErr}`));
+        }
+      });
+    });
+  }
+
+  /**
+   * Apply smart crop coordinates to produce a vertical 9:16 video
+   * Streams output directly to R2 (same pattern as other methods)
+   */
+  static async applySmartCrop(
+    videoUrl: string,
+    cropCoords: Array<{ t: number; x: number; y: number; w: number; h: number }>,
+    outputStorageKey: string,
+    tmpDir: string = "/tmp"
+  ): Promise<{ storageKey: string; storageUrl: string }> {
+    console.log(`[FFMPEG SERVICE] Applying smart crop → ${outputStorageKey}`);
+
+    const cmdFile = `${tmpDir}/smart-crop-cmds-${Date.now()}.txt`;
+    const cmdLines = cropCoords.flatMap(({ t, x, y, w, h }) => [
+      `${t} crop x ${x};`,
+      `${t} crop y ${y};`,
+      `${t} crop w ${w};`,
+      `${t} crop h ${h};`,
+    ]);
+    await fs.writeFile(cmdFile, cmdLines.join("\n"));
+
+    const first = cropCoords[0];
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-i", videoUrl,
+        "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h}`,
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
+        "-f", "mp4",
+        "-movflags", "frag_keyframe+empty_moov",
+        "-",
+      ];
+
+      const ffmpegProcess = spawn("ffmpeg", args);
+
+      if (!ffmpegProcess.stdout) {
+        reject(new Error("Failed to create FFmpeg stdout stream"));
+        return;
+      }
+
+      const videoStream = new PassThrough();
+      ffmpegProcess.stdout.pipe(videoStream);
+
+      let stderr = "";
+      ffmpegProcess.stderr?.on("data", (data) => { stderr += data.toString(); });
+      ffmpegProcess.on("error", (err) => reject(new Error(`FFmpeg spawn failed: ${err.message}`)));
+
+      R2Service.uploadFromStream(outputStorageKey, videoStream, "video/mp4")
+        .then(({ key, url }) => {
+          fs.unlink(cmdFile).catch(() => {});
+          console.log(`[FFMPEG SERVICE] Smart crop uploaded: ${key}`);
+          resolve({ storageKey: key, storageUrl: url });
+        })
+        .catch((err) => {
+          ffmpegProcess.kill();
+          reject(err);
+        });
+
+      ffmpegProcess.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          console.error(`[FFMPEG SERVICE] Smart crop exited ${code}: ${stderr.slice(-500)}`);
+        }
+      });
+    });
+  }
+
+  /**
+   * Apply split screen layout for screen recording + PiP face cam videos
+   * Top = screen content, Bottom = face cam
+   */
+  static async applySplitScreen(
+    videoUrl: string,
+    splitResult: {
+      screen: { x: number; y: number; w: number; h: number };
+      pip: { x: number; y: number; w: number; h: number };
+      split_ratio: number;
+    },
+    outputStorageKey: string,
+    tmpDir: string = "/tmp"
+  ): Promise<{ storageKey: string; storageUrl: string }> {
+    console.log(`[FFMPEG SERVICE] Applying split screen → ${outputStorageKey}`);
+
+    const { screen, pip, split_ratio } = splitResult;
+    const outW    = 607;
+    const outH    = 1080;
+    const screenH = Math.round(outH * split_ratio / 100);
+    const faceH   = outH - screenH;
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-i", videoUrl,
+        "-filter_complex",
+        `[0:v]crop=${screen.w}:${screen.h}:${screen.x}:${screen.y},scale=${outW}:${screenH}[top];` +
+        `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}[bottom];` +
+        `[top][bottom]vstack=inputs=2[out]`,
+        "-map", "[out]", "-map", "0:a",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
+        "-f", "mp4", "-movflags", "frag_keyframe+empty_moov",
+        "-",
+      ];
+
+      const ffmpegProcess = spawn("ffmpeg", args);
+      if (!ffmpegProcess.stdout) { reject(new Error("No stdout")); return; }
+
+      const videoStream = new PassThrough();
+      ffmpegProcess.stdout.pipe(videoStream);
+
+      let stderr = "";
+      ffmpegProcess.stderr?.on("data", (d) => { stderr += d.toString(); });
+      ffmpegProcess.on("error", (err) => reject(new Error(`FFmpeg spawn failed: ${err.message}`)));
+
+      R2Service.uploadFromStream(outputStorageKey, videoStream, "video/mp4")
+        .then(({ key, url }) => {
+          console.log(`[FFMPEG SERVICE] Split screen uploaded: ${key}`);
+          resolve({ storageKey: key, storageUrl: url });
+        })
+        .catch((err) => { ffmpegProcess.kill(); reject(err); });
+
+      ffmpegProcess.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          console.error(`[FFMPEG SERVICE] Split screen exited ${code}: ${stderr.slice(-500)}`);
         }
       });
     });

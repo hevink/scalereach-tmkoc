@@ -12,12 +12,14 @@ import { startTranslationWorker, translationQueue } from "./jobs/translation.wor
 import { startDubbingWorker, dubbingQueue } from "./jobs/dubbing.worker";
 import { startSocialWorker } from "./jobs/social.worker";
 import { startStorageCleanupJob } from "./jobs/storage-cleanup.job";
-import { redisConnection, videoProcessingQueue, clipGenerationQueue, socialPostingQueue } from "./jobs/queue";
+import { startSmartCropWorker } from "./jobs/smart-crop.worker";
+import { redisConnection, videoProcessingQueue, clipGenerationQueue, socialPostingQueue, smartCropQueue } from "./jobs/queue";
 
 const VIDEO_WORKER_CONCURRENCY = parseInt(process.env.VIDEO_WORKER_CONCURRENCY || "2", 10);
 const CLIP_WORKER_CONCURRENCY = parseInt(process.env.CLIP_WORKER_CONCURRENCY || "2", 10);
 const WORKER_HEALTH_PORT = parseInt(process.env.WORKER_HEALTH_PORT || "3002", 10);
 const DUBBING_WORKER_CONCURRENCY = parseInt(process.env.DUBBING_WORKER_CONCURRENCY || "1", 10);
+const SMART_CROP_WORKER_CONCURRENCY = parseInt(process.env.SMART_CROP_WORKER_CONCURRENCY || "1", 10);
 const SESSION_SECRET = process.env.WORKER_SECRET || "dev-secret-change-me";
 
 // Only these emails can access /health/detailed and /health/hevin
@@ -279,6 +281,9 @@ const dubbingWorker = startDubbingWorker(DUBBING_WORKER_CONCURRENCY);
 console.log("[WORKER] Starting social posting worker...");
 const socialWorker = startSocialWorker();
 
+console.log("[WORKER] Starting smart crop worker...");
+const smartCropWorker = startSmartCropWorker(SMART_CROP_WORKER_CONCURRENCY);
+
 console.log("[WORKER] Starting storage cleanup job...");
 startStorageCleanupJob();
 
@@ -315,12 +320,14 @@ async function getQueueStats() {
     const [tW, tA, tC, tF] = await Promise.all([translationQueue.getWaitingCount(), translationQueue.getActiveCount(), translationQueue.getCompletedCount(), translationQueue.getFailedCount()]);
     const [dW, dA, dC, dF] = await Promise.all([dubbingQueue.getWaitingCount(), dubbingQueue.getActiveCount(), dubbingQueue.getCompletedCount(), dubbingQueue.getFailedCount()]);
     const [sW, sA, sC, sF] = await Promise.all([socialPostingQueue.getWaitingCount(), socialPostingQueue.getActiveCount(), socialPostingQueue.getCompletedCount(), socialPostingQueue.getFailedCount()]);
+    const [scW, scA, scC, scF] = await Promise.all([smartCropQueue.getWaitingCount(), smartCropQueue.getActiveCount(), smartCropQueue.getCompletedCount(), smartCropQueue.getFailedCount()]);
     return {
       videoProcessing: { waiting: vW, active: vA, completed: vC, failed: vF },
       clipGeneration: { waiting: cW, active: cA, completed: cC, failed: cF },
       translation: { waiting: tW, active: tA, completed: tC, failed: tF },
       dubbing: { waiting: dW, active: dA, completed: dC, failed: dF },
       socialPosting: { waiting: sW, active: sA, completed: sC, failed: sF },
+      smartCrop: { waiting: scW, active: scA, completed: scC, failed: scF },
     };
   } catch { return null; }
 }
@@ -382,6 +389,7 @@ try {
             translationWorker: { running: translationWorker.isRunning(), concurrency: 1 },
             dubbingWorker: { running: dubbingWorker.isRunning(), concurrency: DUBBING_WORKER_CONCURRENCY },
             socialWorker: { running: socialWorker.isRunning(), concurrency: 2 },
+            smartCropWorker: { running: smartCropWorker.isRunning(), concurrency: SMART_CROP_WORKER_CONCURRENCY },
           },
           redis: redisHealth,
         }, null, 2), { status: isHealthy ? 200 : 503, headers: SECURITY_HEADERS });
@@ -651,7 +659,7 @@ process.on("SIGTERM", async () => {
   console.log("[WORKER] Received SIGTERM, shutting down gracefully...");
   healthServer?.stop();
   stopPotServer();
-  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close()]);
+  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close(), smartCropWorker.close()]);
   process.exit(0);
 });
 
@@ -659,7 +667,7 @@ process.on("SIGINT", async () => {
   console.log("[WORKER] Received SIGINT, shutting down gracefully...");
   healthServer?.stop();
   stopPotServer();
-  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close()]);
+  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close(), smartCropWorker.close()]);
   process.exit(0);
 });
 

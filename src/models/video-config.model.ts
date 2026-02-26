@@ -33,6 +33,8 @@ export interface VideoConfigInput {
   splitRatio?: number;
   // Background Style (for vertical non-split-screen clips)
   backgroundStyle?: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom";
+  // Smart AI Reframing
+  enableSmartCrop?: boolean;
 }
 
 /** Parse the stored splitScreenBgVideoId value — may be a JSON array or a plain ID */

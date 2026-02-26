@@ -221,6 +221,9 @@ export class ClipModel {
       favorited: boolean;
       status: string;
       errorMessage: string;
+      smartCropStatus: string;
+      smartCropStorageKey: string;
+      smartCropStorageUrl: string;
     }>
   ) {
     this.logOperation("UPDATE_CLIP", { id, fields: Object.keys(data) });

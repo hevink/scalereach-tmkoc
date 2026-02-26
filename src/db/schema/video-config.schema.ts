@@ -62,6 +62,9 @@ export const videoConfig = pgTable(
     // Background Style (for vertical non-split-screen clips)
     backgroundStyle: text("background_style").default("black"), // blur, black, white
 
+    // Smart AI Reframing
+    enableSmartCrop: boolean("enable_smart_crop").default(false),
+
     // Timestamps
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")

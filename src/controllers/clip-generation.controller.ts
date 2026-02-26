@@ -210,6 +210,7 @@ export class ClipGenerationController {
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
         splitScreen: splitScreenData,
+        smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
       }, getPlanPriority(ws?.plan));
 
       console.log(`[CLIP GENERATION CONTROLLER] Job queued: ${job.id}`);
@@ -417,6 +418,7 @@ export class ClipGenerationController {
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
         splitScreen: splitScreenData,
+        smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
       }, getPlanPriority(ws?.plan));
 
       console.log(`[CLIP GENERATION CONTROLLER] Regeneration job queued: ${job.id}`);

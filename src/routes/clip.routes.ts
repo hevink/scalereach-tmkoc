@@ -4,6 +4,7 @@ import { ClipGenerationController } from "../controllers/clip-generation.control
 import { ClipAdjustmentController } from "../controllers/clip-adjustment.controller";
 import { ClipCaptionController } from "../controllers/clip-caption.controller";
 import { ExportController } from "../controllers/export.controller";
+import { SmartCropController } from "../controllers/smart-crop.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
 const clipRouter = new Hono();
@@ -44,5 +45,9 @@ clipRouter.get("/:id/download", ClipGenerationController.getDownloadUrl);
 // Validates: Requirements 23.1
 clipRouter.post("/:id/export", ExportController.initiateExport);
 clipRouter.get("/:id/exports", ExportController.getExportsByClip);
+
+// Smart crop endpoints
+clipRouter.post("/:id/smart-crop", SmartCropController.trigger);
+clipRouter.get("/:id/smart-crop/status", SmartCropController.status);
 
 export default clipRouter;

@@ -6,6 +6,9 @@
  */
 
 import { Job } from "bullmq";
+import { spawn } from "child_process";
+import { promises as fs } from "fs";
+import path from "path";
 import { ClipModel } from "../models/clip.model";
 import { UserModel } from "../models/user.model";
 import { VideoModel } from "../models/video.model";
@@ -13,6 +16,8 @@ import { WorkspaceModel } from "../models/workspace.model";
 import { TranslationModel } from "../models/translation.model";
 import { TranslationService } from "../services/translation.service";
 import { ClipGeneratorService } from "../services/clip-generator.service";
+import { FFmpegService } from "../services/ffmpeg.service";
+import { R2Service } from "../services/r2.service";
 import { emailService } from "../services/email.service";
 import { captureException } from "../lib/sentry";
 import {
@@ -142,6 +147,7 @@ async function processClipGenerationJob(
     targetLanguage,
     splitScreen,
     backgroundStyle,
+    smartCropEnabled,
   } = job.data;
 
   const jobStartTime = Date.now();
@@ -230,6 +236,58 @@ async function processClipGenerationJob(
     });
 
     await job.updateProgress(85);
+
+    // Smart AI Reframing — run face detection + crop on raw clip before thumbnail
+    let smartCropStorageKey: string | undefined;
+    let smartCropStorageUrl: string | undefined;
+
+    if (smartCropEnabled && generatedClip.rawStorageKey) {
+      try {
+        console.log(`[CLIP WORKER] Smart crop enabled — starting reframe for ${clipId}`);
+        await ClipModel.update(clipId, { smartCropStatus: "processing" });
+
+        const PYTHON_PATH = process.env.PYTHON_PATH || "python3";
+        const SMART_CROP_SCRIPT = path.join(__dirname, "../scripts/smart_crop.py");
+        const TMP_DIR = process.env.SMART_CROP_TMP_DIR || "/tmp";
+
+        // Get signed URL for raw clip
+        const rawVideoUrl = await R2Service.getSignedDownloadUrl(generatedClip.rawStorageKey, 3600);
+
+        // Run Python sidecar
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn(PYTHON_PATH, [SMART_CROP_SCRIPT, rawVideoUrl, clipId, TMP_DIR]);
+          proc.stdout?.on("data", (d) => process.stdout.write(`[SMART CROP PY] ${d}`));
+          proc.stderr?.on("data", (d) => process.stderr.write(`[SMART CROP PY] ${d}`));
+          proc.on("error", (err) => reject(new Error(`Python spawn failed: ${err.message}`)));
+          proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`Python exited ${code}`)));
+        });
+
+        // Read coords
+        const coordsPath = `${TMP_DIR}/${clipId}_coords.json`;
+        const result = JSON.parse(await fs.readFile(coordsPath, "utf-8"));
+        await fs.unlink(coordsPath).catch(() => {});
+
+        // Apply FFmpeg crop → stream to R2
+        const outputKey = `${workspaceId}/${videoId}/${clipId}-vertical.mp4`;
+        if (result.mode === "split") {
+          ({ storageKey: smartCropStorageKey, storageUrl: smartCropStorageUrl } =
+            await FFmpegService.applySplitScreen(rawVideoUrl, result, outputKey, TMP_DIR));
+        } else {
+          ({ storageKey: smartCropStorageKey, storageUrl: smartCropStorageUrl } =
+            await FFmpegService.applySmartCrop(rawVideoUrl, result.coords, outputKey, TMP_DIR));
+        }
+
+        await ClipModel.update(clipId, {
+          smartCropStatus: "done",
+          smartCropStorageKey,
+          smartCropStorageUrl,
+        });
+        console.log(`[CLIP WORKER] Smart crop done: ${smartCropStorageUrl}`);
+      } catch (scErr) {
+        console.error(`[CLIP WORKER] Smart crop failed (non-fatal):`, scErr);
+        await ClipModel.update(clipId, { smartCropStatus: "failed" });
+      }
+    }
 
     // Generate thumbnail from the clip (at 1 second)
     const thumbnailStart = Date.now();

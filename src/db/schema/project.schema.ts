@@ -180,6 +180,10 @@ export const viralClip = pgTable(
     // Status: 'detected' | 'generating' | 'ready' | 'exported' | 'failed'
     status: text("status").default("detected").notNull(),
     errorMessage: text("error_message"),
+    // Smart crop (vertical 9:16 output)
+    smartCropStatus: text("smart_crop_status"), // 'processing' | 'done' | 'failed'
+    smartCropStorageKey: text("smart_crop_storage_key"),
+    smartCropStorageUrl: text("smart_crop_storage_url"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

@@ -114,6 +114,8 @@ export class VideoConfigController {
         splitRatio: body.splitRatio ?? 50,
         // Background Style
         backgroundStyle: body.backgroundStyle ?? "black",
+        // Smart AI Reframing
+        enableSmartCrop: body.enableSmartCrop ?? false,
       };
 
       // Background style plan gating
@@ -238,6 +240,8 @@ export class VideoConfigController {
       if (body.splitRatio !== undefined) configInput.splitRatio = body.splitRatio;
       // Background Style
       if (body.backgroundStyle !== undefined) configInput.backgroundStyle = body.backgroundStyle;
+      // Smart AI Reframing
+      if (body.enableSmartCrop !== undefined) configInput.enableSmartCrop = body.enableSmartCrop;
 
       // Background style plan gating
       const FREE_BG_STYLES = ["black", "white"];
