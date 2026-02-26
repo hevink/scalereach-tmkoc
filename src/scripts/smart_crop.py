@@ -335,15 +335,20 @@ DEAD_ZONE = 80
 SNAP_ZONE = 250
 
 smoothed_x = float(raw_coords[0]["x"])
+prev_had_face = raw_coords[0]["face"]
 coords = []
 for rc in raw_coords:
     raw_x = float(rc["x"])
     delta = abs(raw_x - smoothed_x)
-    if delta > SNAP_ZONE:
+    # Snap immediately when face first appears after no-face section
+    if rc["face"] and not prev_had_face:
+        smoothed_x = raw_x
+    elif delta > SNAP_ZONE:
         smoothed_x = raw_x
     elif delta > DEAD_ZONE:
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
     coords.append({"t": rc["t"], "x": int(smoothed_x), "y": 0, "w": crop_w, "h": crop_h, "face": rc["face"]})
+    prev_had_face = rc["face"]
 
 log(f"Generated {len(coords)} crop keyframes")
 
