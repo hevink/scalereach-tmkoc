@@ -377,6 +377,20 @@ if frame_coords:
             seg_coords.append(fc)
     segments.append({"type": seg_type, "start": seg_start, "end": round(duration, 4), "coords": seg_coords})
 
+# Merge short segments (< 1.5s) into previous to prevent flickering
+MIN_SEG_DURATION = 1.5
+merged = []
+for seg in segments:
+    seg_dur = seg["end"] - seg["start"]
+    if merged and seg_dur < MIN_SEG_DURATION:
+        # Absorb into previous segment
+        merged[-1]["end"] = seg["end"]
+        merged[-1]["coords"].extend(seg["coords"])
+    else:
+        merged.append(seg)
+segments = merged
+log(f"Segments after merge: {len(segments)} (min_dur={MIN_SEG_DURATION}s)")
+
 has_face     = any(s["type"] == "face"      for s in segments)
 has_letterbox = any(s["type"] == "letterbox" for s in segments)
 
