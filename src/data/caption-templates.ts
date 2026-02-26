@@ -361,42 +361,7 @@ export const NEON_POP_TEMPLATE: CaptionTemplate = {
   updatedAt: new Date("2024-06-14"),
 };
 
-/**
- * Gold Luxe Template
- * Premium gold shimmer with bold bounce - luxury creator aesthetic
- */
-export const GOLD_LUXE_TEMPLATE: CaptionTemplate = {
-  id: "gold-luxe",
-  name: "Gold Luxe",
-  description: "Premium gold shimmer with bold bounce - luxury creator aesthetic",
-  platform: "Universal",
-  style: {
-    fontFamily: "Bebas Neue",
-    fontSize: 44,
-    textColor: "#FFE566",
-    backgroundColor: "#000000",
-    backgroundOpacity: 0,
-    x: 50, y: 85,
-    alignment: "center",
-    animation: "bounce",
-    highlightColor: "#FFD700",
-    highlightEnabled: true,
-    shadow: true,
-    outline: true,
-    outlineColor: "#5C3D00",
-    outlineWidth: 6,
-    highlightScale: 135,
-    textTransform: "uppercase",
-    wordsPerLine: 3,
-    glowEnabled: true,
-    glowColor: "#FFD700",
-    glowIntensity: 10,
-  },
-  preview: "/templates/gold-luxe-preview.png",
-  isNew: true,
-  createdAt: new Date("2026-02-09"),
-  updatedAt: new Date("2026-02-09"),
-};
+
 
 /**
  * Cinematic Template
@@ -684,7 +649,6 @@ export const CAPTION_TEMPLATES: CaptionTemplate[] = [
   GARYVEE_TEMPLATE,
   TIKTOK_NATIVE_TEMPLATE,
   NEON_POP_TEMPLATE,
-  GOLD_LUXE_TEMPLATE,
   CINEMATIC_TEMPLATE,
   ELECTRIC_BLUE_TEMPLATE,
   SUNSET_FIRE_TEMPLATE,
