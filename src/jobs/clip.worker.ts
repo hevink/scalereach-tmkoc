@@ -269,7 +269,11 @@ async function processClipGenerationJob(
 
         // Apply FFmpeg crop → stream to R2
         const outputKey = `${workspaceId}/${videoId}/${clipId}-vertical.mp4`;
-        if (result.mode === "split") {
+        if (result.mode === "skip") {
+          // No face detected — skip reframing, keep original 16:9
+          console.log(`[CLIP WORKER] Smart crop: no face detected, skipping reframe for ${clipId}`);
+          await ClipModel.update(clipId, { smartCropStatus: "skipped" });
+        } else if (result.mode === "split") {
           ({ storageKey: smartCropStorageKey, storageUrl: smartCropStorageUrl } =
             await FFmpegService.applySplitScreen(rawVideoUrl, result, outputKey, TMP_DIR));
         } else {
@@ -277,12 +281,14 @@ async function processClipGenerationJob(
             await FFmpegService.applySmartCrop(rawVideoUrl, result.coords, outputKey, TMP_DIR));
         }
 
-        await ClipModel.update(clipId, {
-          smartCropStatus: "done",
-          smartCropStorageKey,
-          smartCropStorageUrl,
-        });
-        console.log(`[CLIP WORKER] Smart crop done: ${smartCropStorageUrl}`);
+        if (result.mode !== "skip") {
+          await ClipModel.update(clipId, {
+            smartCropStatus: "done",
+            smartCropStorageKey,
+            smartCropStorageUrl,
+          });
+          console.log(`[CLIP WORKER] Smart crop done: ${smartCropStorageUrl}`);
+        }
       } catch (scErr) {
         console.error(`[CLIP WORKER] Smart crop failed (non-fatal):`, scErr);
         await ClipModel.update(clipId, { smartCropStatus: "failed" });

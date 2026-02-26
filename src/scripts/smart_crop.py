@@ -166,15 +166,12 @@ log(f"Video type: {video_type} (pip={pip_detections}, full={full_detections}, no
 
 # ── Step 5: Handle each video type ───────────────────────────────────────────
 
-# ── 5a: No face → center crop ────────────────────────────────────────────────
+# ── 5a: No face → skip reframing, keep original 16:9 ─────────────────────────
 if video_type == "no_face":
-    log("No faces detected — using center crop")
-    center_x = (src_w - crop_w) // 2
-    coords = [{"t": 0.0, "x": center_x, "y": 0, "w": crop_w, "h": crop_h},
-              {"t": round(duration, 2), "x": center_x, "y": 0, "w": crop_w, "h": crop_h}]
+    log("No faces detected — skipping reframe, keeping original 16:9")
     with open(coords_path, "w") as f:
-        json.dump({"mode": "crop", "coords": coords}, f)
-    log("Done (center crop fallback).")
+        json.dump({"mode": "skip"}, f)
+    log("Done (skip — no face).")
     sys.exit(0)
 
 # ── 5b: Screen + PiP → split screen ──────────────────────────────────────────
