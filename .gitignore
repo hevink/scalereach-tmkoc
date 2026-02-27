@@ -9,3 +9,6 @@ dist/
 # Background videos - large files, don't commit
 seed-background-video/
 temp/
+
+# YouTube cookies — managed per-environment, not committed
+config/youtube_cookies.txt
