@@ -13,6 +13,23 @@ import { db } from "../db";
 import { videoExport, voiceDubbing, dubbedClipAudio } from "../db/schema";
 import { inArray } from "drizzle-orm";
 
+function sanitizeYouTubeError(error: string): string {
+  const msg = error.toLowerCase();
+  if (msg.includes("sign in") || msg.includes("not a bot") || msg.includes("cookies") || msg.includes("confirm you")) {
+    return "YouTube service is temporarily unavailable. Please try again in a few minutes.";
+  }
+  if (msg.includes("private") || msg.includes("members only")) {
+    return "This video is private or members-only and cannot be processed.";
+  }
+  if (msg.includes("unavailable") || msg.includes("removed") || msg.includes("does not exist")) {
+    return "This video is unavailable or has been removed.";
+  }
+  if (msg.includes("age") || msg.includes("age-restricted")) {
+    return "This video is age-restricted and cannot be processed.";
+  }
+  return "Could not fetch video information. Please try again.";
+}
+
 export class VideoController {
   private static logRequest(c: Context, operation: string, details?: any) {
     const method = c.req.method;
@@ -449,7 +466,10 @@ export class VideoController {
             `${workerUrl}/validate-youtube?url=${encodeURIComponent(url)}`,
             { signal: AbortSignal.timeout(30000) }
           );
-          const data = await workerRes.json();
+          const data = await workerRes.json() as { valid: boolean; error?: string; videoInfo?: unknown };
+          if (!data.valid && data.error) {
+            data.error = sanitizeYouTubeError(data.error);
+          }
           return c.json(data);
         } catch (proxyErr: any) {
           console.error("[VIDEO CONTROLLER] Worker proxy failed, falling back to HTTP API:", proxyErr?.message);
@@ -468,16 +488,7 @@ export class VideoController {
     } catch (error: any) {
       console.error(`[VIDEO CONTROLLER] VALIDATE_YOUTUBE_URL error:`, error);
       const errorMessage = error?.message || "Unknown error";
-      if (errorMessage.includes("403") || errorMessage.includes("Forbidden")) {
-        return c.json({ valid: false, error: "YouTube blocked the request. The video may be restricted." });
-      }
-      if (errorMessage.includes("Video unavailable") || errorMessage.includes("Private video")) {
-        return c.json({ valid: false, error: "This video is unavailable or private." });
-      }
-      if (errorMessage.includes("Sign in") || errorMessage.includes("age-restricted")) {
-        return c.json({ valid: false, error: "This video requires sign-in or is age-restricted." });
-      }
-      return c.json({ valid: false, error: `Failed to fetch video info: ${errorMessage}` });
+      return c.json({ valid: false, error: sanitizeYouTubeError(errorMessage) });
     }
   }
 }
