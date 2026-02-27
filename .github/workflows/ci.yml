@@ -44,6 +44,9 @@ jobs:
             export PATH="/home/ubuntu/.bun/bin:/usr/bin:/usr/local/bin:$PATH"
             cd /opt/scalereach
 
+            # Preserve untracked config files before git reset
+            [ -f config/youtube_cookies.txt ] && cp config/youtube_cookies.txt /tmp/youtube_cookies_backup.txt
+
             # Save current commit for rollback
             PREV_COMMIT=$(git rev-parse HEAD)
             echo "📌 Current commit: $PREV_COMMIT"
@@ -52,6 +55,9 @@ jobs:
             git fetch origin
             git checkout main
             git reset --hard origin/main
+
+            # Restore preserved config files
+            [ -f /tmp/youtube_cookies_backup.txt ] && cp /tmp/youtube_cookies_backup.txt config/youtube_cookies.txt && echo "🍪 Restored youtube_cookies.txt"
 
             NEW_COMMIT=$(git rev-parse HEAD)
             echo "🆕 New commit: $NEW_COMMIT"
