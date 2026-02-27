@@ -156,8 +156,58 @@ export class YouTubeService {
       }
     }
 
-    // Fallback to yt-dlp (worker environment)
-    return this.getVideoInfoYtDlp(url);
+    // Try yt-dlp first
+    try {
+      return await this.getVideoInfoYtDlp(url);
+    } catch (error: any) {
+      const msg = error?.message || "";
+      // If bot-blocked, fall back to oEmbed scrape
+      if (msg.includes("Sign in") || msg.includes("not a bot") || msg.includes("cookies")) {
+        console.warn(`[YOUTUBE SERVICE] yt-dlp bot-blocked, trying oEmbed fallback`);
+        return await this.getVideoInfoOEmbed(url);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Fallback video info fetcher using YouTube oEmbed API + page scrape for duration.
+   * Works from datacenter IPs where yt-dlp gets bot-blocked.
+   */
+  static async getVideoInfoOEmbed(url: string): Promise<YouTubeVideoInfo> {
+    const videoId = this.extractVideoId(url);
+    if (!videoId) throw new Error("Invalid YouTube URL");
+
+    console.log(`[YOUTUBE SERVICE] Getting video info via oEmbed fallback for: ${videoId}`);
+
+    // oEmbed for title, channel, thumbnail
+    const oembedRes = await axios.get(`https://www.youtube.com/oembed`, {
+      params: { url: `https://www.youtube.com/watch?v=${videoId}`, format: "json" },
+      timeout: 10000,
+    });
+    const oembed = oembedRes.data;
+
+    // Scrape page for duration (lengthSeconds in ytInitialPlayerResponse)
+    let duration = 0;
+    try {
+      const pageRes = await axios.get(`https://www.youtube.com/watch?v=${videoId}`, {
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)" },
+        timeout: 10000,
+      });
+      const match = pageRes.data.match(/"lengthSeconds":"(\d+)"/);
+      if (match) duration = parseInt(match[1], 10);
+    } catch (e) {
+      console.warn(`[YOUTUBE SERVICE] oEmbed page scrape for duration failed:`, e instanceof Error ? e.message : e);
+    }
+
+    return {
+      id: videoId,
+      title: oembed.title,
+      duration,
+      thumbnail: oembed.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      channelName: oembed.author_name,
+      description: "",
+    };
   }
 
   /**
