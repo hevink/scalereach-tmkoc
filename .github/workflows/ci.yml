@@ -53,7 +53,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-            export PATH="/home/ubuntu/.bun/bin:$PATH"
+            export PATH="/home/ubuntu/.bun/bin:/usr/bin:/usr/local/bin:$PATH"
             cd /opt/scalereach
 
             # Save current commit for rollback
@@ -75,8 +75,8 @@ jobs:
             pm2 reload ecosystem.config.cjs --update-env || pm2 start ecosystem.config.cjs
             pm2 save
 
-            echo "🏥 Health check (waiting 8s)..."
-            sleep 8
+            echo "🏥 Health check (waiting 15s)..."
+            sleep 15
             if curl -sf http://localhost:3002/health | grep -q '"status":"healthy"'; then
               echo "✅ Deploy successful — $NEW_COMMIT"
               pm2 status
