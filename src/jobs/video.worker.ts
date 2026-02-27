@@ -95,12 +95,20 @@ async function processYouTubeVideo(
   let minutesDeducted = 0;
   let workspaceId: string | undefined;
   let storageKey: string | undefined; // Track for cleanup on failure
+  let uploadedInThisRun = false; // Only clean up R2 if we uploaded in this run
 
   try {
     // Get workspace ID from video record for potential refund
     const videoRecord = await db.select().from(video).where(eq(video.id, videoId));
     workspaceId = videoRecord[0]?.workspaceId || undefined;
     minutesDeducted = videoRecord[0]?.minutesConsumed || 0;
+
+    // ── Resume logic: check what's already done ──────────────
+    const existingTranscript = videoRecord[0]?.transcript as string | null;
+    const existingTranscriptWords = videoRecord[0]?.transcriptWords as any[] | null;
+    const existingTranscriptLanguage = videoRecord[0]?.transcriptLanguage as string | null;
+    const existingStorageKey = videoRecord[0]?.storageKey as string | null;
+    const existingStorageUrl = videoRecord[0]?.storageUrl as string | null;
 
     // Fetch video configuration
     const videoConfig = await VideoConfigModel.getByVideoId(videoId);
@@ -114,127 +122,154 @@ async function processYouTubeVideo(
       timeframeEnd: videoConfig.timeframeEnd,
     } : 'No config found, using defaults');
 
-    await updateVideoStatus(videoId, "downloading");
-    await job.updateProgress(10);
-
-    // Get audio stream directly from YouTube (only the selected timeframe)
-    const audioStart = videoConfig?.timeframeStart ?? 0;
-    const audioEnd = videoConfig?.timeframeEnd ?? undefined;
-    let streamResult;
-    try {
-      streamResult = await YouTubeService.streamAudio(
-        sourceUrl,
-        audioStart > 0 ? audioStart : undefined,
-        audioEnd ?? undefined,
-      );
-    } catch (error: any) {
-      console.error(`[VIDEO WORKER] Failed to start YouTube stream: ${error.message}`);
-      throw new Error(`YouTube download failed: ${error.message}`);
-    }
-
-    const { stream, videoInfo, mimeType } = streamResult;
-
-    // Update title + thumbnail immediately so UI shows them during download
-    await updateVideoStatus(videoId, "downloading", {
-      title: videoInfo.title,
-      duration: Math.round(videoInfo.duration),
-      mimeType: mimeType,
-      metadata: {
-        youtubeId: videoInfo.id,
-        thumbnail: videoInfo.thumbnail,
-        channelName: videoInfo.channelName,
-      },
-    });
-
-    // Determine best output quality based on source video resolution and plan
+    // Workspace + plan (needed for quality selection)
     const ws = workspaceId ? await WorkspaceModel.getById(workspaceId) : null;
     const planConfig = getPlanConfig(ws?.plan || "free");
-    // Split screen clips are always capped at 1080p regardless of plan (performance)
     const effectiveMaxQuality = videoConfig?.enableSplitScreen ? "1080p" : planConfig.limits.maxClipQuality;
-    const clipQuality = getQualityFromHeight(videoInfo.videoHeight, effectiveMaxQuality);
-    console.log(`[VIDEO WORKER] Source video height: ${videoInfo.videoHeight ?? 'unknown'}p, plan: ${ws?.plan || 'free'}, splitScreen: ${!!videoConfig?.enableSplitScreen}, clip quality: ${clipQuality}`);
 
-    await job.updateProgress(30);
-    console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
+    let transcriptText: string;
+    let transcriptWords: any[];
+    let transcriptLanguage: string;
+    let clipQuality: ReturnType<typeof getQualityFromHeight>;
+    let timeframeStart: number;
+    let timeframeEnd: number;
 
-    await updateVideoStatus(videoId, "uploading");
+    if (existingTranscript && existingTranscriptWords && existingTranscriptLanguage) {
+      // ── RESUME: transcript already done, skip to AI ──────
+      console.log(`[VIDEO WORKER] Resuming from AI step — transcript already in DB`);
+      await updateVideoStatus(videoId, "analyzing");
+      await job.updateProgress(70);
 
-    // New hierarchical storage structure: {userId}/{videoId}/source.m4a
-    storageKey = R2Service.generateVideoStorageKey(userId, videoId, "m4a");
+      transcriptText = existingTranscript;
+      transcriptWords = existingTranscriptWords;
+      transcriptLanguage = existingTranscriptLanguage;
+      storageKey = existingStorageKey || undefined;
+      timeframeStart = videoConfig?.timeframeStart ?? 0;
+      timeframeEnd = videoConfig?.timeframeEnd ?? 9999;
+      clipQuality = getQualityFromHeight(undefined, effectiveMaxQuality);
 
-    // Stream directly to R2 without saving to disk
-    // Wrap in promise to catch stream errors
-    let storageUrl: string;
-    try {
-      const uploadResult = await new Promise<{ url: string }>((resolve, reject) => {
-        // Listen for stream errors
-        stream.on("error", (err) => {
-          console.error(`[VIDEO WORKER] Stream error during upload: ${err.message}`);
-          reject(new Error(`Stream failed: ${err.message}`));
-        });
+    } else if (existingStorageKey && existingStorageUrl) {
+      // ── RESUME: uploaded but not transcribed yet ──────────
+      console.log(`[VIDEO WORKER] Resuming from transcription step — audio already in R2`);
+      storageKey = existingStorageKey;
+      await updateVideoStatus(videoId, "transcribing");
+      await job.updateProgress(60);
 
-        R2Service.uploadFromStream(storageKey!, stream, mimeType)
-          .then(resolve)
-          .catch(reject);
+      const signedUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
+      const transcriptionLanguage = videoConfig?.language && videoConfig.language !== 'auto'
+        ? videoConfig.language as any : undefined;
+      console.log(`[VIDEO WORKER] Starting transcription... (language: ${transcriptionLanguage || 'auto-detect'})`);
+      const transcriptResult = await DeepgramService.transcribeFromUrl(signedUrl, { language: transcriptionLanguage });
+
+      await job.updateProgress(70);
+      timeframeStart = videoConfig?.timeframeStart ?? 0;
+      timeframeEnd = videoConfig?.timeframeEnd ?? 9999;
+      const offsetWords = timeframeStart > 0
+        ? transcriptResult.words.map((w) => ({ ...w, start: w.start + timeframeStart, end: w.end + timeframeStart }))
+        : transcriptResult.words;
+
+      await updateVideoStatus(videoId, "analyzing", {
+        transcript: transcriptResult.transcript,
+        transcriptWords: offsetWords,
+        transcriptLanguage: transcriptResult.language,
+        transcriptConfidence: transcriptResult.confidence,
       });
-      storageUrl = uploadResult.url;
-    } catch (error: any) {
-      console.error(`[VIDEO WORKER] Upload failed: ${error.message}`);
-      console.error(`[VIDEO WORKER] Upload error details:`, {
-        name: error.name,
-        code: error.Code || error.code,
-        statusCode: error.$metadata?.httpStatusCode,
-        requestId: error.$metadata?.requestId,
-        message: error.message,
-      });
-      // Try to clean up partial upload
+      console.log(`[VIDEO WORKER] Transcript stored with language: ${transcriptResult.language}, confidence: ${transcriptResult.confidence.toFixed(3)}`);
+
+      transcriptText = transcriptResult.transcript;
+      transcriptWords = offsetWords;
+      transcriptLanguage = transcriptResult.language;
+      clipQuality = getQualityFromHeight(undefined, effectiveMaxQuality);
+
+    } else {
+      // ── FULL FLOW: download → upload → transcribe ─────────
+      await updateVideoStatus(videoId, "downloading");
+      await job.updateProgress(10);
+
+      const audioStart = videoConfig?.timeframeStart ?? 0;
+      const audioEnd = videoConfig?.timeframeEnd ?? undefined;
+      let streamResult;
       try {
-        await R2Service.deleteFile(storageKey);
-      } catch (deleteError) {
-        console.warn(`[VIDEO WORKER] Failed to clean up partial upload: ${storageKey}`);
+        streamResult = await YouTubeService.streamAudio(
+          sourceUrl,
+          audioStart > 0 ? audioStart : undefined,
+          audioEnd ?? undefined,
+        );
+      } catch (error: any) {
+        console.error(`[VIDEO WORKER] Failed to start YouTube stream: ${error.message}`);
+        throw new Error(`YouTube download failed: ${error.message}`);
       }
-      throw new Error(`Failed to upload audio: ${error.message}`);
+
+      const { stream, videoInfo, mimeType } = streamResult;
+
+      await updateVideoStatus(videoId, "downloading", {
+        title: videoInfo.title,
+        duration: Math.round(videoInfo.duration),
+        mimeType: mimeType,
+        metadata: {
+          youtubeId: videoInfo.id,
+          thumbnail: videoInfo.thumbnail,
+          channelName: videoInfo.channelName,
+        },
+      });
+
+      const clipQualityFull = getQualityFromHeight(videoInfo.videoHeight, effectiveMaxQuality);
+      clipQuality = clipQualityFull;
+      console.log(`[VIDEO WORKER] Source video height: ${videoInfo.videoHeight ?? 'unknown'}p, plan: ${ws?.plan || 'free'}, splitScreen: ${!!videoConfig?.enableSplitScreen}, clip quality: ${clipQuality}`);
+
+      await job.updateProgress(30);
+      console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
+      await updateVideoStatus(videoId, "uploading");
+
+      storageKey = R2Service.generateVideoStorageKey(userId, videoId, "m4a");
+
+      let storageUrl: string;
+      try {
+        const uploadResult = await new Promise<{ url: string }>((resolve, reject) => {
+          stream.on("error", (err) => {
+            console.error(`[VIDEO WORKER] Stream error during upload: ${err.message}`);
+            reject(new Error(`Stream failed: ${err.message}`));
+          });
+          R2Service.uploadFromStream(storageKey!, stream, mimeType)
+            .then(resolve)
+            .catch(reject);
+        });
+        storageUrl = uploadResult.url;
+        uploadedInThisRun = true;
+      } catch (error: any) {
+        console.error(`[VIDEO WORKER] Upload failed: ${error.message}`);
+        try { await R2Service.deleteFile(storageKey); } catch {}
+        throw new Error(`Failed to upload audio: ${error.message}`);
+      }
+
+      await job.updateProgress(60);
+      await updateVideoStatus(videoId, "transcribing", { storageKey, storageUrl });
+
+      const signedUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
+      const transcriptionLanguage = videoConfig?.language && videoConfig.language !== 'auto'
+        ? videoConfig.language as any : undefined;
+      console.log(`[VIDEO WORKER] Starting transcription... (language: ${transcriptionLanguage || 'auto-detect'})`);
+      const transcriptResult = await DeepgramService.transcribeFromUrl(signedUrl, { language: transcriptionLanguage });
+
+      await job.updateProgress(70);
+      timeframeStart = videoConfig?.timeframeStart ?? 0;
+      timeframeEnd = videoConfig?.timeframeEnd ?? videoInfo.duration;
+      const offsetWords = timeframeStart > 0
+        ? transcriptResult.words.map((w) => ({ ...w, start: w.start + timeframeStart, end: w.end + timeframeStart }))
+        : transcriptResult.words;
+
+      await updateVideoStatus(videoId, "analyzing", {
+        transcript: transcriptResult.transcript,
+        transcriptWords: offsetWords,
+        transcriptLanguage: transcriptResult.language,
+        transcriptConfidence: transcriptResult.confidence,
+      });
+      console.log(`[VIDEO WORKER] Transcript stored with language: ${transcriptResult.language}, confidence: ${transcriptResult.confidence.toFixed(3)}`);
+
+      transcriptText = transcriptResult.transcript;
+      transcriptWords = offsetWords;
+      transcriptLanguage = transcriptResult.language;
     }
-
-    await job.updateProgress(60);
-
-    await updateVideoStatus(videoId, "transcribing", {
-      storageKey,
-      storageUrl,
-    });
-
-    // Get signed URL for Deepgram (R2 files may not be publicly accessible)
-    const signedUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
-
-    // Transcribe audio using Deepgram
-    // Pass language from config if specified (null or 'auto' = auto-detect)
-    const transcriptionLanguage = videoConfig?.language && videoConfig.language !== 'auto' 
-      ? videoConfig.language as any 
-      : undefined;
-    console.log(`[VIDEO WORKER] Starting transcription... (language: ${transcriptionLanguage || 'auto-detect'})`);
-    const transcriptResult = await DeepgramService.transcribeFromUrl(signedUrl, {
-      language: transcriptionLanguage,
-    });
-
-    await job.updateProgress(70);
-
-    // If we downloaded a timeframe slice, Deepgram timestamps start from 0.
-    // Offset them back to original video time so clip timestamps are correct.
-    const timeframeStart = videoConfig?.timeframeStart ?? 0;
-    const timeframeEnd = videoConfig?.timeframeEnd ?? videoInfo.duration;
-    const offsetWords = timeframeStart > 0
-      ? transcriptResult.words.map((w) => ({ ...w, start: w.start + timeframeStart, end: w.end + timeframeStart }))
-      : transcriptResult.words;
-
-    // Store transcript with language and confidence metadata
-    await updateVideoStatus(videoId, "analyzing", {
-      transcript: transcriptResult.transcript,
-      transcriptWords: offsetWords,
-      transcriptLanguage: transcriptResult.language,
-      transcriptConfidence: transcriptResult.confidence,
-    });
-
-    console.log(`[VIDEO WORKER] Transcript stored with language: ${transcriptResult.language}, confidence: ${transcriptResult.confidence.toFixed(3)}`);
 
     // Check if clipping is disabled
     if (videoConfig?.skipClipping) {
@@ -249,22 +284,20 @@ async function processYouTubeVideo(
     console.log(`[VIDEO WORKER] Detecting viral clips...`);
     console.log(`[VIDEO WORKER] Processing timeframe: ${timeframeStart}s - ${timeframeEnd}s`);
 
-    // All words are already within the timeframe (audio was sliced), just use them directly
-    const filteredWords = offsetWords;
+    const filteredWords = transcriptWords;
     const filteredTranscript = filteredWords.map((w) => w.word).join(" ");
-    
+
     const viralClips = await ViralDetectionService.detectViralClips(
       filteredTranscript,
       filteredWords,
       {
         minDuration: (videoConfig?.clipDurationMin && videoConfig.clipDurationMin >= 5) ? videoConfig.clipDurationMin : undefined,
         maxDuration: (videoConfig?.clipDurationMax && videoConfig.clipDurationMax > 0) ? videoConfig.clipDurationMax : undefined,
-        videoTitle: videoInfo.title,
+        videoTitle: videoRecord[0]?.title || undefined,
         genre: videoConfig?.genre ?? "Auto",
         clipType: videoConfig?.clipType ?? "viral-clips",
         customPrompt: videoConfig?.customPrompt ?? undefined,
-        language: transcriptResult.language,
-        // Editing options from video config
+        language: transcriptLanguage,
         enableEmojis: false,
         enableIntroTitle: videoConfig?.enableIntroTitle ?? true,
       }
@@ -316,7 +349,7 @@ async function processYouTubeVideo(
       // Auto-generate clips with captions burned in
       // Extract words for each clip's time range and queue generation
       for (const clipRecord of clipRecords) {
-        const clipWords = transcriptResult.words.filter(
+        const clipWords = transcriptWords.filter(
           (w) => w.start >= clipRecord.startTime && w.end <= clipRecord.endTime
         );
 
@@ -331,7 +364,7 @@ async function processYouTubeVideo(
         // Get caption template from config or use default
         const templateId = videoConfig?.captionTemplateId ?? "classic";
         const template = getTemplateById(templateId) ?? CLASSIC_TEMPLATE;
-        
+
         const captionStyle = {
           fontFamily: template.style.fontFamily,
           fontSize: template.style.fontSize,
@@ -382,7 +415,7 @@ async function processYouTubeVideo(
           videoId: videoId,
           workspaceId: workspaceId || "",
           userId: userId,
-          creditCost: 0, // Minutes already deducted at video level
+          creditCost: 0,
           sourceType: "youtube",
           sourceUrl: sourceUrl,
           startTime: clipRecord.startTime,
@@ -430,13 +463,12 @@ async function processYouTubeVideo(
 
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
-    // Report to Sentry with context
     if (error instanceof Error) {
       captureException(error, { videoId, sourceUrl, sourceType: "youtube" });
     }
 
-    // Clean up uploaded file on failure
-    if (storageKey) {
+    // Only clean up R2 file if we uploaded it in this run (not on AI/transcription retry)
+    if (storageKey && uploadedInThisRun) {
       try {
         await R2Service.deleteFile(storageKey);
         console.log(`[VIDEO WORKER] Cleaned up storage file: ${storageKey}`);
@@ -445,8 +477,10 @@ async function processYouTubeVideo(
       }
     }
 
-    // Refund minutes if they were deducted (YouTube minutes are deducted in controller)
-    if (minutesDeducted > 0 && workspaceId) {
+    // Only refund minutes if transcript was never stored (work wasn't done)
+    const videoRecord = await db.select().from(video).where(eq(video.id, videoId)).catch(() => []);
+    const transcriptExists = !!(videoRecord[0]?.transcript);
+    if (minutesDeducted > 0 && workspaceId && !transcriptExists) {
       try {
         await MinutesModel.refundMinutes({
           workspaceId,
@@ -461,7 +495,6 @@ async function processYouTubeVideo(
       }
     }
 
-    // Only mark as failed on the last attempt
     const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1) - 1;
     if (isLastAttempt) {
       await updateVideoStatus(videoId, "failed", { errorMessage });
