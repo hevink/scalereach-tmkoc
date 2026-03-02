@@ -32,6 +32,7 @@ clipRouter.post("/:id/captions/words", ClipCaptionController.addWord);
 clipRouter.patch("/:id/captions/words/:wordId", ClipCaptionController.updateWord);
 clipRouter.delete("/:id/captions/words/:wordId", ClipCaptionController.removeWord);
 clipRouter.post("/:id/captions/reset", ClipCaptionController.resetCaptions);
+clipRouter.put("/:id/captions/text-overlays", ClipCaptionController.updateTextOverlays);
 
 
 // Clip generation endpoints

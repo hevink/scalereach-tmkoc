@@ -13,6 +13,24 @@ export interface CaptionWord {
 }
 
 /**
+ * Text overlay with timing, position, and style
+ */
+export interface TextOverlayData {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  fontFamily: string;
+  color: string;
+  backgroundColor: string;
+  backgroundOpacity: number;
+  startTime: number;
+  endTime: number;
+  animation: "none" | "fade-in" | "slide-up" | "typewriter";
+}
+
+/**
  * Clip Caption table - stores editable caption data per clip
  */
 export const clipCaption = pgTable(
@@ -26,6 +44,7 @@ export const clipCaption = pgTable(
     words: jsonb("words").$type<CaptionWord[]>().notNull(),
     styleConfig: jsonb("style_config").$type<CaptionStyleConfig>(),
     templateId: text("template_id"),
+    textOverlays: jsonb("text_overlays").$type<TextOverlayData[]>(),
     isEdited: boolean("is_edited").default(false).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")

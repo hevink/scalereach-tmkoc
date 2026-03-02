@@ -157,6 +157,21 @@ export interface ClipGenerationJobData {
       glowIntensity?: number;
     };
   };
+  // Text overlays to burn into video
+  textOverlays?: Array<{
+    id: string;
+    text: string;
+    x: number;
+    y: number;
+    fontSize: number;
+    fontFamily: string;
+    color: string;
+    backgroundColor: string;
+    backgroundOpacity: number;
+    startTime: number;
+    endTime: number;
+    animation: "none" | "fade-in" | "slide-up" | "typewriter";
+  }>;
 }
 
 export const videoProcessingQueue = new Queue<VideoProcessingJobData>(

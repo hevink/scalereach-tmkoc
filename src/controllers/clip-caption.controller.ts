@@ -68,6 +68,7 @@ export class ClipCaptionController {
         words: caption.words,
         style: caption.styleConfig,
         templateId: caption.templateId,
+        textOverlays: caption.textOverlays || [],
         isEdited: caption.isEdited,
       });
     } catch (error) {
@@ -363,12 +364,63 @@ export class ClipCaptionController {
         words: caption?.words,
         style: caption?.styleConfig,
         templateId: caption?.templateId,
+        textOverlays: (caption as any)?.textOverlays || [],
         isEdited: false,
         message: "Captions reset to original transcript",
       });
     } catch (error) {
       console.error("[CLIP_CAPTION_CTRL] RESET_CAPTIONS error:", error);
       return c.json({ error: "Failed to reset captions" }, 500);
+    }
+  }
+
+  /**
+   * PUT /api/clips/:id/captions/text-overlays
+   * Update text overlays for a clip
+   */
+  static async updateTextOverlays(c: Context) {
+    const clipId = c.req.param("id");
+    ClipCaptionController.log(c, "UPDATE_TEXT_OVERLAYS", { clipId });
+
+    try {
+      const clip = await ClipModel.getById(clipId);
+      if (!clip) return c.json({ error: "Clip not found" }, 404);
+
+      const body = await c.req.json<{ textOverlays: any[] }>();
+      if (!Array.isArray(body.textOverlays)) {
+        return c.json({ error: "textOverlays must be an array" }, 400);
+      }
+
+      // Validate each overlay
+      for (const overlay of body.textOverlays) {
+        if (!overlay.id || typeof overlay.text !== "string" ||
+            typeof overlay.x !== "number" || typeof overlay.y !== "number" ||
+            typeof overlay.startTime !== "number" || typeof overlay.endTime !== "number") {
+          return c.json({ error: "Invalid text overlay format" }, 400);
+        }
+      }
+
+      // Ensure caption record exists
+      let caption = await ClipCaptionModel.getByClipId(clipId);
+      if (!caption) {
+        const video = await VideoModel.getById(clip.videoId);
+        const words = extractWordsForClip(
+          (video?.transcriptWords as TranscriptWord[]) || [],
+          clip.startTime,
+          clip.endTime
+        );
+        await ClipCaptionModel.create({ clipId, words });
+      }
+
+      const updated = await ClipCaptionModel.updateTextOverlays(clipId, body.textOverlays);
+
+      return c.json({
+        clipId,
+        textOverlays: updated?.textOverlays || [],
+      });
+    } catch (error) {
+      console.error("[CLIP_CAPTION_CTRL] UPDATE_TEXT_OVERLAYS error:", error);
+      return c.json({ error: "Failed to update text overlays" }, 500);
     }
   }
 }

@@ -70,6 +70,20 @@ export interface ClipGenerationOptions {
       glowIntensity?: number;       // 1-20, default 8
     };
   };
+  textOverlays?: Array<{
+    id: string;
+    text: string;
+    x: number;
+    y: number;
+    fontSize: number;
+    fontFamily: string;
+    color: string;
+    backgroundColor: string;
+    backgroundOpacity: number;
+    startTime: number;
+    endTime: number;
+    animation: "none" | "fade-in" | "slide-up" | "typewriter";
+  }>;
 }
 
 export interface GeneratedClip {
@@ -282,7 +296,7 @@ export class ClipGeneratorService {
       // ── STEP 2: Determine split-screen setup ──
       let bgTempPath: string | undefined;
       const hasSplitScreen = !!options.splitScreen;
-      const hasCaptions = !!(options.captions?.words?.length || options.introTitle || options.emojis);
+      const hasCaptions = !!(options.captions?.words?.length || options.introTitle || options.emojis || options.textOverlays?.length);
 
       if (hasSplitScreen) {
         bgTempPath = await SplitScreenCompositorService.downloadBackground(
@@ -347,7 +361,8 @@ export class ClipGeneratorService {
           captionsForASS?.style,
           width, height,
           options.introTitle,
-          options.emojis
+          options.emojis,
+          options.textOverlays
         );
         const tempSubsPath = path.join(tempDir, `subs-${tempId}.ass`);
         tempPaths.push(tempSubsPath);
@@ -429,7 +444,8 @@ export class ClipGeneratorService {
     height: number,
     introTitle?: string,
     emojis?: string,
-    quality: VideoQuality = "1080p"
+    quality: VideoQuality = "1080p",
+    textOverlays?: ClipGenerationOptions["textOverlays"]
   ): Promise<Buffer> {
     const tempId = nanoid();
     const tempDir = os.tmpdir();
@@ -450,7 +466,8 @@ export class ClipGeneratorService {
       width,
       height,
       introTitle,
-      emojis
+      emojis,
+      textOverlays
     );
     await Promise.all([
       fs.promises.writeFile(inputPath, videoBuffer),
@@ -518,7 +535,8 @@ export class ClipGeneratorService {
     width: number,
     height: number,
     introTitle?: string,
-    emojis?: string
+    emojis?: string,
+    textOverlays?: ClipGenerationOptions["textOverlays"]
   ): string {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
@@ -854,12 +872,53 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     //   }
     // }
 
+    // Add text overlays
+    if (textOverlays && textOverlays.length > 0) {
+      const DESIGN_HEIGHT = 700;
+      const overlayScaleFactor = height / DESIGN_HEIGHT;
+
+      for (const overlay of textOverlays) {
+        const oFontSize = Math.round((overlay.fontSize || 32) * overlayScaleFactor);
+        const oColor = this.hexToASSColor(overlay.color || "#FFFFFF");
+        const oBgColor = overlay.backgroundColor?.replace("#", "") || "000000";
+        const oBgOpacity = overlay.backgroundOpacity ?? 0;
+        const oAssAlpha = Math.round(((100 - oBgOpacity) / 100) * 255).toString(16).toUpperCase().padStart(2, "0");
+        const oBgR = oBgColor.substring(0, 2);
+        const oBgG = oBgColor.substring(2, 4);
+        const oBgB = oBgColor.substring(4, 6);
+        const oBackColour = `&H${oAssAlpha}${oBgB}${oBgG}${oBgR}`;
+        const oBorderStyle = oBgOpacity > 0 ? 3 : 1;
+
+        // Position: x/y are 0-100 percentages
+        const oX = Math.round((overlay.x / 100) * width);
+        const oY = Math.round((overlay.y / 100) * height);
+
+        const startTime = this.formatASSTime(overlay.startTime);
+        const endTime = this.formatASSTime(overlay.endTime);
+
+        // Animation override tags
+        let animTags = "";
+        if (overlay.animation === "fade-in") {
+          animTags = "\\fad(400,200)";
+        } else if (overlay.animation === "slide-up") {
+          const slideFrom = oY + Math.round(height * 0.05);
+          animTags = `\\fad(300,200)\\move(${oX},${slideFrom},${oX},${oY},0,300)`;
+        } else if (overlay.animation === "typewriter") {
+          animTags = "\\fad(100,200)";
+        }
+
+        // Use inline override tags for per-overlay positioning
+        ass += `Dialogue: 3,${startTime},${endTime},Default,,0,0,0,,{\\an5\\pos(${oX},${oY})\\fn${overlay.fontFamily || "Inter"}\\fs${oFontSize}\\c${oColor}\\4c${oBackColour}\\bord${oBorderStyle === 3 ? 0 : 1}\\shad0${oBorderStyle === 3 ? `\\3c${oBackColour}\\bord${Math.round(4 * overlayScaleFactor)}` : ""}${animTags ? `\\${animTags}` : ""}}${overlay.text}\n`;
+      }
+    }
+
     this.logOperation("ASS_CONTENT_SUMMARY", {
       wordCount: words.length,
       lineCount: lines.length,
       animation: style?.animation || "none",
       hasIntroTitle: !!introTitle,
       hasEmojis: !!emojis,
+      textOverlayCount: textOverlays?.length || 0,
       totalLength: ass.length,
     });
 
@@ -901,7 +960,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     captions?: ClipGenerationOptions["captions"],
     introTitle?: string,
     watermark?: boolean,
-    emojis?: string
+    emojis?: string,
+    textOverlays?: ClipGenerationOptions["textOverlays"]
   ): Promise<Buffer> {
     this.logOperation("DOWNLOAD_YOUTUBE_SEGMENT", {
       url,
@@ -924,15 +984,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Step 1: Download the segment using yt-dlp with --download-sections
       await this.downloadYouTubeSegmentToFile(url, startTime, endTime, tempVideoPath, quality);
 
-      // Step 2: Generate ASS subtitles if captions, intro title, or emojis provided
-      if (captions?.words?.length || introTitle || emojis) {
+      // Step 2: Generate ASS subtitles if captions, intro title, emojis, or text overlays provided
+      if (captions?.words?.length || introTitle || emojis || textOverlays?.length) {
         const assContent = this.generateASSSubtitles(
           captions?.words || [],
           captions?.style,
           width,
           height,
           introTitle,
-          emojis
+          emojis,
+          textOverlays
         );
         await fs.promises.writeFile(tempSubsPath, assContent);
         this.logOperation("GENERATED_ASS_SUBTITLES", {
@@ -1109,7 +1170,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     captions?: ClipGenerationOptions["captions"],
     introTitle?: string,
     watermark?: boolean,
-    emojis?: string
+    emojis?: string,
+    textOverlays?: ClipGenerationOptions["textOverlays"]
   ): Promise<Buffer> {
     this.logOperation("EXTRACT_SEGMENT_FROM_FILE", {
       storageKey,
@@ -1130,16 +1192,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Get signed URL for the source video
     const videoUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
 
-    // Generate ASS subtitles if captions, intro title, or emojis provided
+    // Generate ASS subtitles if captions, intro title, emojis, or text overlays provided
     let subsPathToUse: string | undefined;
-    if (captions?.words?.length || introTitle || emojis) {
+    if (captions?.words?.length || introTitle || emojis || textOverlays?.length) {
       const assContent = this.generateASSSubtitles(
         captions?.words || [],
         captions?.style,
         width,
         height,
         introTitle,
-        emojis
+        emojis,
+        textOverlays
       );
       await fs.promises.writeFile(tempSubsPath, assContent);
       subsPathToUse = tempSubsPath;

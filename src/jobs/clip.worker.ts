@@ -148,6 +148,7 @@ async function processClipGenerationJob(
     splitScreen,
     backgroundStyle,
     smartCropEnabled,
+    textOverlays,
   } = job.data;
 
   const jobStartTime = Date.now();
@@ -157,6 +158,7 @@ async function processClipGenerationJob(
   console.log(`[CLIP WORKER] Captions: ${captions?.words?.length || 0} words`);
   console.log(`[CLIP WORKER] Intro title: ${introTitle ? 'yes' : 'no'}`);
   console.log(`[CLIP WORKER] Emojis: ${emojis ? 'yes' : 'no'}`);
+  console.log(`[CLIP WORKER] Text overlays: ${textOverlays?.length || 0}`);
   console.log(`[CLIP WORKER] Target language: ${targetLanguage || 'original'}`);
   console.log(`[CLIP WORKER] Split-screen: ${splitScreen ? `ratio=${splitScreen.splitRatio}` : 'no'}`);
 
@@ -224,6 +226,7 @@ async function processClipGenerationJob(
       captions: effectiveCaptions,
       emojis,
       backgroundStyle,
+      textOverlays,
       splitScreen: splitScreen ? {
         backgroundStorageKey: splitScreen.backgroundStorageKey,
         backgroundDuration: splitScreen.backgroundDuration,

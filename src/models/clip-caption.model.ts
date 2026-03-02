@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { clipCaption, CaptionWord } from "../db/schema/clip-caption.schema";
+import { clipCaption, CaptionWord, TextOverlayData } from "../db/schema/clip-caption.schema";
 import { CaptionStyleConfig } from "../db/schema/project.schema";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -82,5 +82,15 @@ export class ClipCaptionModel {
   static async delete(clipId: string) {
     this.log("DELETE", { clipId });
     await db.delete(clipCaption).where(eq(clipCaption.clipId, clipId));
+  }
+
+  static async updateTextOverlays(clipId: string, textOverlays: TextOverlayData[]) {
+    this.log("UPDATE_TEXT_OVERLAYS", { clipId, count: textOverlays.length });
+    const result = await db
+      .update(clipCaption)
+      .set({ textOverlays, isEdited: true, updatedAt: new Date() })
+      .where(eq(clipCaption.clipId, clipId))
+      .returning();
+    return result[0];
   }
 }

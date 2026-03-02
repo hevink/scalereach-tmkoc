@@ -29,6 +29,7 @@ export class ExportController {
     return {
       words: caption.words || [],
       style: caption.styleConfig,
+      textOverlays: caption.textOverlays || [],
       isEdited: caption.isEdited,
     };
   }
@@ -184,6 +185,7 @@ export class ExportController {
           words,
           style: style || undefined,
         } : undefined,
+        textOverlays: captionData?.textOverlays?.length ? captionData.textOverlays : undefined,
         splitScreen: splitScreenData,
       });
 
@@ -422,6 +424,7 @@ export class ExportController {
             words,
             style: style || undefined,
           } : undefined,
+          textOverlays: captionData?.textOverlays?.length ? captionData.textOverlays : undefined,
           splitScreen: batchSplitScreenData,
         });
 
