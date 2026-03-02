@@ -215,14 +215,20 @@ cap.release()
 total_face_frames = sum(1 for f in sample_faces if f)
 no_face_frames    = len(sample_times) - total_face_frames
 
+# Detect group shots: if 4+ faces appear consistently, it's a group/panel shot
+group_shot_frames = sum(1 for f in sample_faces if len(f) >= 4)
+is_group_shot = group_shot_frames >= len(sample_times) * 0.4  # 4+ faces in 40%+ of samples
+
 if total_face_frames == 0:
     video_type = "no_face"
+elif is_group_shot:
+    video_type = "group"
 elif pip_detections > full_detections and pip_detections >= 3:
     video_type = "screen_pip"
 else:
     video_type = "podcast"
 
-log(f"Video type: {video_type} (pip={pip_detections}, full={full_detections}, no_face={no_face_frames})")
+log(f"Video type: {video_type} (pip={pip_detections}, full={full_detections}, no_face={no_face_frames}, group_frames={group_shot_frames}/{len(sample_times)})")
 
 # ── Step 5: Handle each video type ───────────────────────────────────────────
 
@@ -231,6 +237,16 @@ if video_type == "no_face":
     with open(coords_path, "w") as f:
         json.dump({"mode": "skip"}, f)
     log("Done (skip — no face).")
+    sys.exit(0)
+
+if video_type == "group":
+    log(f"Group shot detected (4+ faces) — letterboxing full frame into 9:16")
+    with open(coords_path, "w") as f:
+        json.dump({"mode": "letterbox", "src_w": src_w, "src_h": src_h}, f)
+    for p in [local_video]:
+        try: os.unlink(p)
+        except: pass
+    log("Done (letterbox — group shot).")
     sys.exit(0)
 
 if video_type == "screen_pip":
@@ -409,20 +425,41 @@ def get_crop_x(faces, t, last_crop_cx=None):
         target_cx = faces[0]["cx"]
     else:
         spk = get_speaker_at(t)
+        primary_cx = None
+
         if spk and spk in speaker_pos:
             # Pick the face closest to this speaker's known position
-            target_cx = min(faces, key=lambda f: abs(f["cx"] - speaker_pos[spk]))["cx"]
+            primary_cx = min(faces, key=lambda f: abs(f["cx"] - speaker_pos[spk]))["cx"]
         elif last_crop_cx is not None:
             # No speaker info — pick face closest to current tracking position
             edge_margin = crop_w
             interior = [f for f in faces if edge_margin < f["cx"] < src_w - edge_margin]
             candidates = interior if interior else faces
-            target_cx = min(candidates, key=lambda f: abs(f["cx"] - last_crop_cx))["cx"]
+            primary_cx = min(candidates, key=lambda f: abs(f["cx"] - last_crop_cx))["cx"]
         else:
             edge_margin = crop_w
             interior = [f for f in faces if edge_margin < f["cx"] < src_w - edge_margin]
             candidates = interior if interior else faces
-            target_cx = max(candidates, key=lambda f: f["area"])["cx"]
+            primary_cx = max(candidates, key=lambda f: f["area"])["cx"]
+
+        # Group framing: if other faces are close enough to fit in the crop window,
+        # center the crop on the group midpoint instead of just the primary face.
+        # This avoids ping-ponging when 2-3 people are having a conversation close together.
+        nearby = [f for f in faces if abs(f["cx"] - primary_cx) < crop_w * 0.8]
+        if len(nearby) >= 2:
+            left_cx  = min(f["cx"] for f in nearby)
+            right_cx = max(f["cx"] for f in nearby)
+            group_span = right_cx - left_cx
+            # Only group-frame if they actually fit within the crop window (with some padding)
+            face_padding = max(f["w"] for f in nearby) // 2
+            if group_span + face_padding * 2 <= crop_w:
+                target_cx = (left_cx + right_cx) // 2
+            else:
+                # Group too wide — stick with primary speaker
+                target_cx = primary_cx
+        else:
+            target_cx = primary_cx
+
     crop_x = target_cx - crop_w // 2
     return max(0, min(crop_x, src_w - crop_w))
 

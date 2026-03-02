@@ -97,6 +97,12 @@ async function processSmartCropJob(job: Job<SmartCropJobData>): Promise<void> {
       await job.updateProgress(100);
       await fs.unlink(coordsPath).catch(() => {});
       return;
+    } else if (result.mode === "letterbox") {
+      // Group shot (4+ faces) — letterbox full frame into 9:16
+      console.log(`[SMART CROP WORKER] Group shot for ${clipId}, letterboxing`);
+      ({ storageKey: outKey, storageUrl } = await FFmpegService.applyLetterbox(
+        videoUrl, outputKey
+      ));
     } else if (result.mode === "split") {
       ({ storageKey: outKey, storageUrl } = await FFmpegService.applySplitScreen(
         videoUrl, result, outputKey, TMP_DIR

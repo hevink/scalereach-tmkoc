@@ -473,6 +473,63 @@ export class FFmpegService {
   }
 
   /**
+   * Letterbox: fit full 16:9 frame inside 1080x1920 with black bars
+   * Used for group shots (4+ faces) where cropping would cut people out
+   */
+  static async applyLetterbox(
+    videoUrl: string,
+    outputStorageKey: string,
+  ): Promise<{ storageKey: string; storageUrl: string }> {
+    console.log(`[FFMPEG SERVICE] Applying letterbox → ${outputStorageKey}`);
+
+    const hasAudio = await FFmpegService.hasAudioStream(videoUrl);
+
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-i", videoUrl,
+        "-vf", [
+          "scale=1080:-2:flags=lanczos",
+          "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
+          "setsar=1",
+          "format=yuv420p",
+        ].join(","),
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", "18",
+        "-profile:v", "high",
+        "-level", "4.1",
+        ...(hasAudio ? ["-c:a", "aac", "-b:a", "192k"] : []),
+        "-f", "mp4",
+        "-movflags", "frag_keyframe+empty_moov",
+        "-",
+      ];
+
+      const ffmpegProcess = spawn("ffmpeg", args);
+      if (!ffmpegProcess.stdout) { reject(new Error("No stdout")); return; }
+
+      const videoStream = new PassThrough();
+      ffmpegProcess.stdout.pipe(videoStream);
+
+      let stderr = "";
+      ffmpegProcess.stderr?.on("data", (d) => { stderr += d.toString(); });
+      ffmpegProcess.on("error", (err) => reject(new Error(`FFmpeg spawn failed: ${err.message}`)));
+
+      R2Service.uploadFromStream(outputStorageKey, videoStream, "video/mp4")
+        .then(({ key, url }) => {
+          console.log(`[FFMPEG SERVICE] Letterbox uploaded: ${key}`);
+          resolve({ storageKey: key, storageUrl: url });
+        })
+        .catch((err) => { ffmpegProcess.kill(); reject(err); });
+
+      ffmpegProcess.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          console.error(`[FFMPEG SERVICE] Letterbox exited ${code}: ${stderr.slice(-500)}`);
+        }
+      });
+    });
+  }
+
+  /**
    * Apply mixed crop: face sections → 9:16 crop, no-face sections → letterbox
    * Uses FFmpeg segment concat approach
    */
