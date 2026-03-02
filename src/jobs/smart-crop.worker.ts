@@ -12,20 +12,49 @@ const PYTHON_PATH = process.env.PYTHON_PATH || "python3";
 const SMART_CROP_SCRIPT = path.join(__dirname, "../scripts/smart_crop.py");
 const TMP_DIR = process.env.SMART_CROP_TMP_DIR || "/tmp";
 
+const PYTHON_TIMEOUT_MS = parseInt(process.env.SMART_CROP_TIMEOUT_MS || "600000", 10); // 10 min default
+
 function runPythonScript(videoUrl: string, clipId: string, tmpDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    console.log(`[SMART CROP WORKER] Spawning Python: ${PYTHON_PATH} ${SMART_CROP_SCRIPT}`);
+    console.log(`[SMART CROP WORKER] Spawning Python: ${PYTHON_PATH} ${SMART_CROP_SCRIPT} (timeout: ${PYTHON_TIMEOUT_MS}ms)`);
     const proc = spawn(PYTHON_PATH, [SMART_CROP_SCRIPT, videoUrl, clipId, tmpDir]);
+    let settled = false;
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        proc.kill("SIGKILL");
+        reject(new Error(`Python script timed out after ${PYTHON_TIMEOUT_MS / 1000}s`));
+      }
+    }, PYTHON_TIMEOUT_MS);
 
     proc.stdout?.on("data", (d) => process.stdout.write(`[SMART CROP PY] ${d}`));
     proc.stderr?.on("data", (d) => process.stderr.write(`[SMART CROP PY] ${d}`));
 
-    proc.on("error", (err) => reject(new Error(`Python spawn failed: ${err.message}`)));
+    proc.on("error", (err) => {
+      if (!settled) { settled = true; clearTimeout(timeout); reject(new Error(`Python spawn failed: ${err.message}`)); }
+    });
     proc.on("close", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Python script exited with code ${code}`));
+      if (!settled) {
+        settled = true;
+        clearTimeout(timeout);
+        if (code === 0) resolve();
+        else reject(new Error(`Python script exited with code ${code}`));
+      }
     });
   });
+}
+
+/** Clean up any leftover tmp files from a failed smart crop run */
+async function cleanupTmpFiles(clipId: string, tmpDir: string): Promise<void> {
+  const files = [
+    `${tmpDir}/${clipId}_src.mp4`,
+    `${tmpDir}/${clipId}.wav`,
+    `${tmpDir}/${clipId}_coords.json`,
+  ];
+  for (const f of files) {
+    await fs.unlink(f).catch(() => {});
+  }
 }
 
 async function processSmartCropJob(job: Job<SmartCropJobData>): Promise<void> {
@@ -57,11 +86,27 @@ async function processSmartCropJob(job: Job<SmartCropJobData>): Promise<void> {
     let outKey: string;
     let storageUrl: string;
 
-    if (result.mode === "split") {
+    if (result.mode === "skip") {
+      // No faces detected — mark done without producing a vertical version
+      console.log(`[SMART CROP WORKER] No faces detected for ${clipId}, skipping reframe`);
+      await ClipModel.update(clipId, {
+        smartCropStatus: "done",
+        smartCropStorageKey: storageKey,       // keep original
+        smartCropStorageUrl: videoUrl,
+      });
+      await job.updateProgress(100);
+      await fs.unlink(coordsPath).catch(() => {});
+      return;
+    } else if (result.mode === "split") {
       ({ storageKey: outKey, storageUrl } = await FFmpegService.applySplitScreen(
         videoUrl, result, outputKey, TMP_DIR
       ));
+    } else if (result.mode === "mixed") {
+      ({ storageKey: outKey, storageUrl } = await FFmpegService.applyMixedCrop(
+        videoUrl, result.segments, result.crop_w, result.crop_h, outputKey, TMP_DIR
+      ));
     } else {
+      // mode === "crop" — standard face-tracking crop
       ({ storageKey: outKey, storageUrl } = await FFmpegService.applySmartCrop(
         videoUrl, result.coords, outputKey, TMP_DIR
       ));
@@ -84,6 +129,9 @@ async function processSmartCropJob(job: Job<SmartCropJobData>): Promise<void> {
   } catch (error) {
     console.error(`[SMART CROP WORKER] Failed: ${clipId}`, error);
     if (error instanceof Error) captureException(error, { clipId, videoId });
+
+    // Clean up any leftover tmp files
+    await cleanupTmpFiles(clipId, TMP_DIR);
 
     const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1) - 1;
     if (isLastAttempt) {

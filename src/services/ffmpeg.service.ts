@@ -313,6 +313,7 @@ export class FFmpegService {
   /**
    * Apply smart crop coordinates to produce a vertical 9:16 video
    * Streams output directly to R2 (same pattern as other methods)
+   * Output: 1080x1920 (proper 9:16 vertical HD)
    */
   static async applySmartCrop(
     videoUrl: string,
@@ -336,9 +337,18 @@ export class FFmpegService {
     return new Promise((resolve, reject) => {
       const args = [
         "-i", videoUrl,
-        "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h}`,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
+        "-vf", [
+          `sendcmd=f=${cmdFile}`,
+          `crop=${first.w}:${first.h}`,
+          "scale=1080:1920:flags=lanczos",  // upscale to proper 9:16 HD
+        ].join(","),
+        "-c:v", "libx264",
+        "-preset", "medium",     // better quality than "fast"
+        "-crf", "18",            // higher quality — social platforms re-encode anyway
+        "-profile:v", "high",
+        "-level", "4.1",
+        "-pix_fmt", "yuv420p",   // max compatibility on mobile
+        "-c:a", "aac", "-b:a", "192k",
         "-f", "mp4",
         "-movflags", "frag_keyframe+empty_moov",
         "-",
@@ -394,21 +404,28 @@ export class FFmpegService {
     console.log(`[FFMPEG SERVICE] Applying split screen → ${outputStorageKey}`);
 
     const { screen, pip, split_ratio } = splitResult;
-    const outW    = 607;
-    const outH    = 1080;
+    const outW    = 1080;
+    const outH    = 1920;
     const screenH = Math.round(outH * split_ratio / 100);
     const faceH   = outH - screenH;
+
+    // Check if video has audio stream
+    const hasAudio = await FFmpegService.hasAudioStream(videoUrl);
 
     return new Promise((resolve, reject) => {
       const args = [
         "-i", videoUrl,
         "-filter_complex",
-        `[0:v]crop=${screen.w}:${screen.h}:${screen.x}:${screen.y},scale=${outW}:${screenH}[top];` +
-        `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}[bottom];` +
-        `[top][bottom]vstack=inputs=2[out]`,
-        "-map", "[out]", "-map", "0:a",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
+        `[0:v]crop=${screen.w}:${screen.h}:${screen.x}:${screen.y},scale=${outW}:${screenH}:flags=lanczos[top];` +
+        `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[bottom];` +
+        `[top][bottom]vstack=inputs=2,format=yuv420p[out]`,
+        "-map", "[out]",
+        ...(hasAudio ? ["-map", "0:a", "-c:a", "aac", "-b:a", "192k"] : []),
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-crf", "18",
+        "-profile:v", "high",
+        "-level", "4.1",
         "-f", "mp4", "-movflags", "frag_keyframe+empty_moov",
         "-",
       ];
@@ -435,6 +452,23 @@ export class FFmpegService {
           console.error(`[FFMPEG SERVICE] Split screen exited ${code}: ${stderr.slice(-500)}`);
         }
       });
+    });
+  }
+
+  /**
+   * Check if a video has an audio stream
+   */
+  static async hasAudioStream(videoUrl: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const proc = spawn("ffprobe", [
+        "-v", "quiet", "-select_streams", "a",
+        "-show_entries", "stream=codec_type",
+        "-of", "csv=p=0", videoUrl,
+      ]);
+      let stdout = "";
+      proc.stdout?.on("data", (d) => { stdout += d.toString(); });
+      proc.on("error", () => resolve(false));
+      proc.on("close", () => resolve(stdout.trim().length > 0));
     });
   }
 
@@ -469,7 +503,7 @@ export class FFmpegService {
       const duration = seg.end - seg.start;
 
       if (seg.type === "face") {
-        // Crop to 9:16 using sendcmd
+        // Crop to 9:16 using sendcmd, then scale to 1080x1920
         const cmdFile = `${tmpDir}/mixed-cmd-${id}-${i}.txt`;
         const cmdLines = seg.coords.flatMap(({ t, x, y, w, h }) => [
           `${t} crop x ${x};`,
@@ -484,9 +518,15 @@ export class FFmpegService {
           const args = [
             "-ss", seg.start.toString(), "-t", duration.toString(),
             "-i", videoUrl,
-            "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h}`,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-c:a", "aac", "-b:a", "128k",
+            "-vf", [
+              `sendcmd=f=${cmdFile}`,
+              `crop=${first.w}:${first.h}`,
+              "scale=1080:1920:flags=lanczos",
+              "format=yuv420p",
+            ].join(","),
+            "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+            "-profile:v", "high", "-level", "4.1",
+            "-c:a", "aac", "-b:a", "192k",
             "-y", segOut,
           ];
           const proc = spawn("ffmpeg", args);
@@ -499,14 +539,20 @@ export class FFmpegService {
           });
         });
       } else {
-        // Letterbox: scale 16:9 to fit inside 9:16 with black bars
+        // Letterbox: scale 16:9 to fit inside 1080x1920 with black bars
         await new Promise<void>((resolve, reject) => {
           const args = [
             "-ss", seg.start.toString(), "-t", duration.toString(),
             "-i", videoUrl,
-            "-vf", `scale=${cropW}:-2,pad=${cropW}:${cropH}:(ow-iw)/2:(oh-ih)/2:black,setsar=1`,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-c:a", "aac", "-b:a", "128k",
+            "-vf", [
+              "scale=1080:-2:flags=lanczos",
+              "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black",
+              "setsar=1",
+              "format=yuv420p",
+            ].join(","),
+            "-c:v", "libx264", "-preset", "medium", "-crf", "18",
+            "-profile:v", "high", "-level", "4.1",
+            "-c:a", "aac", "-b:a", "192k",
             "-y", segOut,
           ];
           const proc = spawn("ffmpeg", args);

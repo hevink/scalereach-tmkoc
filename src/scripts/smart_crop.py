@@ -87,6 +87,13 @@ total_f  = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 duration = total_f / fps if fps > 0 else 0
 cap.release()
 
+if src_w == 0 or src_h == 0 or fps <= 0 or duration <= 0:
+    log(f"ERROR: Invalid video dimensions or duration ({src_w}x{src_h}, fps={fps}, dur={duration})")
+    # Cleanup downloaded file
+    try: os.unlink(local_video)
+    except: pass
+    sys.exit(1)
+
 log(f"Video: {src_w}x{src_h} @ {fps:.1f}fps, {duration:.1f}s")
 
 crop_w = int(src_h * 9 / 16)
@@ -94,6 +101,15 @@ if crop_w > src_w:
     crop_w = src_w
 crop_w = crop_w - (crop_w % 2)  # ensure even for libx264
 crop_h = src_h - (src_h % 2)    # ensure even for libx264
+
+# ── Early exit: already portrait or nearly square ─────────────────────────────
+
+aspect_ratio = src_w / src_h if src_h > 0 else 1.0
+if aspect_ratio <= 0.65:
+    log(f"Video is already portrait ({src_w}x{src_h}, ratio={aspect_ratio:.2f}) — skipping reframe")
+    with open(coords_path, "w") as f:
+        json.dump({"mode": "skip"}, f)
+    sys.exit(0)
 
 # ── Step 3: Face detection setup ──────────────────────────────────────────────
 
@@ -270,15 +286,18 @@ if video_type == "screen_pip":
 log("Podcast/talking-head — running face tracking...")
 
 log("Extracting audio...")
-subprocess.run(
+audio_result = subprocess.run(
     ["ffmpeg", "-y", "-i", local_video,
      "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audio_path],
-    check=True, capture_output=True
+    capture_output=True
 )
+has_audio = audio_result.returncode == 0
+if not has_audio:
+    log("WARNING: No audio track found — skipping diarization")
 
 hf_token = os.environ.get("HF_TOKEN")
 diarization_segments = []
-if hf_token:
+if hf_token and has_audio:
     try:
         log("Running speaker diarization...")
         from pyannote.audio import Pipeline
@@ -319,16 +338,69 @@ cap.release()
 detected = sum(1 for f in frame_data if f["faces"])
 log(f"Face detection done: {detected}/{len(frame_data)} frames have faces")
 
-fd_map = {fd["t"]: fd for fd in frame_data}
-
-speaker_side = {}
+fd_map = {}
 for fd in frame_data:
-    if len(fd["faces"]) >= 2:
-        spk = get_speaker_at(fd["t"])
-        if spk and not speaker_side:
-            speaker_side[spk] = "left"
-            log(f"Speaker mapping: {spk} → left")
-        break
+    # Use string key to avoid floating point comparison issues
+    fd_map[f"{fd['t']:.2f}"] = fd
+
+speaker_pos = {}  # speaker_id → average face cx position
+
+# Build speaker → face position mapping by correlating diarization with face detections
+# For each frame with 2+ faces where someone is speaking, record which face is closest
+# to where that speaker has been seen before (or assign by elimination)
+speaker_face_samples = {}  # speaker_id → list of cx values
+
+for fd in frame_data:
+    if len(fd["faces"]) < 2:
+        continue
+    spk = get_speaker_at(fd["t"])
+    if not spk:
+        continue
+
+    sorted_faces = sorted(fd["faces"], key=lambda f: f["cx"])
+
+    if spk in speaker_pos:
+        # Already have a position estimate — pick the closest face
+        best_face = min(sorted_faces, key=lambda f: abs(f["cx"] - speaker_pos[spk]))
+        speaker_face_samples.setdefault(spk, []).append(best_face["cx"])
+    else:
+        # First time seeing this speaker — pick the face NOT claimed by other speakers
+        claimed_positions = set(speaker_pos.keys())
+        unclaimed_faces = sorted_faces[:]
+
+        # Remove faces that are closest to already-mapped speakers
+        for mapped_spk, mapped_cx in speaker_pos.items():
+            if unclaimed_faces:
+                closest = min(unclaimed_faces, key=lambda f: abs(f["cx"] - mapped_cx))
+                unclaimed_faces.remove(closest)
+
+        if unclaimed_faces:
+            # Assign the first unclaimed face (leftmost remaining)
+            best_face = unclaimed_faces[0]
+        else:
+            # All faces claimed — just pick the closest to center as fallback
+            best_face = min(sorted_faces, key=lambda f: abs(f["cx"] - src_w // 2))
+
+        speaker_face_samples.setdefault(spk, []).append(best_face["cx"])
+
+    # Update running average position for this speaker
+    samples = speaker_face_samples[spk]
+    speaker_pos[spk] = int(sum(samples) / len(samples))
+
+if speaker_pos:
+    for spk, cx in speaker_pos.items():
+        log(f"Speaker mapping: {spk} → cx={cx}")
+else:
+    log("No speaker-face mapping established")
+
+# Fallback: if diarization exists but no mapping was built (e.g., never 2+ faces while speaking)
+# Map speakers to evenly spaced positions across the frame
+if not speaker_pos and diarization_segments:
+    all_speakers = sorted(set(s["speaker"] for s in diarization_segments),
+                          key=lambda sp: next(s["start"] for s in diarization_segments if s["speaker"] == sp))
+    for i, spk in enumerate(all_speakers):
+        speaker_pos[spk] = int(src_w * (i + 1) / (len(all_speakers) + 1))
+        log(f"Speaker mapping (fallback): {spk} → cx={speaker_pos[spk]}")
 
 def get_crop_x(faces, t, last_crop_cx=None):
     if not faces:
@@ -337,17 +409,14 @@ def get_crop_x(faces, t, last_crop_cx=None):
         target_cx = faces[0]["cx"]
     else:
         spk = get_speaker_at(t)
-        if spk and spk in speaker_side:
-            side = speaker_side[spk]
-            sorted_faces = sorted(faces, key=lambda f: f["cx"])
-            target_cx = sorted_faces[0]["cx"] if side == "left" else sorted_faces[-1]["cx"]
+        if spk and spk in speaker_pos:
+            # Pick the face closest to this speaker's known position
+            target_cx = min(faces, key=lambda f: abs(f["cx"] - speaker_pos[spk]))["cx"]
         elif last_crop_cx is not None:
-            # Filter out edge faces (listener/background faces near frame boundary)
-            # Use full crop_w as margin — faces within one crop-width of edge are partial
+            # No speaker info — pick face closest to current tracking position
             edge_margin = crop_w
             interior = [f for f in faces if edge_margin < f["cx"] < src_w - edge_margin]
             candidates = interior if interior else faces
-            # Among interior candidates, pick closest to current tracking position
             target_cx = min(candidates, key=lambda f: abs(f["cx"] - last_crop_cx))["cx"]
         else:
             edge_margin = crop_w
@@ -384,6 +453,15 @@ for fd in frame_data:
 DEAD_ZONE = 5
 SNAP_ZONE = 150
 
+if not raw_coords:
+    log("WARNING: No raw coordinates — skipping reframe")
+    with open(coords_path, "w") as f:
+        json.dump({"mode": "skip"}, f)
+    for p in [audio_path, local_video]:
+        try: os.unlink(p)
+        except: pass
+    sys.exit(0)
+
 smoothed_x    = float(raw_coords[0]["x"])
 prev_had_face = raw_coords[0]["face"]
 coords        = []
@@ -402,7 +480,7 @@ for rc in raw_coords:
     elif delta > DEAD_ZONE:
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
 
-    frame_faces = fd_map.get(rc["t"], {}).get("faces", [])
+    frame_faces = fd_map.get(f"{rc['t']:.2f}", {}).get("faces", [])
     crop_y      = get_crop_y(frame_faces, src_h, crop_h)
 
     coords.append({
@@ -417,10 +495,16 @@ for rc in raw_coords:
 
 log(f"Generated {len(coords)} crop keyframes")
 
-# Interpolate to per-frame
+# Interpolate to per-frame with smooth easing
 INTERP_SNAP    = 150
 frame_coords   = []
 frame_interval = 1.0 / fps
+
+def ease_in_out(t):
+    """Smooth ease-in-out (cubic) for natural camera movement"""
+    if t < 0.5:
+        return 4 * t * t * t
+    return 1 - (-2 * t + 2) ** 3 / 2
 
 for i in range(len(coords) - 1):
     a, b  = coords[i], coords[i + 1]
@@ -432,9 +516,10 @@ for i in range(len(coords) - 1):
             interp_x = b["x"] if step > 0 else a["x"]
             interp_y = b["y"] if step > 0 else a["y"]
         else:
-            alpha    = step / steps
-            interp_x = int(a["x"] + alpha * (b["x"] - a["x"]))
-            interp_y = int(a["y"] + alpha * (b["y"] - a["y"]))
+            t_linear = step / steps
+            t_smooth = ease_in_out(t_linear)
+            interp_x = int(a["x"] + t_smooth * (b["x"] - a["x"]))
+            interp_y = int(a["y"] + t_smooth * (b["y"] - a["y"]))
         frame_coords.append({
             "t":    round(a["t"] + step * frame_interval, 4),
             "x":    interp_x,
@@ -446,6 +531,16 @@ for i in range(len(coords) - 1):
 
 frame_coords.append(coords[-1])
 log(f"Interpolated to {len(frame_coords)} per-frame coords ({fps}fps)")
+
+# Guard: if no coords were generated, skip
+if not frame_coords:
+    log("WARNING: No frame coordinates generated — skipping reframe")
+    with open(coords_path, "w") as f:
+        json.dump({"mode": "skip"}, f)
+    for p in [audio_path, local_video]:
+        try: os.unlink(p)
+        except: pass
+    sys.exit(0)
 
 # Build segments
 segments = []
