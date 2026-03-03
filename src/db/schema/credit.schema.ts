@@ -44,6 +44,7 @@ export const creditTransaction = pgTable(
     balanceAfter: integer("balance_after").notNull(),
     description: text("description"),
     metadata: text("metadata"), // JSON string for additional data (order_id, product_id, etc.)
+    expiresAt: timestamp("expires_at"), // null = never expires (usage/refund rows); set for purchase/bonus
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({
