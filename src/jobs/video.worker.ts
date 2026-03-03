@@ -4,6 +4,8 @@ import { nanoid } from "nanoid";
 import { db } from "../db";
 import { video, viralClip } from "../db/schema";
 import { YouTubeService, MAX_VIDEO_DURATION_SECONDS, getQualityFromHeight } from "../services/youtube.service";
+import { YtDlpService } from "../services/ytdlp.service";
+import { PlatformDetectorService } from "../services/platform-detector.service";
 import { R2Service } from "../services/r2.service";
 import { DeepgramService } from "../services/deepgram.service";
 import { ViralDetectionService } from "../services/viral-detection.service";
@@ -86,7 +88,7 @@ async function updateVideoStatus(
 async function processYouTubeVideo(
   job: Job<VideoProcessingJobData>
 ): Promise<void> {
-  const { videoId, projectId, userId, sourceUrl } = job.data;
+  const { videoId, projectId, userId, sourceUrl, sourceType } = job.data;
 
   console.log(`[VIDEO WORKER] Processing YouTube video: ${videoId}`);
   console.log(`[VIDEO WORKER] Source URL: ${sourceUrl}`);
@@ -190,14 +192,26 @@ async function processYouTubeVideo(
       const audioEnd = videoConfig?.timeframeEnd ?? undefined;
       let streamResult;
       try {
-        streamResult = await YouTubeService.streamAudio(
-          sourceUrl,
-          audioStart > 0 ? audioStart : undefined,
-          audioEnd ?? undefined,
-        );
+        // Route to the correct downloader based on sourceType
+        const isYouTube = sourceType === "youtube";
+        if (isYouTube) {
+          streamResult = await YouTubeService.streamAudio(
+            sourceUrl,
+            audioStart > 0 ? audioStart : undefined,
+            audioEnd ?? undefined,
+          );
+        } else {
+          // All other platforms use the generalized YtDlpService
+          streamResult = await YtDlpService.streamAudio(
+            sourceUrl,
+            audioStart > 0 ? audioStart : undefined,
+            audioEnd ?? undefined,
+          );
+        }
       } catch (error: any) {
-        console.error(`[VIDEO WORKER] Failed to start YouTube stream: ${error.message}`);
-        throw new Error(`YouTube download failed: ${error.message}`);
+        const platformName = PlatformDetectorService.detect(sourceUrl)?.displayName || sourceType;
+        console.error(`[VIDEO WORKER] Failed to start ${platformName} stream: ${error.message}`);
+        throw new Error(`${platformName} download failed: ${error.message}`);
       }
 
       const { stream, videoInfo, mimeType } = streamResult;

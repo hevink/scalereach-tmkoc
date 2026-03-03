@@ -9,10 +9,12 @@ const videoRouter = new Hono();
 
 // Public route for URL validation
 videoRouter.get("/validate-youtube", VideoController.validateYouTubeUrl);
+videoRouter.get("/validate-url", VideoController.validateVideoUrl);
 
 // Protected routes
 videoRouter.use("/*", authMiddleware);
 videoRouter.post("/youtube", VideoController.submitYouTubeUrl);
+videoRouter.post("/url", VideoController.submitVideoUrl);
 videoRouter.get("/my-videos", VideoController.getMyVideos);
 videoRouter.get("/project/:projectId", VideoController.getVideosByProject);
 videoRouter.get("/:id", VideoController.getVideoById);
