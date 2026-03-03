@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { WorkspaceController } from "../controllers/workspace.controller";
 import { InvitationController } from "../controllers/invitation.controller";
+import { ViralDetectionController } from "../controllers/viral-detection.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 
 const workspaceRouter = new Hono();
@@ -36,5 +37,8 @@ workspaceRouter.post("/:id/invitations", InvitationController.createInvitation);
 workspaceRouter.delete("/:id/invitations/:invitationId", InvitationController.cancelInvitation);
 workspaceRouter.post("/:id/invitations/:invitationId/resend", InvitationController.resendInvitation);
 workspaceRouter.get("/:id/invitations/:invitationId/link", InvitationController.getInvitationLink);
+
+// Workspace clips — single query for all clips across all videos
+workspaceRouter.get("/:id/clips", ViralDetectionController.getWorkspaceClips);
 
 export default workspaceRouter;

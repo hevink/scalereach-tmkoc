@@ -34,6 +34,56 @@ export class ViralDetectionController {
   }
 
   /**
+   * GET /api/workspaces/:id/clips
+   * Get all clips for a workspace in a single query
+   */
+  static async getWorkspaceClips(c: Context) {
+    const workspaceId = c.req.param("id");
+    ViralDetectionController.logRequest(c, "GET_WORKSPACE_CLIPS", { workspaceId });
+
+    try {
+      const query = c.req.query();
+      const filters: ClipFilters = {};
+      if (query.favorited !== undefined) filters.favorited = query.favorited === "true";
+      if (query.sortBy && ["score", "duration", "createdAt"].includes(query.sortBy)) {
+        filters.sortBy = query.sortBy as ClipFilters["sortBy"];
+      }
+      if (query.sortOrder && ["asc", "desc"].includes(query.sortOrder)) {
+        filters.sortOrder = query.sortOrder as "asc" | "desc";
+      }
+
+      const limit = Math.min(parseInt(query.limit || "20", 10), 50);
+      const offset = parseInt(query.offset || "0", 10);
+
+      const { clips, hasMore } = await ClipModel.getByWorkspaceId(workspaceId, filters, limit, offset);
+
+      const clipsWithUrls = await Promise.all(
+        clips.map(async (clip) => {
+          const [downloadUrl, thumbnailDownloadUrl] = await Promise.all([
+            clip.storageKey ? R2Service.getSignedDownloadUrl(clip.storageKey, 3600) : null,
+            clip.thumbnailKey ? R2Service.getSignedDownloadUrl(clip.thumbnailKey, 3600) : null,
+          ]);
+          return {
+            ...clip,
+            downloadUrl,
+            thumbnailUrl: thumbnailDownloadUrl || clip.thumbnailUrl,
+          };
+        })
+      );
+
+      return c.json({
+        clips: clipsWithUrls,
+        count: clipsWithUrls.length,
+        hasMore,
+        nextOffset: hasMore ? offset + limit : null,
+      });
+    } catch (error) {
+      console.error(`[VIRAL DETECTION CONTROLLER] GET_WORKSPACE_CLIPS error:`, error);
+      return c.json({ error: "Failed to fetch workspace clips" }, 500);
+    }
+  }
+
+  /**
    * POST /api/videos/:id/analyze
    * Trigger viral detection analysis for a video
    * Validates: Requirements 5.1, 6.1, 6.2, 6.3, 6.4, 6.5, 6.6

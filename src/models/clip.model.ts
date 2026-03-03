@@ -253,6 +253,46 @@ export class ClipModel {
   /**
    * Delete a clip
    */
+  static async getByWorkspaceId(workspaceId: string, filters: ClipFilters = {}, limit = 20, offset = 0) {
+    this.logOperation("GET_CLIPS_BY_WORKSPACE", { workspaceId, filters, limit, offset });
+    const startTime = performance.now();
+
+    try {
+      const conditions: SQL[] = [eq(video.workspaceId, workspaceId)];
+
+      if (filters.minScore !== undefined) conditions.push(gte(viralClip.score, filters.minScore));
+      if (filters.maxScore !== undefined) conditions.push(lte(viralClip.score, filters.maxScore));
+      if (filters.status) conditions.push(eq(viralClip.status, filters.status));
+      if (filters.favorited !== undefined) conditions.push(eq(viralClip.favorited, filters.favorited));
+
+      const sortBy = filters.sortBy || "createdAt";
+      const sortOrder = filters.sortOrder || "desc";
+      const sortColumn =
+        sortBy === "score" ? viralClip.score :
+        sortBy === "duration" ? viralClip.duration :
+        viralClip.createdAt;
+
+      const result = await db
+        .select({ clip: viralClip })
+        .from(viralClip)
+        .innerJoin(video, eq(viralClip.videoId, video.id))
+        .where(and(...conditions))
+        .orderBy(sortOrder === "desc" ? desc(sortColumn) : asc(sortColumn))
+        .limit(limit + 1)  // fetch one extra to determine hasMore
+        .offset(offset);
+
+      const duration = performance.now() - startTime;
+      const hasMore = result.length > limit;
+      const clips = result.slice(0, limit).map(r => r.clip);
+      console.log(`[CLIP MODEL] GET_CLIPS_BY_WORKSPACE completed in ${duration.toFixed(2)}ms, found ${clips.length} clips (hasMore=${hasMore})`);
+      return { clips, hasMore };
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      console.error(`[CLIP MODEL] GET_CLIPS_BY_WORKSPACE failed after ${duration.toFixed(2)}ms:`, error);
+      throw error;
+    }
+  }
+
   static async getStorageKeysByWorkspaceId(workspaceId: string) {
     const result = await db
       .select({
