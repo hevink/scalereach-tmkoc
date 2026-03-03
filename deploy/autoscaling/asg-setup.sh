@@ -137,8 +137,42 @@ aws autoscaling create-auto-scaling-group \
 
 echo "  ASG created: $CLUSTER_NAME"
 
-# ── 4. Scale-OUT policy (add instances when queue is deep) ────────────────────
-echo "[4/7] Creating scaling policies..."
+# ── 4. SNS topic for scale notifications ─────────────────────────────────────
+echo "[4/7] Creating SNS notification topic..."
+
+NOTIFY_EMAIL="${NOTIFY_EMAIL:-hevinkalathiya123@gmail.com}"
+
+SNS_ARN=$(aws sns create-topic \
+  --name scalereach-autoscaling-alerts \
+  --region "$AWS_REGION" \
+  --query "TopicArn" \
+  --output text)
+
+# Subscribe your email
+aws sns subscribe \
+  --topic-arn "$SNS_ARN" \
+  --protocol email \
+  --notification-endpoint "$NOTIFY_EMAIL" \
+  --region "$AWS_REGION" > /dev/null
+
+echo "  SNS topic: $SNS_ARN"
+echo "  ⚠️  Check $NOTIFY_EMAIL and confirm the subscription!"
+
+# Notify on ASG scale-out and scale-in events
+aws autoscaling put-notification-configuration \
+  --auto-scaling-group-name "$CLUSTER_NAME" \
+  --topic-arn "$SNS_ARN" \
+  --notification-types \
+    "autoscaling:EC2_INSTANCE_LAUNCH" \
+    "autoscaling:EC2_INSTANCE_LAUNCH_ERROR" \
+    "autoscaling:EC2_INSTANCE_TERMINATE" \
+    "autoscaling:EC2_INSTANCE_TERMINATE_ERROR" \
+  --region "$AWS_REGION"
+
+echo "  ASG notifications wired to SNS."
+
+# ── 5. Scale-OUT policy (add instances when queue is deep) ────────────────────
+echo "[5/7] Creating scaling policies..."
 
 SCALE_OUT_ARN=$(aws autoscaling put-scaling-policy \
   --auto-scaling-group-name "$CLUSTER_NAME" \
@@ -171,7 +205,7 @@ echo "  Scale-out policy: $SCALE_OUT_ARN"
 echo "  Scale-in policy:  $SCALE_IN_ARN"
 
 # ── 5. CloudWatch Alarms ──────────────────────────────────────────────────────
-echo "[5/7] Creating CloudWatch alarms..."
+echo "[6/8] Creating CloudWatch alarms..."
 
 # Scale OUT when TotalPendingJobs > 5 for 2 consecutive minutes
 aws cloudwatch put-metric-alarm \
@@ -185,7 +219,8 @@ aws cloudwatch put-metric-alarm \
   --evaluation-periods 2 \
   --threshold 5 \
   --comparison-operator "GreaterThanOrEqualToThreshold" \
-  --alarm-actions "$SCALE_OUT_ARN" \
+  --alarm-actions "$SCALE_OUT_ARN" "$SNS_ARN" \
+  --ok-actions "$SNS_ARN" \
   --treat-missing-data "notBreaching" \
   --region "$AWS_REGION"
 
@@ -201,14 +236,14 @@ aws cloudwatch put-metric-alarm \
   --evaluation-periods 5 \
   --threshold 2 \
   --comparison-operator "LessThanThreshold" \
-  --alarm-actions "$SCALE_IN_ARN" \
+  --alarm-actions "$SCALE_IN_ARN" "$SNS_ARN" \
   --treat-missing-data "notBreaching" \
   --region "$AWS_REGION"
 
 echo "  Alarms created."
 
 # ── 6. Lambda metric publisher ────────────────────────────────────────────────
-echo "[6/7] Deploying metric publisher Lambda..."
+echo "[7/8] Deploying metric publisher Lambda..."
 
 # Package the Lambda
 cd "$(dirname "$0")"
@@ -282,7 +317,7 @@ aws events put-targets \
 echo "  Lambda + EventBridge rule created."
 
 # ── 7. Store secrets in SSM ───────────────────────────────────────────────────
-echo "[7/7] Reminder: store secrets in SSM if not already done."
+echo "[8/8] Reminder: store secrets in SSM if not already done."
 echo ""
 echo "  Run these commands to store your env vars:"
 echo ""
