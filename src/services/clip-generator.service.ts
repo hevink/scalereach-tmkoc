@@ -18,6 +18,15 @@ import { extractEmojiTimings } from "../utils/emoji-timing";
 // Path to bundled fonts for ASS subtitle rendering
 const FONTS_DIR = path.resolve(__dirname, "../../assets/fonts");
 
+/** A pre-rendered PNG for a text overlay that contains emoji */
+export interface EmojiOverlayPng {
+  pngPath: string;
+  x: number;       // pixel x center in output video
+  y: number;       // pixel y center in output video
+  startTime: number; // seconds
+  endTime: number;   // seconds
+}
+
 export type AspectRatio = "9:16" | "1:1" | "16:9";
 export type VideoQuality = "720p" | "1080p" | "2k" | "4k";
 
@@ -96,6 +105,8 @@ export interface GeneratedClip {
   width: number;
   height: number;
   fileSize: number;
+  // Thumbnail generated locally from the captioned clip (avoids re-downloading from R2)
+  thumbnailBuffer?: Buffer;
 }
 
 /**
@@ -370,6 +381,72 @@ export class ClipGeneratorService {
         tempPaths.push(tempSubsPath);
         await fs.promises.writeFile(tempSubsPath, assContent);
 
+        // ── Render emoji overlays as PNG images ──
+        // Text overlays and intro title that contain emoji cannot be rendered by libass.
+        // We render them as PNG via Python+PIL and composite via FFmpeg overlay filter.
+        const emojiOverlayPngs: EmojiOverlayPng[] = [];
+        const emojiPngPaths: string[] = [];
+
+        // Check text overlays for emoji
+        if (options.textOverlays) {
+          for (const overlay of options.textOverlays) {
+            if (ClipGeneratorService.hasEmoji(overlay.text)) {
+              try {
+                const pngPath = await ClipGeneratorService.renderEmojiOverlayAsPng(
+                  overlay.text,
+                  overlay.fontSize || 32,
+                  overlay.color || "#FFFFFF",
+                  overlay.backgroundColor || "#000000",
+                  overlay.backgroundOpacity ?? 0,
+                  width, height,
+                  80
+                );
+                emojiPngPaths.push(pngPath);
+                tempPaths.push(pngPath);
+                emojiOverlayPngs.push({
+                  pngPath,
+                  x: Math.round((overlay.x / 100) * width),
+                  y: Math.round((overlay.y / 100) * height),
+                  startTime: overlay.startTime,
+                  endTime: overlay.endTime,
+                });
+                this.logOperation("EMOJI_OVERLAY_PNG_READY", { id: overlay.id, text: overlay.text });
+              } catch (err) {
+                console.warn(`[CLIP GENERATOR] Failed to render emoji overlay PNG for "${overlay.text}":`, err);
+              }
+            }
+          }
+        }
+
+        // Check intro title for emoji
+        if (options.introTitle && ClipGeneratorService.hasEmoji(options.introTitle)) {
+          try {
+            const pngPath = await ClipGeneratorService.renderEmojiOverlayAsPng(
+              options.introTitle,
+              36,
+              "#FFFFFF",
+              "#000000",
+              0,
+              width, height,
+              80
+            );
+            emojiPngPaths.push(pngPath);
+            tempPaths.push(pngPath);
+            emojiOverlayPngs.push({
+              pngPath,
+              x: Math.round(width / 2),
+              y: Math.round(height * 0.20),
+              startTime: 0,
+              endTime: 3,
+            });
+            this.logOperation("EMOJI_INTRO_TITLE_PNG_READY", { text: options.introTitle });
+          } catch (err) {
+            console.warn(`[CLIP GENERATOR] Failed to render emoji intro title PNG:`, err);
+          }
+        }
+
+        const emojiOverlaysArg = emojiOverlayPngs.length > 0 ? emojiOverlayPngs : undefined;
+
         if (hasSplitScreen && bgTempPath) {
           // Single-pass: aspect ratio + split-screen + captions all in one FFmpeg command
           await this.convertWithSplitScreen(
@@ -381,12 +458,13 @@ export class ClipGeneratorService {
             options.watermark, options.quality
           );
         } else {
-          // Single-pass: aspect ratio + captions
+          // Single-pass: aspect ratio + captions + emoji overlays
           await this.convertAspectRatioFile(
             rawSourcePath, captionedOutputPath, width, height,
             tempSubsPath,
             options.watermark, options.quality,
-            options.backgroundStyle
+            options.backgroundStyle,
+            emojiOverlaysArg
           );
         }
 
@@ -412,6 +490,18 @@ export class ClipGeneratorService {
       this.logOperation("UPLOADING_RAW_CLIP", { rawStorageKey, size: clipWithoutCaptionsBuffer.length });
       const { url: rawStorageUrl } = await R2Service.uploadFile(rawStorageKey, clipWithoutCaptionsBuffer, "video/mp4");
 
+      // ── STEP 6: Generate thumbnail from local captioned file (before cleanup) ──
+      // Use the local file — much faster than re-downloading from R2
+      const thumbSourcePath = hasCaptions ? captionedOutputPath : rawOutputPath;
+      const thumbOffset = Math.min(1, duration * 0.1); // 1s or 10% of duration, whichever is smaller
+      let thumbnailBuffer: Buffer | undefined;
+      try {
+        thumbnailBuffer = await this.extractThumbnailFromFile(thumbSourcePath, width, height, thumbOffset);
+        this.logOperation("THUMBNAIL_EXTRACTED_LOCALLY", { size: thumbnailBuffer.length, offset: thumbOffset });
+      } catch (thumbErr) {
+        console.warn(`[CLIP GENERATOR] Local thumbnail extraction failed (non-fatal):`, thumbErr);
+      }
+
       return {
         storageKey,
         storageUrl,
@@ -421,6 +511,7 @@ export class ClipGeneratorService {
         width,
         height,
         fileSize: clipWithCaptionsBuffer.length,
+        thumbnailBuffer,
       };
     } catch (error) {
       // If split-screen failed, try fallback without split-screen
@@ -697,11 +788,12 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
     // Add intro title for first 3 seconds if provided
-    if (introTitle) {
+    // NOTE: if introTitle contains emoji, it is skipped here and rendered as PNG overlay instead
+    if (introTitle && !ClipGeneratorService.hasEmoji(introTitle)) {
       // Scale up + fade in from top, then fade out
       // {\fad(400,500)} = 400ms fade in, 500ms fade out
       // {\fscx80\fscy80\t(0,300,\fscx100\fscy100)} = start at 80% scale, animate to 100% in 300ms
-      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${transformWord(introTitle)}\n`;
+      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
     }
 
     // Group words into lines based on wordsPerLine setting
@@ -875,6 +967,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // }
 
     // Add text overlays — each gets its own named style so BorderStyle (box bg) works correctly
+    // NOTE: overlays with emoji are skipped here — they are rendered as PNG and composited via FFmpeg overlay
     if (textOverlays && textOverlays.length > 0) {
       const DESIGN_HEIGHT = 700;
       const overlayScaleFactor = height / DESIGN_HEIGHT;
@@ -885,6 +978,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
       for (let oi = 0; oi < textOverlays.length; oi++) {
         const overlay = textOverlays[oi];
+        // Skip emoji overlays — they are rendered as PNG and composited via FFmpeg overlay
+        if (ClipGeneratorService.hasEmoji(overlay.text)) continue;
         const oFontSize = Math.round((overlay.fontSize || 32) * overlayScaleFactor);
         const oColor = this.hexToASSColor(overlay.color || "#FFFFFF");
         const oBgColor = (overlay.backgroundColor || "#000000").replace("#", "");
@@ -917,6 +1012,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Now add dialogue lines for each overlay
       for (let oi = 0; oi < textOverlays.length; oi++) {
         const overlay = textOverlays[oi];
+        // Skip emoji overlays — handled via FFmpeg PNG overlay
+        if (ClipGeneratorService.hasEmoji(overlay.text)) continue;
         const oX = Math.round((overlay.x / 100) * width);
         const oY = Math.round((overlay.y / 100) * height);
         const startTime = this.formatASSTime(overlay.startTime);
@@ -934,8 +1031,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           animTags = "\\fad(100,200)";
         }
 
+        // Render text with emoji font switching so emojis don't show as "NO GLYPH"
+        const renderedText = this.renderTextWithEmojiFont(overlay.text, overlay.fontFamily || "Inter");
+
         // \an5 = center anchor, \pos(x,y) = absolute position
-        ass += `Dialogue: 3,${startTime},${endTime},${styleName},,0,0,0,,{\\an5\\pos(${oX},${oY})${animTags ? animTags : ""}}${overlay.text}\n`;
+        ass += `Dialogue: 3,${startTime},${endTime},${styleName},,0,0,0,,{\\an5\\pos(${oX},${oY})${animTags ? animTags : ""}}${renderedText}\n`;
       }
     }
 
@@ -950,6 +1050,245 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     });
 
     return ass;
+  }
+
+  /**
+   * Returns true if the text contains any emoji characters.
+   */
+  static hasEmoji(text: string): boolean {
+    return /(\p{Emoji_Presentation}|\p{Extended_Pictographic})/u.test(text);
+  }
+
+  /**
+   * Strip emoji characters from text before ASS rendering.
+   * libass/fontconfig cannot render color emoji (CBDT/SBIX fonts not supported),
+   * so we remove them to prevent "NO GLYPH" boxes in exported video.
+   */
+  private static renderTextWithEmojiFont(text: string, _regularFont: string): string {
+    return text
+      .replace(/(\p{Emoji_Presentation}|\p{Extended_Pictographic})\uFE0F?(\u200D(\p{Emoji_Presentation}|\p{Extended_Pictographic})\uFE0F?)*/gu, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  /**
+   * Render a text overlay containing emoji as a PNG image using Python + PIL.
+   * Apple Color Emoji font handles both emoji and regular text.
+   * Returns the path to the generated PNG (caller must clean up).
+   */
+  static async renderEmojiOverlayAsPng(
+    text: string,
+    fontSize: number,
+    color: string,
+    backgroundColor: string,
+    backgroundOpacity: number,
+    videoWidth: number,
+    videoHeight: number,
+    maxWidthPct: number = 80
+  ): Promise<string> {
+    const outPath = path.join(os.tmpdir(), `emoji-overlay-${nanoid()}.png`);
+    const maxWidthPx = Math.round((maxWidthPct / 100) * videoWidth);
+
+    // Convert hex color to RGB tuple
+    const hexToRgb = (hex: string) => {
+      const c = hex.replace("#", "");
+      return [parseInt(c.slice(0,2),16), parseInt(c.slice(2,4),16), parseInt(c.slice(4,6),16)];
+    };
+    const [r, g, b] = hexToRgb(color);
+    const [br, bg, bb] = hexToRgb(backgroundColor);
+    const bgAlpha = Math.round((backgroundOpacity / 100) * 255);
+
+    // Scale font size from design space (700px) to actual video height
+    const scaledFontSize = Math.round(fontSize * (videoHeight / 700));
+    // Apple Color Emoji only supports specific bitmap sizes — snap to nearest valid size
+    const EMOJI_VALID_SIZES = [20, 26, 32, 40, 48, 52, 64, 96, 160];
+    const clampedFontSize = EMOJI_VALID_SIZES.reduce((prev, curr) =>
+      Math.abs(curr - scaledFontSize) < Math.abs(prev - scaledFontSize) ? curr : prev
+    );
+
+    // Pass text via a temp file to avoid shell escaping issues with emoji/special chars
+    const textInputPath = path.join(os.tmpdir(), `emoji-text-${nanoid()}.txt`);
+    await fs.promises.writeFile(textInputPath, text, "utf8");
+
+    const pythonScript = `
+import sys, re, os
+from PIL import Image, ImageDraw, ImageFont
+
+# Read text from file to avoid escaping issues
+with open(${JSON.stringify(textInputPath)}, "r", encoding="utf-8") as f:
+    text = f.read().strip()
+
+font_size = ${clampedFontSize}
+max_width = ${maxWidthPx}
+text_color = (${r}, ${g}, ${b}, 255)
+bg_color = (${br}, ${bg}, ${bb}, ${bgAlpha})
+
+# Apple Color Emoji only supports specific bitmap sizes
+VALID_SIZES = [20, 26, 32, 40, 48, 52, 64, 96, 160]
+def snap_size(s):
+    return min(VALID_SIZES, key=lambda x: abs(x - s))
+
+emoji_font_paths = [
+    "/System/Library/Fonts/Apple Color Emoji.ttc",
+    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+]
+text_font_paths = [
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+]
+
+emoji_sz = snap_size(font_size)
+emoji_font = None
+for fp in emoji_font_paths:
+    if os.path.exists(fp):
+        try:
+            emoji_font = ImageFont.truetype(fp, emoji_sz)
+            break
+        except:
+            pass
+
+text_font = None
+for fp in text_font_paths:
+    if os.path.exists(fp):
+        try:
+            text_font = ImageFont.truetype(fp, font_size)
+            break
+        except:
+            pass
+if text_font is None:
+    text_font = ImageFont.load_default()
+if emoji_font is None:
+    emoji_font = text_font
+
+# Split text into segments: (text_chunk, is_emoji)
+EMOJI_RE = re.compile(r'([\U00010000-\U0010ffff]|[\u2600-\u27BF]|\u00a9|\u00ae|[\u2000-\u3300]|\uFE0F|\u20D0-\u20FF)', re.UNICODE)
+def split_segments(s):
+    # Split into runs of emoji vs non-emoji characters
+    segs = []
+    buf = ""
+    is_em = False
+    for ch in s:
+        cp = ord(ch)
+        # Emoji: Supplementary Multilingual Plane chars + common symbol ranges
+        ch_is_emoji = (cp >= 0x1F000) or (0x2600 <= cp <= 0x27BF) or cp in (0x00A9, 0x00AE) or (0x2000 <= cp <= 0x3300) or cp == 0xFE0F
+        if ch_is_emoji != is_em:
+            if buf:
+                segs.append((buf, is_em))
+            buf = ch
+            is_em = ch_is_emoji
+        else:
+            buf += ch
+    if buf:
+        segs.append((buf, is_em))
+    return segs
+
+def seg_font(is_emoji):
+    return emoji_font if is_emoji else text_font
+
+def measure_segments(segs):
+    dummy = Image.new("RGBA", (1, 1))
+    draw = ImageDraw.Draw(dummy)
+    total_w = 0
+    max_h = 0
+    for (chunk, is_em) in segs:
+        f = seg_font(is_em)
+        bb = draw.textbbox((0, 0), chunk, font=f, embedded_color=True)
+        total_w += bb[2] - bb[0]
+        max_h = max(max_h, bb[3] - bb[1])
+    return total_w, max_h
+
+def measure_text(s, is_emoji=False):
+    dummy = Image.new("RGBA", (1, 1))
+    draw = ImageDraw.Draw(dummy)
+    f = seg_font(is_emoji)
+    bb = draw.textbbox((0, 0), s, font=f, embedded_color=True)
+    return bb[2] - bb[0], bb[3] - bb[1]
+
+# Word-wrap: split into words preserving which are emoji
+words = text.split(" ")
+lines = []
+current_words = []
+
+for word in words:
+    test_words = current_words + [word]
+    test_line = " ".join(test_words)
+    segs = split_segments(test_line)
+    w, _ = measure_segments(segs)
+    if w <= max_width or not current_words:
+        current_words = test_words
+    else:
+        lines.append(" ".join(current_words))
+        current_words = [word]
+if current_words:
+    lines.append(" ".join(current_words))
+
+# Measure all lines
+line_sizes = []
+for line in lines:
+    segs = split_segments(line)
+    w, h = measure_segments(segs)
+    line_sizes.append((w, h))
+
+padding = max(8, font_size // 4)
+max_line_w = max(s[0] for s in line_sizes) if line_sizes else 0
+total_w = min(max_line_w + padding * 2, max_width + padding * 2)
+line_gap = max(4, font_size // 8)
+total_h = sum(s[1] for s in line_sizes) + line_gap * max(0, len(lines) - 1) + padding * 2
+
+img = Image.new("RGBA", (total_w, total_h), (0, 0, 0, 0))
+draw = ImageDraw.Draw(img)
+
+if bg_color[3] > 0:
+    draw.rectangle([0, 0, total_w - 1, total_h - 1], fill=bg_color)
+
+y = padding
+for i, line in enumerate(lines):
+    lw, lh = line_sizes[i]
+    x = (total_w - lw) // 2
+    segs = split_segments(line)
+    cx = x
+    for (chunk, is_em) in segs:
+        f = seg_font(is_em)
+        draw.text((cx, y), chunk, font=f, fill=text_color, embedded_color=True)
+        cw, _ = measure_text(chunk, is_em)
+        cx += cw
+    y += lh + line_gap
+
+img.save(${JSON.stringify(outPath)})
+# Clean up text input file
+try:
+    os.remove(${JSON.stringify(textInputPath)})
+except:
+    pass
+print(f"OK:{total_w}x{total_h}")
+`;
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn("python3", ["-c", pythonScript]);
+      let stdout = "";
+      let stderr = "";
+      proc.stdout?.on("data", (d) => { stdout += d.toString(); });
+      proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+      proc.on("close", (code) => {
+        // Clean up text input file on error (success path cleans it in Python)
+        if (code !== 0) {
+          fs.promises.unlink(textInputPath).catch(() => {});
+          reject(new Error(`Python emoji render failed (code ${code}): ${stderr.slice(-500)}`));
+        } else if (stdout.startsWith("OK:")) {
+          this.logOperation("EMOJI_PNG_RENDERED", { path: outPath, size: stdout.trim() });
+          resolve(outPath);
+        } else {
+          fs.promises.unlink(textInputPath).catch(() => {});
+          reject(new Error(`Python emoji render unexpected output: ${stdout} | ${stderr.slice(-300)}`));
+        }
+      });
+      proc.on("error", (err) => {
+        fs.promises.unlink(textInputPath).catch(() => {});
+        reject(new Error(`Failed to spawn python3: ${err.message}`));
+      });
+    });
   }
 
   /**
@@ -1592,13 +1931,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     subtitlesPath?: string,
     watermark?: boolean,
     quality: VideoQuality = "1080p",
-    backgroundStyle: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "black"
+    backgroundStyle: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "black",
+    emojiOverlays?: EmojiOverlayPng[]
   ): Promise<void> {
     const wmConfig = watermark
       ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())
       : null;
 
     const { preset, crf } = getEncodingParams(quality);
+    const hasEmojiOverlays = emojiOverlays && emojiOverlays.length > 0;
 
     return new Promise((resolve, reject) => {
       const targetAspect = targetWidth / targetHeight;
@@ -1608,6 +1949,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
       if (isVertical) {
         // Use background filter based on style (complex filter graph)
+        // buildBackgroundFilter returns a filter chain ending with the scaled/composited video (no label)
         let filterComplex = this.buildBackgroundFilter(targetWidth, targetHeight, backgroundStyle);
 
         // Add subtitles to the final output if provided
@@ -1619,15 +1961,36 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           filterComplex = `${filterComplex},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
         }
 
+        // Label the video stream before watermark/emoji compositing
         if (wmConfig) {
-          filterComplex = `${filterComplex}[pre_wm];${wmConfig.filterFragment},format=yuv420p[outv]`;
+          filterComplex = `${filterComplex}[pre_wm];${wmConfig.filterFragment},format=yuv420p[base_out]`;
         } else {
-          filterComplex = `${filterComplex},format=yuv420p[outv]`;
+          filterComplex = `${filterComplex},format=yuv420p[base_out]`;
+        }
+
+        // Composite emoji overlay PNGs on top
+        const extraEmojiInputs: string[] = [];
+        if (hasEmojiOverlays) {
+          // watermark logo is input index 1 (if present), emoji PNGs start after
+          const baseIdx = wmConfig ? 2 : 1;
+          let prevLabel = "[base_out]";
+          for (let ei = 0; ei < emojiOverlays!.length; ei++) {
+            const eo = emojiOverlays![ei];
+            extraEmojiInputs.push("-i", eo.pngPath);
+            const inputIdx = baseIdx + ei;
+            const nextLabel = ei === emojiOverlays!.length - 1 ? "[outv]" : `[ov${ei}]`;
+            filterComplex += `;[${inputIdx}:v]format=rgba[emoji${ei}];${prevLabel}[emoji${ei}]overlay=${eo.x}-w/2:${eo.y}-h/2:enable='between(t,${eo.startTime},${eo.endTime})'${nextLabel}`;
+            prevLabel = nextLabel;
+          }
+        } else {
+          // No emoji overlays — rename base_out to outv
+          filterComplex = filterComplex.replace("[base_out]", "[outv]");
         }
 
         args = [
           "-i", inputPath,
           ...(wmConfig ? wmConfig.extraInputArgs : []),
+          ...extraEmojiInputs,
           "-filter_complex", filterComplex,
           "-map", "[outv]",
           "-map", "0:a?",
@@ -1654,12 +2017,32 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           videoFilter = `${videoFilter},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
         }
 
-        if (wmConfig) {
-          // Need filter_complex for second input (watermark logo)
-          const filterComplex = `[0:v]${videoFilter}[pre_wm];${wmConfig.filterFragment},format=yuv420p[outv]`;
+        if (wmConfig || hasEmojiOverlays) {
+          // Need filter_complex for second input (watermark logo) or emoji overlays
+          let filterComplex = wmConfig
+            ? `[0:v]${videoFilter}[pre_wm];${wmConfig.filterFragment},format=yuv420p[base_out]`
+            : `[0:v]${videoFilter},format=yuv420p[base_out]`;
+
+          const extraEmojiInputs: string[] = [];
+          if (hasEmojiOverlays) {
+            const baseIdx = wmConfig ? 2 : 1;
+            let prevLabel = "[base_out]";
+            for (let ei = 0; ei < emojiOverlays!.length; ei++) {
+              const eo = emojiOverlays![ei];
+              extraEmojiInputs.push("-i", eo.pngPath);
+              const inputIdx = baseIdx + ei;
+              const nextLabel = ei === emojiOverlays!.length - 1 ? "[outv]" : `[ov${ei}]`;
+              filterComplex += `;[${inputIdx}:v]format=rgba[emoji${ei}];${prevLabel}[emoji${ei}]overlay=${eo.x}-w/2:${eo.y}-h/2:enable='between(t,${eo.startTime},${eo.endTime})'${nextLabel}`;
+              prevLabel = nextLabel;
+            }
+          } else {
+            filterComplex = filterComplex.replace("[base_out]", "[outv]");
+          }
+
           args = [
             "-i", inputPath,
-            ...wmConfig.extraInputArgs,
+            ...(wmConfig ? wmConfig.extraInputArgs : []),
+            ...extraEmojiInputs,
             "-filter_complex", filterComplex,
             "-map", "[outv]",
             "-map", "0:a?",
@@ -1984,6 +2367,48 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   }
 
   /**
+   * Extract a single JPEG frame from a local video file at the given offset.
+   * Much faster than downloading from R2 — used right after clip generation.
+   */
+  private static async extractThumbnailFromFile(
+    videoPath: string,
+    width: number,
+    height: number,
+    offsetSeconds: number = 1
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const args = [
+        "-ss", String(offsetSeconds),
+        "-i", videoPath,
+        "-vframes", "1",
+        "-vf", `scale=${width}:${height},format=yuvj420p`,
+        "-q:v", "2",
+        "-f", "image2pipe",
+        "-vcodec", "mjpeg",
+        "-",
+      ];
+      const proc = spawn("ffmpeg", args);
+      const chunks: Buffer[] = [];
+      let stderr = "";
+      proc.stdout?.on("data", (d) => chunks.push(d));
+      proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+      proc.on("error", (err) => reject(new Error(`FFmpeg thumbnail spawn failed: ${err.message}`)));
+      proc.on("close", (code) => {
+        if (code !== 0) {
+          reject(new Error(`FFmpeg thumbnail failed (code ${code}): ${stderr.slice(-300)}`));
+          return;
+        }
+        const buf = Buffer.concat(chunks);
+        if (buf.length < 100) {
+          reject(new Error(`FFmpeg thumbnail produced empty output (${buf.length} bytes)`));
+          return;
+        }
+        resolve(buf);
+      });
+    });
+  }
+
+  /**
    * Generate a thumbnail from a clip at 1 second offset
    * Returns the thumbnail as a buffer
    */
@@ -2007,7 +2432,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         "-i", clipUrl,
         "-ss", "1",           // Seek to 1 second
         "-vframes", "1",      // Extract 1 frame
-        "-vf", `scale=${width}:${height}`,
+        "-vf", `scale=${width}:${height},format=yuvj420p`,
         "-q:v", "2",          // High quality JPEG
         "-f", "image2pipe",
         "-vcodec", "mjpeg",

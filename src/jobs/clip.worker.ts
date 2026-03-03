@@ -301,23 +301,33 @@ async function processClipGenerationJob(
       }
     }
 
-    // Generate thumbnail from the clip (at 1 second)
+    // Upload thumbnail — use the buffer already extracted locally during clip generation
+    // (avoids re-downloading the clip from R2 just to extract a frame)
     const thumbnailStart = Date.now();
-    console.log(`[CLIP WORKER] Generating thumbnail...`);
+    console.log(`[CLIP WORKER] Uploading thumbnail...`);
     let thumbnailKey: string | undefined;
     let thumbnailUrl: string | undefined;
-    
+
     try {
-      const thumbnail = await ClipGeneratorService.generateThumbnail(
-        generatedClip.storageKey,
-        aspectRatio,
-        quality
-      );
-      thumbnailKey = thumbnail.thumbnailKey;
-      thumbnailUrl = thumbnail.thumbnailUrl;
-      console.log(`[CLIP WORKER] Thumbnail generated: ${thumbnailKey}`);
+      if (generatedClip.thumbnailBuffer && generatedClip.thumbnailBuffer.length > 100) {
+        // Use the locally-extracted thumbnail buffer
+        thumbnailKey = generatedClip.storageKey.replace(/\.mp4$/, "-thumb.jpg");
+        const { url } = await R2Service.uploadFile(thumbnailKey, generatedClip.thumbnailBuffer, "image/jpeg");
+        thumbnailUrl = url;
+        console.log(`[CLIP WORKER] Thumbnail uploaded: ${thumbnailKey} (${generatedClip.thumbnailBuffer.length} bytes)`);
+      } else {
+        // Fallback: extract from R2 (slower, but handles edge cases)
+        console.warn(`[CLIP WORKER] No local thumbnail buffer — falling back to R2 extraction`);
+        const thumbnail = await ClipGeneratorService.generateThumbnail(
+          generatedClip.storageKey,
+          aspectRatio,
+          quality
+        );
+        thumbnailKey = thumbnail.thumbnailKey;
+        thumbnailUrl = thumbnail.thumbnailUrl;
+        console.log(`[CLIP WORKER] Thumbnail generated (fallback): ${thumbnailKey}`);
+      }
     } catch (thumbError) {
-      // Log but don't fail the job if thumbnail generation fails
       console.warn(`[CLIP WORKER] Thumbnail generation failed (non-fatal):`, thumbError);
     }
 
@@ -326,10 +336,18 @@ async function processClipGenerationJob(
     // Delete old R2 files before updating DB (avoids CDN serving stale cached video)
     const existingClip = await ClipModel.getById(clipId);
     if (existingClip) {
-      const oldKeys = [existingClip.storageKey, existingClip.rawStorageKey].filter(Boolean) as string[];
+      const oldKeys = [
+        existingClip.storageKey,
+        existingClip.rawStorageKey,
+        existingClip.thumbnailKey,  // also delete old thumbnail
+      ].filter(Boolean) as string[];
       for (const oldKey of oldKeys) {
         // Only delete if the key is different (i.e. a previous export exists)
-        if (oldKey !== generatedClip.storageKey && oldKey !== generatedClip.rawStorageKey) {
+        if (
+          oldKey !== generatedClip.storageKey &&
+          oldKey !== generatedClip.rawStorageKey &&
+          oldKey !== thumbnailKey
+        ) {
           R2Service.deleteFile(oldKey).catch((e) =>
             console.warn(`[CLIP WORKER] Failed to delete old R2 file ${oldKey}:`, e)
           );
@@ -338,13 +356,13 @@ async function processClipGenerationJob(
     }
 
     // Update clip with storage info and set status to ready (Requirement 7.6)
+    // Only include thumbnailKey/thumbnailUrl if generation succeeded — don't overwrite existing with undefined
     await updateClipStatus(clipId, "ready", {
       storageKey: generatedClip.storageKey,
       storageUrl: generatedClip.storageUrl,
       rawStorageKey: generatedClip.rawStorageKey,
       rawStorageUrl: generatedClip.rawStorageUrl,
-      thumbnailKey,
-      thumbnailUrl,
+      ...(thumbnailKey && thumbnailUrl ? { thumbnailKey, thumbnailUrl } : {}),
       aspectRatio,
     });
 
