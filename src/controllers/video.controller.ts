@@ -209,6 +209,8 @@ export class VideoController {
           splitScreenBgVideoId: config.splitScreenBgVideoId ?? null,
           splitScreenBgCategoryId: config.splitScreenBgCategoryId ?? null,
           splitRatio: config.splitRatio ?? 50,
+          backgroundStyle: config.backgroundStyle ?? "black",
+          enableSmartCrop: config.enableSmartCrop ?? false,
         });
 
         // Start processing immediately

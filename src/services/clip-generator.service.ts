@@ -93,6 +93,8 @@ export interface ClipGenerationOptions {
     endTime: number;
     animation?: "none" | "fade-in" | "slide-up" | "typewriter";
   }>;
+  // Smart AI Reframing — run face detection + crop before caption burn
+  smartCropEnabled?: boolean;
 }
 
 export interface GeneratedClip {
@@ -346,6 +348,95 @@ export class ClipGeneratorService {
         throw new Error(`FFmpeg produced an empty or corrupt clip (${clipWithoutCaptionsBuffer.length} bytes). The segment may be outside the video's duration.`);
       }
 
+      // ── STEP 3b: Smart AI Reframe (optional) ──
+      // Run face detection on the raw converted clip, then replace rawOutputPath
+      // with the reframed version so captions are burned on top of the reframed video.
+      if (options.smartCropEnabled && !hasSplitScreen) {
+        try {
+          this.logOperation("SMART_CROP_START", { clipId: options.clipId });
+          const PYTHON_PATH = process.env.PYTHON_PATH || "python3";
+          const SMART_CROP_SCRIPT = path.join(__dirname, "../scripts/smart_crop.py");
+          const TMP_DIR = os.tmpdir();
+          const reframedPath = path.join(TMP_DIR, `reframed-${tempId}.mp4`);
+          tempPaths.push(reframedPath);
+
+          // Run Python face detection sidecar on the local raw file
+          await new Promise<void>((resolve, reject) => {
+            const proc = spawn(PYTHON_PATH, [SMART_CROP_SCRIPT, rawOutputPath, options.clipId, TMP_DIR]);
+            proc.stdout?.on("data", (d) => process.stdout.write(`[SMART CROP PY] ${d}`));
+            proc.stderr?.on("data", (d) => process.stderr.write(`[SMART CROP PY] ${d}`));
+            proc.on("error", (err) => reject(new Error(`Python spawn failed: ${err.message}`)));
+            proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`Python exited ${code}`)));
+          });
+
+          const coordsPath = path.join(TMP_DIR, `${options.clipId}_coords.json`);
+          const result = JSON.parse(await fs.promises.readFile(coordsPath, "utf-8"));
+          await fs.promises.unlink(coordsPath).catch(() => {});
+
+          if (result.mode !== "skip") {
+            // Apply FFmpeg reframe to local file → local reframed file
+            await new Promise<void>((resolve, reject) => {
+              const { spawn: spawnFfmpeg } = require("child_process");
+              let args: string[];
+
+              if (result.mode === "split") {
+                const { screen, pip, split_ratio } = result;
+                const outW = width, outH = height;
+                const screenH = Math.round(outH * split_ratio / 100);
+                const faceH = outH - screenH;
+                args = [
+                  "-i", rawOutputPath,
+                  "-filter_complex",
+                  `[0:v]crop=${screen.w}:${screen.h}:${screen.x}:${screen.y},scale=${outW}:${screenH}:flags=lanczos[top];` +
+                  `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[bottom];` +
+                  `[top][bottom]vstack=inputs=2,format=yuv420p[out]`,
+                  "-map", "[out]", "-map", "0:a?",
+                  "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                  "-c:a", "aac", "-b:a", "192k",
+                  "-y", reframedPath,
+                ];
+              } else {
+                // Standard face-tracking crop
+                const coords: Array<{ t: number; x: number; y: number; w: number; h: number }> = result.coords;
+                const first = coords[0];
+                const cmdLines = coords.flatMap(({ t, x, y, w, h }) => [
+                  `${t} crop x ${x};`, `${t} crop y ${y};`, `${t} crop w ${w};`, `${t} crop h ${h};`,
+                ]);
+                const cmdFile = path.join(TMP_DIR, `sc-cmds-${tempId}.txt`);
+                tempPaths.push(cmdFile);
+                require("fs").writeFileSync(cmdFile, cmdLines.join("\n"));
+                args = [
+                  "-i", rawOutputPath,
+                  "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h},scale=${width}:${height}:flags=lanczos`,
+                  "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                  "-c:a", "aac", "-b:a", "192k",
+                  "-y", reframedPath,
+                ];
+              }
+
+              const ff = spawnFfmpeg("ffmpeg", args);
+              let stderr = "";
+              ff.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
+              ff.on("error", (err: Error) => reject(new Error(`FFmpeg reframe failed: ${err.message}`)));
+              ff.on("close", (code: number) => {
+                if (code === 0) resolve();
+                else reject(new Error(`FFmpeg reframe exited ${code}: ${stderr.slice(-300)}`));
+              });
+            });
+
+            // Replace rawOutputPath content with reframed version for caption burn
+            const reframedBuf = await fs.promises.readFile(reframedPath);
+            await fs.promises.writeFile(rawOutputPath, reframedBuf);
+            clipWithoutCaptionsBuffer = reframedBuf;
+            this.logOperation("SMART_CROP_DONE", { clipId: options.clipId, size: reframedBuf.length });
+          } else {
+            this.logOperation("SMART_CROP_SKIP", { clipId: options.clipId, reason: "no face detected" });
+          }
+        } catch (scErr) {
+          console.warn(`[CLIP GENERATOR] Smart crop failed (non-fatal), continuing without reframe:`, scErr);
+        }
+      }
+
       // ── STEP 4: Generate CAPTIONED clip ──
       onProgress?.(55);
       if (!hasCaptions) {
@@ -458,13 +549,17 @@ export class ClipGeneratorService {
             options.watermark, options.quality
           );
         } else {
-          // Single-pass: aspect ratio + captions + emoji overlays
+          // If smart crop ran, burn captions onto the reframed file (already aspect-ratio converted).
+          // Otherwise burn onto the original source (convertAspectRatioFile handles the conversion).
+          const captionInputPath = options.smartCropEnabled ? rawOutputPath : rawSourcePath;
           await this.convertAspectRatioFile(
-            rawSourcePath, captionedOutputPath, width, height,
+            captionInputPath, captionedOutputPath, width, height,
             tempSubsPath,
             options.watermark, options.quality,
             options.backgroundStyle,
-            emojiOverlaysArg
+            emojiOverlaysArg,
+            // Skip aspect ratio conversion if already reframed
+            options.smartCropEnabled ? true : false
           );
         }
 
@@ -1932,7 +2027,8 @@ print(f"OK:{total_w}x{total_h}")
     watermark?: boolean,
     quality: VideoQuality = "1080p",
     backgroundStyle: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "black",
-    emojiOverlays?: EmojiOverlayPng[]
+    emojiOverlays?: EmojiOverlayPng[],
+    alreadyConverted = false
   ): Promise<void> {
     const wmConfig = watermark
       ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())
@@ -1947,7 +2043,27 @@ print(f"OK:{total_w}x{total_h}")
 
       let args: string[];
 
-      if (isVertical) {
+      if (alreadyConverted) {
+        // Input is already the correct dimensions (reframed by smart crop).
+        // Just burn subtitles/watermark/emoji without re-doing aspect ratio conversion.
+        let vf = `scale=${targetWidth}:${targetHeight}:flags=lanczos,format=yuv420p`;
+        if (subtitlesPath) {
+          const escapedPath = subtitlesPath.replace(/\\/g, "/").replace(/:/g, "\\:");
+          const escapedFontsDir = FONTS_DIR.replace(/\\/g, "/").replace(/:/g, "\\:");
+          vf += `,ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
+        }
+        const { preset, crf } = getEncodingParams(quality);
+        args = [
+          "-i", inputPath,
+          ...(wmConfig ? wmConfig.extraInputArgs : []),
+          "-vf", vf,
+          "-map", "0:v", "-map", "0:a?",
+          "-c:v", "libx264", "-preset", preset, "-crf", crf,
+          "-profile:v", "high", "-level", "4.0",
+          "-c:a", "aac", "-b:a", "192k",
+          "-movflags", "+faststart", "-y", outputPath,
+        ];
+      } else if (isVertical) {
         // Use background filter based on style (complex filter graph)
         // buildBackgroundFilter returns a filter chain ending with the scaled/composited video (no label)
         let filterComplex = this.buildBackgroundFilter(targetWidth, targetHeight, backgroundStyle);
@@ -2378,11 +2494,12 @@ print(f"OK:{total_w}x{total_h}")
   ): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const args = [
-        "-ss", String(offsetSeconds),
         "-i", videoPath,
+        "-ss", String(offsetSeconds),
         "-vframes", "1",
-        "-vf", `scale=${width}:${height},format=yuvj420p`,
+        "-vf", `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=yuvj420p`,
         "-q:v", "2",
+        "-an",
         "-f", "image2pipe",
         "-vcodec", "mjpeg",
         "-",
@@ -2430,10 +2547,11 @@ print(f"OK:{total_w}x{total_h}")
     return new Promise((resolve, reject) => {
       const args = [
         "-i", clipUrl,
-        "-ss", "1",           // Seek to 1 second
+        "-ss", "1",           // Seek to 1 second (after -i for accuracy)
         "-vframes", "1",      // Extract 1 frame
-        "-vf", `scale=${width}:${height},format=yuvj420p`,
+        "-vf", `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=yuvj420p`,
         "-q:v", "2",          // High quality JPEG
+        "-an",
         "-f", "image2pipe",
         "-vcodec", "mjpeg",
         "-",

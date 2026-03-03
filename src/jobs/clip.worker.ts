@@ -6,7 +6,6 @@
  */
 
 import { Job } from "bullmq";
-import { spawn } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import { ClipModel } from "../models/clip.model";
@@ -16,7 +15,6 @@ import { WorkspaceModel } from "../models/workspace.model";
 import { TranslationModel } from "../models/translation.model";
 import { TranslationService } from "../services/translation.service";
 import { ClipGeneratorService } from "../services/clip-generator.service";
-import { FFmpegService } from "../services/ffmpeg.service";
 import { R2Service } from "../services/r2.service";
 import { emailService } from "../services/email.service";
 import { captureException } from "../lib/sentry";
@@ -161,6 +159,7 @@ async function processClipGenerationJob(
   console.log(`[CLIP WORKER] Text overlays: ${textOverlays?.length || 0}`);
   console.log(`[CLIP WORKER] Target language: ${targetLanguage || 'original'}`);
   console.log(`[CLIP WORKER] Split-screen: ${splitScreen ? `ratio=${splitScreen.splitRatio}` : 'no'}`);
+  console.log(`[CLIP WORKER] Smart crop: ${smartCropEnabled ? 'ENABLED' : 'disabled'}`);
 
   try {
     // Update status to generating (Requirement 7.5)
@@ -227,6 +226,7 @@ async function processClipGenerationJob(
       emojis,
       backgroundStyle,
       textOverlays,
+      smartCropEnabled,
       splitScreen: splitScreen ? {
         backgroundStorageKey: splitScreen.backgroundStorageKey,
         backgroundDuration: splitScreen.backgroundDuration,
@@ -239,67 +239,6 @@ async function processClipGenerationJob(
     });
 
     await job.updateProgress(85);
-
-    // Smart AI Reframing — run face detection + crop on raw clip before thumbnail
-    let smartCropStorageKey: string | undefined;
-    let smartCropStorageUrl: string | undefined;
-
-    if (smartCropEnabled && generatedClip.rawStorageKey) {
-      try {
-        console.log(`[CLIP WORKER] Smart crop enabled — starting reframe for ${clipId}`);
-        await ClipModel.update(clipId, { smartCropStatus: "processing" });
-
-        const PYTHON_PATH = process.env.PYTHON_PATH || "python3";
-        const SMART_CROP_SCRIPT = path.join(__dirname, "../scripts/smart_crop.py");
-        const TMP_DIR = process.env.SMART_CROP_TMP_DIR || "/tmp";
-
-        // Get signed URL for raw clip
-        const rawVideoUrl = await R2Service.getSignedDownloadUrl(generatedClip.rawStorageKey, 3600);
-
-        // Run Python sidecar
-        await new Promise<void>((resolve, reject) => {
-          const proc = spawn(PYTHON_PATH, [SMART_CROP_SCRIPT, rawVideoUrl, clipId, TMP_DIR]);
-          proc.stdout?.on("data", (d) => process.stdout.write(`[SMART CROP PY] ${d}`));
-          proc.stderr?.on("data", (d) => process.stderr.write(`[SMART CROP PY] ${d}`));
-          proc.on("error", (err) => reject(new Error(`Python spawn failed: ${err.message}`)));
-          proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`Python exited ${code}`)));
-        });
-
-        // Read coords
-        const coordsPath = `${TMP_DIR}/${clipId}_coords.json`;
-        const result = JSON.parse(await fs.readFile(coordsPath, "utf-8"));
-        await fs.unlink(coordsPath).catch(() => {});
-
-        // Apply FFmpeg crop → stream to R2
-        const outputKey = `${workspaceId}/${videoId}/${clipId}-vertical.mp4`;
-        if (result.mode === "skip") {
-          // No face detected — skip reframing, keep original 16:9
-          console.log(`[CLIP WORKER] Smart crop: no face detected, skipping reframe for ${clipId}`);
-          await ClipModel.update(clipId, { smartCropStatus: "skipped" });
-        } else if (result.mode === "split") {
-          ({ storageKey: smartCropStorageKey, storageUrl: smartCropStorageUrl } =
-            await FFmpegService.applySplitScreen(rawVideoUrl, result, outputKey, TMP_DIR));
-        } else if (result.mode === "mixed") {
-          ({ storageKey: smartCropStorageKey, storageUrl: smartCropStorageUrl } =
-            await FFmpegService.applyMixedCrop(rawVideoUrl, result.segments, result.crop_w, result.crop_h, outputKey, TMP_DIR));
-        } else {
-          ({ storageKey: smartCropStorageKey, storageUrl: smartCropStorageUrl } =
-            await FFmpegService.applySmartCrop(rawVideoUrl, result.coords, outputKey, TMP_DIR));
-        }
-
-        if (result.mode !== "skip") {
-          await ClipModel.update(clipId, {
-            smartCropStatus: "done",
-            smartCropStorageKey,
-            smartCropStorageUrl,
-          });
-          console.log(`[CLIP WORKER] Smart crop done: ${smartCropStorageUrl}`);
-        }
-      } catch (scErr) {
-        console.error(`[CLIP WORKER] Smart crop failed (non-fatal):`, scErr);
-        await ClipModel.update(clipId, { smartCropStatus: "failed" });
-      }
-    }
 
     // Upload thumbnail — use the buffer already extracted locally during clip generation
     // (avoids re-downloading the clip from R2 just to extract a frame)

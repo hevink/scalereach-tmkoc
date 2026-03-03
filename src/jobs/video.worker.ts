@@ -425,12 +425,13 @@ async function processYouTubeVideo(
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
           introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
-          backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white") ?? "black",
+          backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
           captions: captionsEnabled ? {
             words: adjustedWords,
             style: captionStyle,
           } : undefined,
           splitScreen: splitScreenData,
+          smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
         });
 
         console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}`);
@@ -438,9 +439,8 @@ async function processYouTubeVideo(
     }
 
     await updateVideoStatus(videoId, "completed", {});
-
     await job.updateProgress(100);
-    console.log(`[VIDEO WORKER] Video processing complete: ${videoId}, found ${viralClips.length} viral clips (generation queued)`);
+    console.log(`[VIDEO WORKER] YouTube video processing complete: ${videoId}, found ${viralClips.length} viral clips (generation queued)`);
 
     // Send email notification when video processing is done
     // try {
@@ -859,12 +859,13 @@ async function processUploadedVideo(
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
           introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
-          backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white") ?? "black",
+          backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
           captions: captionsEnabled ? {
             words: adjustedWords,
             style: captionStyle,
           } : undefined,
           splitScreen: splitScreenData,
+          smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
         });
 
         console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}`);

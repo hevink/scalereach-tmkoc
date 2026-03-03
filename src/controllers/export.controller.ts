@@ -193,6 +193,7 @@ export class ExportController {
         } : undefined,
         textOverlays: captionData.textOverlays?.length ? captionData.textOverlays : undefined,
         splitScreen: splitScreenData,
+        smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
       });
 
       // Update clip status to generating
@@ -426,12 +427,14 @@ export class ExportController {
           watermark: batchWatermark,
           emojis: batchEmojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
           introTitle: batchIntroTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
+          backgroundStyle: (batchVideoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
           captions: batchCaptionsEnabled && words.length > 0 ? {
             words,
             style: style || undefined,
           } : undefined,
           textOverlays: captionData?.textOverlays?.length ? captionData.textOverlays : undefined,
           splitScreen: batchSplitScreenData,
+          smartCropEnabled: batchVideoConfig?.enableSmartCrop ?? false,
         });
 
         await ClipModel.update(clipId, { status: "generating" });
