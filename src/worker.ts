@@ -535,31 +535,6 @@ try {
         }
       }
 
-      // ── PUBLIC: validate any platform URL (proxied from API) ──
-      if (url.pathname === "/validate-url" && req.method === "GET") {
-        const videoUrl = url.searchParams.get("url");
-        if (!videoUrl) {
-          return new Response(JSON.stringify({ valid: false, error: "URL is required" }), { status: 400, headers: SECURITY_HEADERS });
-        }
-        try {
-          const { YtDlpService } = await import("./services/ytdlp.service");
-          const { PlatformDetectorService } = await import("./services/platform-detector.service");
-          const platformInfo = PlatformDetectorService.detect(videoUrl);
-          if (!platformInfo) {
-            return new Response(JSON.stringify({
-              valid: false,
-              error: "Unsupported platform. Paste a URL from YouTube, TikTok, Instagram, X/Twitter, Facebook, Vimeo, Twitch, LinkedIn, Reddit, Rumble, Dailymotion, Loom, or TED.",
-            }), { status: 200, headers: SECURITY_HEADERS });
-          }
-          const result = await YtDlpService.validateUrl(videoUrl);
-          return new Response(JSON.stringify({ ...result, platform: platformInfo.platform }), { status: 200, headers: SECURITY_HEADERS });
-        } catch (error: any) {
-          const msg = error?.message || "Unknown error";
-          console.error("[WORKER] validate-url error:", msg);
-          return new Response(JSON.stringify({ valid: false, error: msg }), { status: 200, headers: SECURITY_HEADERS });
-        }
-      }
-
       // ── PROTECTED: YouTube cookie tester ─────────────────
       if (url.pathname === "/health/hevin/youtube-test") {
         if (!isAuthorized(req)) {
