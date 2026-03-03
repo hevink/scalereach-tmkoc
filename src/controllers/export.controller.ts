@@ -25,7 +25,7 @@ export class ExportController {
    */
   private static async getClipCaptionData(clipId: string) {
     const caption = await ClipCaptionModel.getByClipId(clipId);
-    if (!caption) return null;
+    if (!caption) return { words: [], style: null, textOverlays: [], isEdited: false };
     return {
       words: caption.words || [],
       style: caption.styleConfig,
@@ -162,7 +162,10 @@ export class ExportController {
         }
       }
 
-      console.log(`[EXPORT CONTROLLER] Export job data: captionsEnabled=${captionsEnabled}, wordCount=${words.length}, hasStyle=${!!style}`);
+      console.log(`[EXPORT CONTROLLER] Export job data: captionsEnabled=${captionsEnabled}, wordCount=${words.length}, hasStyle=${!!style}, textOverlays=${captionData?.textOverlays?.length || 0}`);
+      if (captionData?.textOverlays?.length) {
+        console.log(`[EXPORT CONTROLLER] Text overlay IDs: ${captionData.textOverlays.map((o: any) => o.id).join(', ')}`);
+      }
 
       // Add job to queue for clip generation with caption data
       await addClipGenerationJob({
@@ -180,12 +183,15 @@ export class ExportController {
         quality: resolutionToQuality(options?.resolution || "1080p"),
         watermark: applyWatermark,
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
-        introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
+        // Skip introTitle if it's already stored as a text overlay (to avoid double rendering)
+        introTitle: introTitleEnabled && !captionData.textOverlays?.some((o: any) => o.id === "intro-title")
+          ? ((clip as any).introTitle || undefined)
+          : undefined,
         captions: captionsEnabled && words.length > 0 ? {
           words,
           style: style || undefined,
         } : undefined,
-        textOverlays: captionData?.textOverlays?.length ? captionData.textOverlays : undefined,
+        textOverlays: captionData.textOverlays?.length ? captionData.textOverlays : undefined,
         splitScreen: splitScreenData,
       });
 

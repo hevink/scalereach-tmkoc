@@ -82,7 +82,7 @@ export interface ClipGenerationOptions {
     backgroundOpacity: number;
     startTime: number;
     endTime: number;
-    animation: "none" | "fade-in" | "slide-up" | "typewriter";
+    animation?: "none" | "fade-in" | "slide-up" | "typewriter";
   }>;
 }
 
@@ -589,7 +589,7 @@ export class ClipGeneratorService {
     // Frontend: x (0-100) = horizontal center, y (0-100) = vertical center
     // maxWidth (20-100) = caption container width as percentage
     const hasXY = typeof style?.x === "number" && typeof style?.y === "number";
-    const xPct = style?.x ?? 50;
+    const xPct = style?.x ?? 25;
     const yPct = style?.y ?? 85; // Default near bottom
     const captionMaxWidth = style?.maxWidth ?? 90; // Default 90% width
 
@@ -872,31 +872,56 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     //   }
     // }
 
-    // Add text overlays
+    // Add text overlays — each gets its own named style so BorderStyle (box bg) works correctly
     if (textOverlays && textOverlays.length > 0) {
       const DESIGN_HEIGHT = 700;
       const overlayScaleFactor = height / DESIGN_HEIGHT;
 
-      for (const overlay of textOverlays) {
+      // Build per-overlay styles and inject them into the [V4+ Styles] section
+      // We append them before [Events] by inserting into the ass string
+      const overlayStyleLines: string[] = [];
+
+      for (let oi = 0; oi < textOverlays.length; oi++) {
+        const overlay = textOverlays[oi];
         const oFontSize = Math.round((overlay.fontSize || 32) * overlayScaleFactor);
         const oColor = this.hexToASSColor(overlay.color || "#FFFFFF");
-        const oBgColor = overlay.backgroundColor?.replace("#", "") || "000000";
+        const oBgColor = (overlay.backgroundColor || "#000000").replace("#", "");
         const oBgOpacity = overlay.backgroundOpacity ?? 0;
+        // ASS alpha: 00 = fully opaque, FF = fully transparent
         const oAssAlpha = Math.round(((100 - oBgOpacity) / 100) * 255).toString(16).toUpperCase().padStart(2, "0");
         const oBgR = oBgColor.substring(0, 2);
         const oBgG = oBgColor.substring(2, 4);
         const oBgB = oBgColor.substring(4, 6);
         const oBackColour = `&H${oAssAlpha}${oBgB}${oBgG}${oBgR}`;
+        // BorderStyle 3 = opaque box behind text; 1 = outline only
         const oBorderStyle = oBgOpacity > 0 ? 3 : 1;
+        const oOutline = oBorderStyle === 3 ? Math.round(2 * overlayScaleFactor) : 1;
+        const oFontFamily = overlay.fontFamily || "Inter";
+        const styleName = `TextOverlay${oi}`;
 
-        // Position: x/y are 0-100 percentages
+        // Style: centered alignment (5 = \an5), zero margins (position via \pos)
+        overlayStyleLines.push(
+          `Style: ${styleName},${oFontFamily},${oFontSize},${oColor},${oColor},&H00000000,${oBackColour},1,0,0,0,100,100,0,0,${oBorderStyle},${oOutline},0,5,0,0,0,1`
+        );
+      }
+
+      // Insert overlay styles before [Events] section
+      // The header uses ass += `\n[Events]\n...` so the actual separator is \n\n[Events]\n
+      ass = ass.replace(
+        "\n\n[Events]\n",
+        `\n${overlayStyleLines.join("\n")}\n\n[Events]\n`
+      );
+
+      // Now add dialogue lines for each overlay
+      for (let oi = 0; oi < textOverlays.length; oi++) {
+        const overlay = textOverlays[oi];
         const oX = Math.round((overlay.x / 100) * width);
         const oY = Math.round((overlay.y / 100) * height);
-
         const startTime = this.formatASSTime(overlay.startTime);
         const endTime = this.formatASSTime(overlay.endTime);
+        const styleName = `TextOverlay${oi}`;
 
-        // Animation override tags
+        // Animation override tags (optional)
         let animTags = "";
         if (overlay.animation === "fade-in") {
           animTags = "\\fad(400,200)";
@@ -907,8 +932,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           animTags = "\\fad(100,200)";
         }
 
-        // Use inline override tags for per-overlay positioning
-        ass += `Dialogue: 3,${startTime},${endTime},Default,,0,0,0,,{\\an5\\pos(${oX},${oY})\\fn${overlay.fontFamily || "Inter"}\\fs${oFontSize}\\c${oColor}\\4c${oBackColour}\\bord${oBorderStyle === 3 ? 0 : 1}\\shad0${oBorderStyle === 3 ? `\\3c${oBackColour}\\bord${Math.round(4 * overlayScaleFactor)}` : ""}${animTags ? `\\${animTags}` : ""}}${overlay.text}\n`;
+        // \an5 = center anchor, \pos(x,y) = absolute position
+        ass += `Dialogue: 3,${startTime},${endTime},${styleName},,0,0,0,,{\\an5\\pos(${oX},${oY})${animTags ? animTags : ""}}${overlay.text}\n`;
       }
     }
 
