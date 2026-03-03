@@ -487,8 +487,12 @@ for fd in frame_data:
 
 # ── IMPROVEMENT 5: Adaptive alpha (velocity-aware EMA smoothing) ──────────────
 
-DEAD_ZONE = 5
-SNAP_ZONE = 150
+# DEAD_ZONE: ignore movements smaller than this (prevents micro-jitter from face detection noise)
+# MOVE_ZONE: start slow panning only above this threshold (prevents wobble from natural head sway)
+# SNAP_ZONE: instant jump for speaker switches / scene cuts
+DEAD_ZONE = 30     # px — ignore tiny face bbox fluctuations
+MOVE_ZONE = 80     # px — start slow pan for intentional movement
+SNAP_ZONE = 200    # px — instant snap for speaker switch
 
 if not raw_coords:
     log("WARNING: No raw coordinates — skipping reframe")
@@ -500,30 +504,58 @@ if not raw_coords:
     sys.exit(0)
 
 smoothed_x    = float(raw_coords[0]["x"])
+# Initialize smoothed_y from the first frame's faces
+init_faces    = fd_map.get(f"{raw_coords[0]['t']:.2f}", {}).get("faces", [])
+smoothed_y    = float(get_crop_y(init_faces, src_h, crop_h))
 prev_had_face = raw_coords[0]["face"]
 coords        = []
+
+# Y-axis dead zones (vertical jitter is less noticeable, so tighter thresholds)
+Y_DEAD_ZONE = 15    # px — ignore tiny vertical fluctuations
+Y_MOVE_ZONE = 40    # px — slow vertical pan
+Y_SNAP_ZONE = 120   # px — instant vertical snap (e.g. person stands up)
 
 for rc in raw_coords:
     raw_x = float(rc["x"])
     delta = abs(raw_x - smoothed_x)
 
-    velocity = delta
-    ALPHA    = min(0.9, 0.1 + velocity / 200.0)
-
     if rc["face"] and not prev_had_face:
+        # Face reappeared — snap to it
         smoothed_x = raw_x
     elif delta > SNAP_ZONE:
+        # Big jump (speaker switch) — snap instantly
         smoothed_x = raw_x
-    elif delta > DEAD_ZONE:
+    elif delta > MOVE_ZONE:
+        # Intentional movement — smooth pan with moderate alpha
+        ALPHA = min(0.15, 0.05 + delta / 1000.0)
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
+    elif delta > DEAD_ZONE:
+        # Small drift — very slow correction to avoid visible wobble
+        ALPHA = 0.03
+        smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
+    # else: delta <= DEAD_ZONE — do nothing, hold position
 
+    # Y-axis smoothing — same 3-tier approach to prevent vertical jitter
     frame_faces = fd_map.get(f"{rc['t']:.2f}", {}).get("faces", [])
-    crop_y      = get_crop_y(frame_faces, src_h, crop_h)
+    raw_y       = float(get_crop_y(frame_faces, src_h, crop_h))
+    delta_y     = abs(raw_y - smoothed_y)
+
+    if rc["face"] and not prev_had_face:
+        smoothed_y = raw_y
+    elif delta_y > Y_SNAP_ZONE:
+        smoothed_y = raw_y
+    elif delta_y > Y_MOVE_ZONE:
+        ALPHA_Y = min(0.12, 0.04 + delta_y / 800.0)
+        smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
+    elif delta_y > Y_DEAD_ZONE:
+        ALPHA_Y = 0.025
+        smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
+    # else: delta_y <= Y_DEAD_ZONE — hold vertical position
 
     coords.append({
         "t":    rc["t"],
         "x":    int(smoothed_x),
-        "y":    crop_y,
+        "y":    int(smoothed_y),
         "w":    crop_w,
         "h":    crop_h,
         "face": rc["face"]
@@ -533,7 +565,7 @@ for rc in raw_coords:
 log(f"Generated {len(coords)} crop keyframes")
 
 # Interpolate to per-frame with smooth easing
-INTERP_SNAP    = 150
+INTERP_SNAP    = 200
 frame_coords   = []
 frame_interval = 1.0 / fps
 
