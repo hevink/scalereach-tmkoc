@@ -179,9 +179,10 @@ export class R2Service {
    * Generate storage key for clip files
    * Structure: {userId}/{videoId}/clips/{clipId}-{aspectRatio}.mp4
    */
-  static generateClipStorageKey(userId: string, videoId: string, clipId: string, aspectRatio: string, raw: boolean = false): string {
+  static generateClipStorageKey(userId: string, videoId: string, clipId: string, aspectRatio: string, raw: boolean = false, version?: string): string {
     const suffix = raw ? "-raw" : "";
-    return `${userId}/${videoId}/clips/${clipId}-${aspectRatio.replace(":", "x")}${suffix}.mp4`;
+    const ver = version ? `-${version}` : "";
+    return `${userId}/${videoId}/clips/${clipId}-${aspectRatio.replace(":", "x")}${suffix}${ver}.mp4`;
   }
 
   /**

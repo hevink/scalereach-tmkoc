@@ -323,6 +323,20 @@ async function processClipGenerationJob(
 
     await job.updateProgress(90);
 
+    // Delete old R2 files before updating DB (avoids CDN serving stale cached video)
+    const existingClip = await ClipModel.getById(clipId);
+    if (existingClip) {
+      const oldKeys = [existingClip.storageKey, existingClip.rawStorageKey].filter(Boolean) as string[];
+      for (const oldKey of oldKeys) {
+        // Only delete if the key is different (i.e. a previous export exists)
+        if (oldKey !== generatedClip.storageKey && oldKey !== generatedClip.rawStorageKey) {
+          R2Service.deleteFile(oldKey).catch((e) =>
+            console.warn(`[CLIP WORKER] Failed to delete old R2 file ${oldKey}:`, e)
+          );
+        }
+      }
+    }
+
     // Update clip with storage info and set status to ready (Requirement 7.6)
     await updateClipStatus(clipId, "ready", {
       storageKey: generatedClip.storageKey,

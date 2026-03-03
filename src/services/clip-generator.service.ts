@@ -263,8 +263,10 @@ export class ClipGeneratorService {
     const { width, height } = getOutputDimensions(options.aspectRatio, options.quality);
     const duration = options.endTime - options.startTime;
 
-    const storageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, false);
-    const rawStorageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, true);
+    // Use a short timestamp version so each export gets a unique URL (avoids CDN cache serving stale video)
+    const exportVersion = Date.now().toString(36);
+    const storageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, false, exportVersion);
+    const rawStorageKey = R2Service.generateClipStorageKey(options.userId, options.videoId, options.clipId, options.aspectRatio, true, exportVersion);
 
     const tempDir = os.tmpdir();
     const tempId = nanoid();
