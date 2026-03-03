@@ -28,6 +28,16 @@ fi
 
 cd "$DEPLOY_PATH"
 
+# ── Ensure multilingual fonts are present (Hindi/Devanagari, CJK, etc.) ──────
+if ! fc-list | grep -qi "NotoSansDevanagari\|Noto Sans Devanagari"; then
+  echo "[INIT] Installing Noto fonts for multilingual caption support..."
+  apt-get install -y fonts-noto fonts-noto-cjk fonts-noto-color-emoji
+  fc-cache -fv
+  echo "[INIT] Noto fonts installed"
+else
+  echo "[INIT] Noto fonts already present, skipping"
+fi
+
 # ── Install dependencies ──────────────────────────────────────────────────────
 echo "[INIT] Installing dependencies..."
 sudo -u "$APP_USER" /home/ubuntu/.bun/bin/bun install --frozen-lockfile

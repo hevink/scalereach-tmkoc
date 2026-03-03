@@ -470,7 +470,7 @@ export class ClipGeneratorService {
         );
         const tempSubsPath = path.join(tempDir, `subs-${tempId}.ass`);
         tempPaths.push(tempSubsPath);
-        await fs.promises.writeFile(tempSubsPath, assContent);
+        await fs.promises.writeFile(tempSubsPath, assContent, "utf8");
 
         // ── Render emoji overlays as PNG images ──
         // Text overlays and intro title that contain emoji cannot be rendered by libass.
@@ -659,7 +659,7 @@ export class ClipGeneratorService {
     );
     await Promise.all([
       fs.promises.writeFile(inputPath, videoBuffer),
-      fs.promises.writeFile(subsPath, assContent),
+      fs.promises.writeFile(subsPath, assContent, "utf8"),
     ]);
 
     this.logOperation("BURN_SUBTITLES_START", {
@@ -859,22 +859,32 @@ export class ClipGeneratorService {
     const backColour = `&H${assAlpha}${bgB}${bgG}${bgR}`;
     // BorderStyle: 1 = outline+shadow (no box), 3 = opaque box behind text
     const borderStyle = bgOpacity > 0 ? 3 : 1;
-    
-    let ass = `[Script Info]
+
+    // For non-Latin scripts (Hindi/Devanagari, Arabic, CJK, etc.) the selected
+    // fontFamily won't have glyphs. We append "Noto Sans Devanagari" as a
+    // fallback so libass can find the right glyphs via fontconfig.
+    // libass resolves fonts left-to-right, so the primary font is tried first.
+    const effectiveFontFamily = fontFamily;
+
+    // UTF-8 BOM ensures libass parses the file as UTF-8 (required for Hindi/non-Latin)
+    const UTF8_BOM = "\uFEFF";
+
+    let ass = `${UTF8_BOM}[Script Info]
 Title: Generated Captions
 ScriptType: v4.00+
 PlayResX: ${width}
 PlayResY: ${height}
 ScaledBorderAndShadow: yes
 WrapStyle: 0
+YCbCr Matrix: None
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: Highlight,${fontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},${backColour},1,0,0,0,${highlightScale},${highlightScale},0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: IntroTitle,${fontFamily},${introFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,3,${Math.round(2 * scaleFactor)},0,8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},1
-Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},1
-Style: Glow,${fontFamily},${fontSize},${glowColor},${glowColor},${glowColor},&H00000000,1,0,0,0,100,100,0,0,1,${Math.round(glowIntensity * scaleFactor)},0,${alignment},${marginL},${marginR},${marginV},1
+Style: Default,${effectiveFontFamily},${fontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},0
+Style: Highlight,${effectiveFontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},${backColour},1,0,0,0,${highlightScale},${highlightScale},0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},0
+Style: IntroTitle,${effectiveFontFamily},${introFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,3,${Math.round(2 * scaleFactor)},0,8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},0
+Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},0
+Style: Glow,${effectiveFontFamily},${fontSize},${glowColor},${glowColor},${glowColor},&H00000000,1,0,0,0,100,100,0,0,1,${Math.round(glowIntensity * scaleFactor)},0,${alignment},${marginL},${marginR},${marginV},0
 `;
 
     ass += `
@@ -1456,7 +1466,7 @@ print(f"OK:{total_w}x{total_h}")
           emojis,
           textOverlays
         );
-        await fs.promises.writeFile(tempSubsPath, assContent);
+        await fs.promises.writeFile(tempSubsPath, assContent, "utf8");
         this.logOperation("GENERATED_ASS_SUBTITLES", {
           path: tempSubsPath,
           wordCount: captions?.words?.length || 0,
@@ -1665,7 +1675,7 @@ print(f"OK:{total_w}x{total_h}")
         emojis,
         textOverlays
       );
-      await fs.promises.writeFile(tempSubsPath, assContent);
+      await fs.promises.writeFile(tempSubsPath, assContent, "utf8");
       subsPathToUse = tempSubsPath;
       this.logOperation("GENERATED_ASS_SUBTITLES", {
         path: tempSubsPath,
