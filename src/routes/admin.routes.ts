@@ -45,6 +45,10 @@ adminRouter.get("/videos/:id", AdminController.getVideoDetail);
 adminRouter.get("/videos", AdminController.getAllVideos);
 adminRouter.post("/videos/:id/retry", AdminController.retryVideo);
 
+// Failed items
+adminRouter.get("/failed", AdminController.getFailedItems);
+adminRouter.post("/clips/:id/retry", AdminController.retryClip);
+
 // System health
 adminRouter.get("/system-health", AdminController.getSystemHealth);
 

@@ -6,7 +6,7 @@ import { ClipModel } from "../models/clip.model";
 import { R2Service } from "../services/r2.service";
 import { db } from "../db";
 import { videoExport, voiceDubbing, dubbedClipAudio } from "../db/schema";
-import { inArray, eq } from "drizzle-orm";
+import { inArray, eq, sql } from "drizzle-orm";
 
 export class AdminController {
   /**
@@ -404,6 +404,92 @@ export class AdminController {
     } catch (error) {
       console.error("[ADMIN] Failed to get user videos:", error);
       return c.json({ error: "Failed to get user videos" }, 500);
+    }
+  }
+
+  /**
+   * Retry a failed clip (admin)
+   * POST /api/admin/clips/:id/retry
+   */
+  static async retryClip(c: Context) {
+    try {
+      const clipId = c.req.param("id");
+      const clip = await ClipModel.getById(clipId);
+      if (!clip) return c.json({ error: "Clip not found" }, 404);
+      if (clip.status !== "failed") return c.json({ error: "Clip is not in failed state" }, 400);
+
+      // Reset clip status to detected so it can be re-queued
+      await ClipModel.update(clipId, { status: "detected", errorMessage: undefined });
+
+      return c.json({ success: true, message: "Clip reset to detected — re-queue via video regeneration" });
+    } catch (error) {
+      console.error("[ADMIN] Failed to retry clip:", error);
+      return c.json({ error: "Failed to retry clip" }, 500);
+    }
+  }
+
+  /**
+   * Get all failed videos and clips (admin)
+   * GET /api/admin/failed?page=1&limit=20
+   */
+  static async getFailedItems(c: Context) {
+    try {
+      const page = Math.max(1, parseInt(c.req.query("page") || "1", 10));
+      const limit = Math.min(100, Math.max(1, parseInt(c.req.query("limit") || "50", 10)));
+      const offset = (page - 1) * limit;
+
+      const [failedVideos, failedClips, totalVideos, totalClips] = await Promise.all([
+        db.execute(sql`
+          SELECT v.id, v.title, v.status, v.source_type, v.error_message,
+                 v.created_at, v.updated_at, v.user_id,
+                 u.name as user_name, u.email as user_email,
+                 w.name as workspace_name
+          FROM video v
+          LEFT JOIN "user" u ON u.id = v.user_id
+          LEFT JOIN workspace w ON w.id = v.workspace_id
+          WHERE v.status = 'failed'
+          ORDER BY v.updated_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `),
+        db.execute(sql`
+          SELECT vc.id, vc.title, vc.status, vc.created_at, vc.updated_at,
+                 v.id as video_id, v.title as video_title, v.user_id,
+                 u.name as user_name, u.email as user_email,
+                 w.name as workspace_name
+          FROM viral_clip vc
+          JOIN video v ON v.id = vc.video_id
+          LEFT JOIN "user" u ON u.id = v.user_id
+          LEFT JOIN workspace w ON w.id = v.workspace_id
+          WHERE vc.status = 'failed'
+          ORDER BY vc.updated_at DESC
+          LIMIT ${limit} OFFSET ${offset}
+        `),
+        db.execute(sql`SELECT COUNT(*) as count FROM video WHERE status = 'failed'`),
+        db.execute(sql`
+          SELECT COUNT(*) as count FROM viral_clip WHERE status = 'failed'
+        `),
+      ]);
+
+      return c.json({
+        failedVideos: (failedVideos.rows as any[]).map(r => ({
+          id: r.id, title: r.title, status: r.status, sourceType: r.source_type,
+          errorMessage: r.error_message, createdAt: r.created_at, updatedAt: r.updated_at,
+          userId: r.user_id, userName: r.user_name, userEmail: r.user_email,
+          workspaceName: r.workspace_name,
+        })),
+        failedClips: (failedClips.rows as any[]).map(r => ({
+          id: r.id, title: r.title, status: r.status, createdAt: r.created_at,
+          updatedAt: r.updated_at, videoId: r.video_id, videoTitle: r.video_title,
+          userId: r.user_id, userName: r.user_name, userEmail: r.user_email,
+          workspaceName: r.workspace_name,
+        })),
+        totalFailedVideos: Number((totalVideos.rows[0] as any)?.count ?? 0),
+        totalFailedClips: Number((totalClips.rows[0] as any)?.count ?? 0),
+        page, limit,
+      });
+    } catch (error) {
+      console.error("[ADMIN] Failed to get failed items:", error);
+      return c.json({ error: "Failed to get failed items" }, 500);
     }
   }
 
