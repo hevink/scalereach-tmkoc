@@ -1,30 +1,30 @@
 import type { OAuthTokens, PlatformAccountInfo, PostResult } from "./types";
 
-const APP_ID = process.env.INSTAGRAM_APP_ID || "";
-const APP_SECRET = process.env.INSTAGRAM_APP_SECRET || "";
-
 export const InstagramService = {
   getAuthorizationUrl(state: string, redirectUri: string): string {
+    const appId = process.env.INSTAGRAM_APP_ID || "";
     const params = new URLSearchParams({
-      client_id: APP_ID,
+      client_id: appId,
       redirect_uri: redirectUri,
       scope: "instagram_business_basic,instagram_business_content_publish",
       response_type: "code",
       state,
     });
-    console.log("[INSTAGRAM] Auth URL params:", { client_id: APP_ID, redirect_uri: redirectUri });
+    console.log("[INSTAGRAM] Auth URL params:", { client_id: appId, redirect_uri: redirectUri });
     return `https://api.instagram.com/oauth/authorize?${params}`;
   },
 
   async exchangeCode(code: string, redirectUri: string): Promise<OAuthTokens> {
-    console.log("[INSTAGRAM] Exchanging code for token", { redirectUri });
+    const appId = process.env.INSTAGRAM_APP_ID || "";
+    const appSecret = process.env.INSTAGRAM_APP_SECRET || "";
+    console.log("[INSTAGRAM] Exchanging code for token", { redirectUri, appId });
     // Step 1: Get short-lived token from Instagram
     const res = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
-        client_id: APP_ID,
-        client_secret: APP_SECRET,
+        client_id: appId,
+        client_secret: appSecret,
         grant_type: "authorization_code",
         redirect_uri: redirectUri,
         code,
@@ -38,7 +38,7 @@ export const InstagramService = {
 
     // Step 2: Exchange short-lived for long-lived token
     const llRes = await fetch(
-      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${APP_SECRET}&access_token=${data.access_token}`
+      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${appSecret}&access_token=${data.access_token}`
     );
     const llData = await llRes.json() as any;
     console.log("[INSTAGRAM] Long-lived token response:", JSON.stringify(llData));
