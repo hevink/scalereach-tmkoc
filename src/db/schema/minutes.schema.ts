@@ -24,6 +24,7 @@ export const workspaceMinutes = pgTable(
     minutesRemaining: integer("minutes_remaining").notNull().default(0),
     minutesResetDate: timestamp("minutes_reset_date"),
     editingOperationsUsed: integer("editing_operations_used").notNull().default(0),
+    expiresAt: timestamp("expires_at"),
     updatedAt: timestamp("updated_at")
       .defaultNow()
       .$onUpdate(() => new Date())
