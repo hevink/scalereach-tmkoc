@@ -54,6 +54,8 @@ protected_.get("/clips", async (c) => {
 // Public routes — must be registered BEFORE mounting the protected sub-router
 // OAuth callback: Meta redirects here without auth cookies
 socialRouter.get("/accounts/:platform/callback", SocialAccountController.handleOAuthCallback);
+// Also handle trailing-slash variant so Instagram redirects don't lose query params via 301
+socialRouter.get("/accounts/:platform/callback/", SocialAccountController.handleOAuthCallback);
 
 // Webhook verification (GET) and events (POST) — must be public
 socialRouter.get("/webhook", (c) => {
