@@ -113,13 +113,25 @@ export class SocialAccountController {
 
   static async handleOAuthCallback(c: Context) {
     const platform = c.req.param("platform");
-    const { code, state, error: oauthError } = c.req.query() as Record<string, string>;
+    const query = c.req.query() as Record<string, string>;
+    const { code, state, error: oauthError } = query;
     SocialAccountController.logRequest(c, "HANDLE_OAUTH_CALLBACK", { platform });
+
+    // Meta webhook verification sometimes hits the callback URL — handle it here too
+    if (query["hub.mode"] === "subscribe") {
+      const token = query["hub.verify_token"];
+      const challenge = query["hub.challenge"];
+      if (token === process.env.WEBHOOK_VERIFY_TOKEN) {
+        console.log("[OAUTH CALLBACK] Webhook verification request handled");
+        return c.text(challenge ?? "", 200);
+      }
+      return c.json({ error: "Forbidden" }, 403);
+    }
 
     try {
       if (oauthError) return c.json({ error: `OAuth denied: ${oauthError}` }, 400);
       if (!code || !state) {
-        console.error("[OAUTH CALLBACK] Missing code or state", { code: !!code, state: !!state, query: c.req.query() });
+        console.error("[OAUTH CALLBACK] Missing code or state", { code: !!code, state: !!state, query });
         return c.json({ error: "Missing code or state" }, 400);
       }
 
