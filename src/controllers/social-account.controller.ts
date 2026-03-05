@@ -13,7 +13,7 @@ import { FacebookService } from "../services/social/facebook.service";
 const REDIRECT_BASE = process.env.SOCIAL_OAUTH_REDIRECT_BASE_URL || "";
 
 function getRedirectUri(platform: string) {
-  return `${REDIRECT_BASE}/api/social/accounts/${platform}/callback`;
+  return `${REDIRECT_BASE}/api/social/accounts/${platform}/callback/`;
 }
 
 export class SocialAccountController {

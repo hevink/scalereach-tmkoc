@@ -19,19 +19,17 @@ export const InstagramService = {
     const appId = process.env.INSTAGRAM_APP_ID || "";
     const appSecret = process.env.INSTAGRAM_APP_SECRET || "";
     console.log("[INSTAGRAM] Exchanging code for token", { redirectUri, appId });
-    // Step 1: Get short-lived token from Instagram
-    const body = new URLSearchParams({
-      client_id: appId,
-      client_secret: appSecret,
-      grant_type: "authorization_code",
-      redirect_uri: redirectUri,
-      code,
-    });
-    console.log("[INSTAGRAM] Token exchange body:", body.toString());
+    // Step 1: Get short-lived token from Instagram (using FormData like botyo)
+    const formData = new FormData();
+    formData.append("client_id", appId);
+    formData.append("client_secret", appSecret);
+    formData.append("grant_type", "authorization_code");
+    formData.append("redirect_uri", redirectUri);
+    formData.append("code", code);
+
     const res = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body,
+      body: formData,
     });
     const data = await res.json() as any;
     console.log("[INSTAGRAM] Short-lived token response:", JSON.stringify(data));
