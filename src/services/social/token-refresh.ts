@@ -5,6 +5,7 @@ import { YouTubeShortsService } from "./youtube-shorts.service";
 import { TwitterService } from "./twitter.service";
 import { LinkedInService } from "./linkedin.service";
 import { FacebookService } from "./facebook.service";
+import { ThreadsService } from "./threads.service";
 import type { OAuthTokens } from "./types";
 
 interface AccountTokens {
@@ -54,6 +55,9 @@ export async function maybeRefreshToken(account: AccountTokens): Promise<{
       break;
     case "facebook":
       refreshed = await FacebookService.refreshAccessToken(plainRefresh);
+      break;
+    case "threads":
+      refreshed = await ThreadsService.refreshAccessToken(plainRefresh);
       break;
     default:
       return { accessToken: plainAccess };

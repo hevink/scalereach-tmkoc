@@ -9,6 +9,7 @@ import { YouTubeShortsService } from "../services/social/youtube-shorts.service"
 import { TwitterService } from "../services/social/twitter.service";
 import { LinkedInService } from "../services/social/linkedin.service";
 import { FacebookService } from "../services/social/facebook.service";
+import { ThreadsService } from "../services/social/threads.service";
 import { db } from "../db";
 import { viralClip } from "../db/schema/project.schema";
 import { eq } from "drizzle-orm";
@@ -62,6 +63,9 @@ async function processPost(job: Job<SocialPostingJobData>) {
       break;
     case "facebook":
       result = await FacebookService.postVideo(accessToken, storageUrl, cap, tags);
+      break;
+    case "threads":
+      result = await ThreadsService.postVideo(accessToken, storageUrl, cap, tags);
       break;
     default:
       throw new Error(`Unsupported platform: ${platform}`);
