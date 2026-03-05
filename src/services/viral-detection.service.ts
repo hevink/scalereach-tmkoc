@@ -11,8 +11,6 @@ const PLATFORM_OPTIONS = [
   "facebook_reels",
 ] as const;
 
-type RecommendedPlatform = (typeof PLATFORM_OPTIONS)[number];
-
 const ViralClipSchema = z.object({
   clips: z.array(
     z.object({
@@ -228,125 +226,71 @@ EMOJI ENHANCEMENT REQUIREMENTS:
       ? `\nCLIP TYPE FOCUS:\n${customPromptText}\n`
       : `\nCLIP TYPE FOCUS:\n${clipTypePrompt}\n`;
 
-    const systemPrompt = `You are an expert viral content analyst and video editor specializing in short-form video content for TikTok, Instagram Reels, and YouTube Shorts.
+    const systemPrompt = `You are an expert viral clip extractor for short-form video (TikTok, Reels, Shorts).
 
-Your task is to analyze video transcripts and extract clips that work as STANDALONE short videos. Each clip must tell a complete mini-story that makes sense on its own, without any context from the rest of the video.
+Extract clips from video transcripts that work as STANDALONE short videos. Each clip must be a complete mini-story — watchable and enjoyable with zero context from the full video.
 
-CRITICAL RULES FOR CLIP SELECTION:
+CLIP STRUCTURE — every clip MUST have all three:
+1. HOOK (first 3 seconds): A bold statement, surprising fact, clean question, or compelling setup. The viewer must instantly know what this clip is about.
+2. DEVELOPMENT (middle): Builds tension, adds detail, or advances the story.
+3. PAYOFF (ending): Delivers a punchline, insight, resolution, or emotional peak. Must be a COMPLETE thought.
 
-1. **STRONG OPENINGS** (Critical — this is where most clips lose viewers):
-   - The first sentence MUST immediately establish what the clip is about — no warm-up, no filler
-   - NEVER start mid-sentence, mid-answer, or mid-story where the viewer has no idea what's being discussed
-   - NEVER start with a response to something said earlier ("Yeah exactly", "That's a great point", "So as I was saying...")
-   - NEVER start with a question that was asked before the clip begins — if a question is the hook, the clip MUST include the question AND the answer
-   - If the speaker is answering a question, scroll back in the transcript to include the question itself as the opening
-   - If the clip starts with "So...", "Well...", "I mean...", "Like..." — check if there's a cleaner entry point a few seconds earlier
-   - Ideal openings: a bold statement, a surprising fact, a relatable setup, a direct question the speaker then answers, or a story that begins cleanly
-   - When in doubt, move the startTime a few seconds earlier to capture the natural lead-in
+OPENING RULES:
+- First sentence must establish the clip's topic with zero warm-up.
+- NEVER start mid-answer. If the clip contains an answer, include the question that prompted it.
+- NEVER open with filler ("So...", "Yeah...", "I mean...", "Like...") — find the clean entry point seconds earlier.
+- NEVER open with a response to something outside the clip ("That's a great point", "As I was saying...").
+- When in doubt, move startTime earlier to capture the natural lead-in.
 
-2. **STRONG ENDINGS** (Critical — this is where most clips fail):
-   - The last sentence of a clip must be a COMPLETE thought — never cut off mid-sentence
-   - Ideal endings: a punchline lands, a bold statement is made, a question is answered, a story resolves, or the speaker delivers a clear takeaway
-   - If the speaker says "so basically..." or "the point is..." — the clip MUST include what comes after that
-   - If the speaker trails off, transitions to a new topic, or says "anyway...", that is NOT a good ending — extend or trim to the last strong sentence before it
-   - A clip ending on filler words ("you know?", "right?", "like...") is a bad ending — go back to the last meaningful sentence
-   - When in doubt, extend the endTime by a few seconds to capture the natural conclusion
+ENDING RULES:
+- Last sentence must be a COMPLETE, resolved thought — never cut mid-sentence.
+- If the speaker says "so basically..." or "the point is..." — include what follows.
+- NEVER end on filler ("you know?", "right?", "anyway...") or topic transitions.
+- When in doubt, extend endTime to capture the natural conclusion.
 
-3. **NARRATIVE STRUCTURE**:
-   - Each clip needs a clear SETUP → DEVELOPMENT → PAYOFF arc
-   - SETUP: The first few seconds must establish what the clip is about (the hook)
-   - DEVELOPMENT: The middle builds on the idea, adds detail or tension
-   - PAYOFF: The ending delivers the value — a conclusion, punchline, insight, or emotional peak
-   - Think of each clip as a complete mini-video, NOT a random excerpt
+CLIP BOUNDARIES:
+- Start at the beginning of a topic/story/example. End when it's fully resolved.
+- No overlapping clips — each clip must cover a distinct moment.
+- Clips must not share more than 5 seconds of content with any other clip.
 
-4. **NATURAL BOUNDARIES**:
-   - Start clips at the beginning of a new topic, story, example, or argument
-   - End clips when that topic/story/example is fully resolved
-   - Look for natural paragraph-like breaks in speech
-   - Avoid cutting into transitions like "and another thing..." or "speaking of which..."
+QUALITY:
+- Only include clips scoring >= 60 virality. Quality over quantity.
+- Every clip must pass this test: "Would I watch this entire clip on TikTok without scrolling?"
+- If only 2 moments are great, return 2 clips. Don't pad.
 
-5. **QUALITY OVER QUANTITY**:
-   - Only return clips that are genuinely compelling as standalone content
-   - A viewer should want to watch the entire clip, not scroll away after 3 seconds
-   - If the transcript only has 2 great moments, return 2 clips — don't pad with mediocre ones
-   - Every clip must score at least 60/100 on virality to be included
+DURATION: ${isAutoMode
+      ? `YOU decide optimal length per clip (15s–180s). Let content dictate duration. Punchy moments = 15-30s, stories/explanations = 1-3min.`
+      : `Each clip MUST be ${minDuration}–${maxDuration} seconds (endTime - startTime).`}
 
-DURATION: ${isAutoMode 
-      ? `You decide the optimal duration for each clip. Each clip should be as long as it needs to be to tell a complete story — typically 15 seconds to 3 minutes. Short punchy moments can be 15-30s, detailed stories or explanations can be 1-3 minutes. Let the content dictate the length. Minimum 15 seconds, maximum 180 seconds per clip.`
-      : `Each clip MUST be between ${minDuration} and ${maxDuration} seconds long.`}
+TIMESTAMPS: Transcript uses [M:SS] format. Return startTime/endTime in SECONDS (e.g., [1:30] = 90 seconds).
 ${introTitleSection}${emojiSection}${clipTypeSection}
-WHAT MAKES A CLIP VIRAL:
-- Strong hook in the first 3 seconds that creates curiosity or emotion
-- Emotional peaks: humor, shock, inspiration, anger, awe
-- A clear "aha moment" or surprising reveal
-- Quotable statements or bold opinions
-- Relatable experiences that make viewers think "that's so true"
-- Complete stories with satisfying endings
+PLATFORM FIT (recommend for every clip):
+- youtube_shorts: Educational, storytelling, broader appeal
+- instagram_reels: Lifestyle, aesthetic, trending, aspirational
+- tiktok: Trendy, humorous, raw/authentic, fast-paced
+- linkedin: Professional insights, business tips, thought leadership
+- twitter: Hot takes, controversial opinions, quick wit
+- facebook_reels: Family-friendly, relatable, shareable stories${languageNote}`;
 
-WHAT MAKES A BAD CLIP (AVOID THESE):
-- Starting mid-conversation with no context ("...and that's why I think...")
-- Starting with a response to something outside the clip ("Yeah exactly", "That's right", "So as I was saying...")
-- Starting with an answer when the question that prompted it isn't in the clip
-- Starting with filler openers ("So...", "Well...", "I mean...") when a cleaner entry exists a few seconds earlier
-- Ending before the point is made ("so the reason is..." *clip ends*)
-- Ending mid-sentence or mid-thought — the viewer is left hanging
-- Ending on filler words ("you know?", "like...", "anyway...") — not a real conclusion
-- Ending right as the speaker transitions to a new topic — extend to capture the wrap-up
-- Random segments with no clear purpose or takeaway
-- Clips that require watching the full video to understand
-- Boring filler content with no emotional or intellectual value
-- Clips where the speaker is rambling without a clear point
+    // Build dynamic user prompt based on options (field instructions handled by Zod schema descriptions)
 
-PLATFORM RECOMMENDATIONS (required for every clip):
-- **youtube_shorts**: Educational, storytelling, broader appeal
-- **instagram_reels**: Lifestyle, aesthetic, trending, aspirational
-- **tiktok**: Trendy, humorous, raw/authentic, fast-paced
-- **linkedin**: Professional insights, business tips, thought leadership
-- **twitter**: Hot takes, controversial opinions, quick wit
-- **facebook_reels**: Family-friendly, relatable, shareable stories${languageNote}`;
+    const userPrompt = `Video: "${videoTitle}"
 
-    // Build dynamic user prompt based on options
-    const introTitleInstruction = enableIntroTitle 
-      ? "2. An intro title (5-7 words max) to display in the first 3 seconds - make it hook viewers immediately\n" 
-      : "";
-    const emojiInstruction = enableEmojis 
-      ? `${enableIntroTitle ? "5" : "4"}. The same transcript but with emojis added naturally (3-6 emojis, placed at emotional peaks)\n` 
-      : "";
+Extract standalone viral clips from this transcript. Each clip must be self-contained — a viewer with no context should understand and enjoy it.
 
-    const userPrompt = `Analyze this transcript from the video "${videoTitle}" and extract clips that work as STANDALONE short-form videos.
+CHECKLIST (verify for each clip before including):
+- [ ] Opens with a clean hook, not mid-conversation or filler
+- [ ] If it contains an answer, the question is included
+- [ ] Ends on a complete, satisfying thought — not mid-sentence or filler
+- [ ] Has clear setup → development → payoff arc
+- [ ] No overlap with other clips (max 5s shared content)
+- [ ] Virality score >= 60
+- [ ] You'd actually watch this on TikTok without scrolling
 
-RULES:
-- Each clip MUST be a complete, self-contained mini-story (setup → development → payoff)
-- Each clip MUST make sense to someone who has NEVER seen the full video
-- Each clip MUST start at the beginning of a topic/point and end when that topic/point is fully resolved
-${isAutoMode 
-      ? `- Duration: YOU decide the best length for each clip. Let the content dictate the duration (15s to 180s max). Short punchy moments = shorter clips, detailed stories = longer clips. Minimum 15 seconds, maximum 180 seconds.`
-      : `- Duration MUST be between ${minDuration}-${maxDuration} seconds (duration = endTime - startTime)`}
-- Times are in SECONDS (e.g., startTime=60, endTime=90 = 30 second clip)
-- Only include clips with virality score >= 60. Quality over quantity.
-- Return at least 1 clip if any worthy content exists.
+Return startTime/endTime in SECONDS. Return at least 1 clip if any worthy content exists.
 
-BEFORE ADDING A CLIP, ASK YOURSELF:
-1. Does this clip open with a clear, self-contained hook? Would a new viewer immediately understand what's being discussed, or are they dropped into the middle of something? If dropped in, move the startTime earlier.
-2. If the clip starts with an answer — is the question included? If not, scroll back and include it.
-3. Does the first sentence feel like a strong, clean opening, or does it start with filler ("So...", "Yeah...", "I mean...")? If filler, find a better entry point.
-4. Does this clip end with a COMPLETE, satisfying conclusion — a punchline, a clear takeaway, a resolved thought? If not, extend the endTime until you reach one.
-5. Does the last sentence feel like a natural stopping point, or does it feel cut off? If it feels cut off, keep reading the transcript and extend the end.
-6. Would I actually watch this entire clip on TikTok without scrolling? If not, don't include it.
-7. Can someone understand and enjoy this clip without watching anything else? If not, add more context.
-
-TRANSCRIPT WITH TIMESTAMPS:
-${formattedTranscript}
-
-For each clip provide:
-1. A catchy title for the video caption
-${introTitleInstruction}${enableIntroTitle ? "3" : "2"}. Exact start and end times in SECONDS
-${enableIntroTitle ? "4" : "3"}. The transcript segment
-${emojiInstruction}${enableIntroTitle && enableEmojis ? "6" : enableIntroTitle || enableEmojis ? "5" : "4"}. Virality score (0-100, only include if >= 60)
-${enableIntroTitle && enableEmojis ? "7" : enableIntroTitle || enableEmojis ? "6" : "5"}. Why this clip works as a standalone viral video
-${enableIntroTitle && enableEmojis ? "8" : enableIntroTitle || enableEmojis ? "7" : "6"}. Key hooks
-${enableIntroTitle && enableEmojis ? "9" : enableIntroTitle || enableEmojis ? "8" : "7"}. Emotions evoked
-${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "9" : "8"}. Recommended platforms`;
+TRANSCRIPT:
+${formattedTranscript}`;
 
     try {
       console.log(`[VIRAL DETECTION] Calling AI (generateObject with Zod schema)...`);
@@ -356,8 +300,8 @@ ${enableIntroTitle && enableEmojis ? "10" : enableIntroTitle || enableEmojis ? "
         {
           schema: ViralClipSchema,
           systemPrompt,
-          temperature: 0.7,
-          maxTokens: 16000,
+          temperature: 0.3,
+          maxTokens: 32000,
         }
       );
 
