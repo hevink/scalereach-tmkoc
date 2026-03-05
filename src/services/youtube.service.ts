@@ -226,7 +226,8 @@ export class YouTubeService {
       const args = [
         "--dump-json",
         "--no-download",
-        "--extractor-args", "youtube:player_client=web",
+        "--no-check-certificates",
+        "--extractor-args", "youtube:player_client=tv_embedded,mweb;player_skip=webpage",
         "--extractor-retries", "3",
         url,
       ];
@@ -360,7 +361,7 @@ export class YouTubeService {
       "--no-warnings",
       "--no-check-certificates",
       "--prefer-free-formats",
-      "--extractor-args", "youtube:player_client=web",
+      "--extractor-args", "youtube:player_client=tv_embedded,mweb;player_skip=webpage",
       "--extractor-retries", "3",
       "--fragment-retries", "5",
       "--retry-sleep", "2",
