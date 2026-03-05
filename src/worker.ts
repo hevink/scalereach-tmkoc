@@ -13,6 +13,7 @@ import { startDubbingWorker, dubbingQueue } from "./jobs/dubbing.worker";
 import { startSocialWorker } from "./jobs/social.worker";
 import { startStorageCleanupJob } from "./jobs/storage-cleanup.job";
 import { startCreditExpiryJob } from "./jobs/credit-expiry.job";
+import { startTokenRefreshJob } from "./jobs/token-refresh.job";
 import { startSmartCropWorker } from "./jobs/smart-crop.worker";
 import { redisConnection, videoProcessingQueue, clipGenerationQueue, socialPostingQueue, smartCropQueue } from "./jobs/queue";
 
@@ -290,6 +291,9 @@ startStorageCleanupJob();
 
 console.log("[WORKER] Starting credit expiry job...");
 startCreditExpiryJob();
+
+console.log("[WORKER] Starting token refresh job...");
+startTokenRefreshJob();
 
 async function checkRedisHealth(): Promise<{ status: string; latency?: number; error?: string }> {
   const start = Date.now();
