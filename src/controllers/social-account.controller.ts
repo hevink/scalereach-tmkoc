@@ -191,8 +191,9 @@ export class SocialAccountController {
       const slug = ws?.slug || workspaceId;
       return c.redirect(`${frontendUrl}/${slug}/social?connected=${platform}`);
     } catch (error) {
-      console.error("[SOCIAL ACCOUNT CONTROLLER] HANDLE_OAUTH_CALLBACK error:", error);
-      return c.json({ error: "OAuth callback failed" }, 500);
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error("[SOCIAL ACCOUNT CONTROLLER] HANDLE_OAUTH_CALLBACK error:", msg);
+      return c.json({ error: "OAuth callback failed", detail: msg }, 500);
     }
   }
 
