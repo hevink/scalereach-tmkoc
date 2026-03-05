@@ -56,5 +56,28 @@ socialRouter.route("/", protected_);
 // OAuth callback must be public — Google redirects without auth cookies
 socialRouter.get("/accounts/:platform/callback", SocialAccountController.handleOAuthCallback);
 
+// Instagram/Facebook webhook verification (GET) — Meta sends this to confirm you own the endpoint
+socialRouter.get("/webhook", (c) => {
+  const mode = c.req.query("hub.mode");
+  const token = c.req.query("hub.verify_token");
+  const challenge = c.req.query("hub.challenge");
+
+  if (mode === "subscribe" && token === process.env.WEBHOOK_VERIFY_TOKEN) {
+    console.log("[WEBHOOK] Verified successfully");
+    return c.text(challenge ?? "", 200);
+  }
+
+  console.warn("[WEBHOOK] Verification failed — token mismatch");
+  return c.json({ error: "Forbidden" }, 403);
+});
+
+// Instagram/Facebook webhook events (POST) — real-time notifications
+socialRouter.post("/webhook", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  console.log("[WEBHOOK] Received event:", JSON.stringify(body));
+  // TODO: handle specific events (comments, DMs, etc.) as needed
+  return c.json({ received: true }, 200);
+});
+
 export default socialRouter;
 

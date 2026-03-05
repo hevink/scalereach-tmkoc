@@ -8,6 +8,7 @@ import { InstagramService } from "../services/social/instagram.service";
 import { YouTubeShortsService } from "../services/social/youtube-shorts.service";
 import { TwitterService, generatePKCE } from "../services/social/twitter.service";
 import { LinkedInService } from "../services/social/linkedin.service";
+import { FacebookService } from "../services/social/facebook.service";
 
 const REDIRECT_BASE = process.env.SOCIAL_OAUTH_REDIRECT_BASE_URL || "";
 
@@ -94,6 +95,8 @@ export class SocialAccountController {
         authUrl = YouTubeShortsService.getAuthorizationUrl(state, redirectUri);
       } else if (platform === "linkedin") {
         authUrl = LinkedInService.getAuthorizationUrl(state, redirectUri);
+      } else if (platform === "facebook") {
+        authUrl = FacebookService.getAuthorizationUrl(state, redirectUri);
       } else {
         return c.json({ error: "Unsupported platform" }, 400);
       }
@@ -144,6 +147,9 @@ export class SocialAccountController {
       } else if (platform === "linkedin") {
         tokens = await LinkedInService.exchangeCode(code, redirectUri);
         userInfo = await LinkedInService.getUserInfo(tokens.accessToken);
+      } else if (platform === "facebook") {
+        tokens = await FacebookService.exchangeCode(code, redirectUri);
+        userInfo = await FacebookService.getUserInfo(tokens.accessToken);
       } else {
         return c.json({ error: "Unsupported platform" }, 400);
       }
