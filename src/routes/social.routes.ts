@@ -51,12 +51,11 @@ protected_.get("/clips", async (c) => {
   return c.json(rows);
 });
 
-socialRouter.route("/", protected_);
-
-// OAuth callback must be public — Google redirects without auth cookies
+// Public routes — must be registered BEFORE mounting the protected sub-router
+// OAuth callback: Meta redirects here without auth cookies
 socialRouter.get("/accounts/:platform/callback", SocialAccountController.handleOAuthCallback);
 
-// Instagram/Facebook webhook verification (GET) — Meta sends this to confirm you own the endpoint
+// Webhook verification (GET) and events (POST) — must be public
 socialRouter.get("/webhook", (c) => {
   const mode = c.req.query("hub.mode");
   const token = c.req.query("hub.verify_token");
@@ -71,13 +70,14 @@ socialRouter.get("/webhook", (c) => {
   return c.json({ error: "Forbidden" }, 403);
 });
 
-// Instagram/Facebook webhook events (POST) — real-time notifications
 socialRouter.post("/webhook", async (c) => {
   const body = await c.req.json().catch(() => ({}));
   console.log("[WEBHOOK] Received event:", JSON.stringify(body));
-  // TODO: handle specific events (comments, DMs, etc.) as needed
   return c.json({ received: true }, 200);
 });
+
+// Mount protected routes last
+socialRouter.route("/", protected_);
 
 export default socialRouter;
 
