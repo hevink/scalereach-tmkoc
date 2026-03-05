@@ -8,31 +8,42 @@ export const InstagramService = {
     const params = new URLSearchParams({
       client_id: APP_ID,
       redirect_uri: redirectUri,
-      scope: "instagram_basic,instagram_content_publish,pages_show_list",
+      scope: "instagram_business_basic,instagram_business_content_publish",
       response_type: "code",
       state,
     });
-    return `https://www.facebook.com/v19.0/dialog/oauth?${params}`;
+    console.log("[INSTAGRAM] Auth URL params:", { client_id: APP_ID, redirect_uri: redirectUri });
+    return `https://api.instagram.com/oauth/authorize?${params}`;
   },
 
   async exchangeCode(code: string, redirectUri: string): Promise<OAuthTokens> {
-    const res = await fetch("https://graph.facebook.com/v19.0/oauth/access_token", {
+    console.log("[INSTAGRAM] Exchanging code for token", { redirectUri });
+    // Step 1: Get short-lived token from Instagram
+    const res = await fetch("https://api.instagram.com/oauth/access_token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         client_id: APP_ID,
         client_secret: APP_SECRET,
+        grant_type: "authorization_code",
         redirect_uri: redirectUri,
         code,
       }),
     });
     const data = await res.json() as any;
-    if (data.error) throw new Error(`Instagram OAuth error: ${data.error.message}`);
-    // Exchange short-lived for long-lived token
+    console.log("[INSTAGRAM] Short-lived token response:", JSON.stringify(data));
+    if (data.error_type || data.error) {
+      throw new Error(`Instagram OAuth error: ${data.error_message || data.error}`);
+    }
+
+    // Step 2: Exchange short-lived for long-lived token
     const llRes = await fetch(
-      `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${data.access_token}`
+      `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${APP_SECRET}&access_token=${data.access_token}`
     );
     const llData = await llRes.json() as any;
+    console.log("[INSTAGRAM] Long-lived token response:", JSON.stringify(llData));
+    if (llData.error) throw new Error(`Instagram long-lived token error: ${llData.error.message}`);
+
     return {
       accessToken: llData.access_token || data.access_token,
       expiresAt: llData.expires_in ? new Date(Date.now() + llData.expires_in * 1000) : undefined,
