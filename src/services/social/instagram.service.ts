@@ -4,6 +4,7 @@ export const InstagramService = {
   getAuthorizationUrl(state: string, redirectUri: string): string {
     const appId = process.env.INSTAGRAM_APP_ID || "";
     const params = new URLSearchParams({
+      force_reauth: "true",
       client_id: appId,
       redirect_uri: redirectUri,
       scope: "instagram_business_basic,instagram_business_content_publish",
@@ -11,7 +12,7 @@ export const InstagramService = {
       state,
     });
     console.log("[INSTAGRAM] Auth URL params:", { client_id: appId, redirect_uri: redirectUri });
-    return `https://api.instagram.com/oauth/authorize?${params}`;
+    return `https://www.instagram.com/oauth/authorize?${params}`;
   },
 
   async exchangeCode(code: string, redirectUri: string): Promise<OAuthTokens> {
