@@ -118,10 +118,16 @@ export class SocialAccountController {
 
     try {
       if (oauthError) return c.json({ error: `OAuth denied: ${oauthError}` }, 400);
-      if (!code || !state) return c.json({ error: "Missing code or state" }, 400);
+      if (!code || !state) {
+        console.error("[OAUTH CALLBACK] Missing code or state", { code: !!code, state: !!state, query: c.req.query() });
+        return c.json({ error: "Missing code or state" }, 400);
+      }
 
       const stateRaw = await redisConnection.get(`oauth:state:${state}`);
-      if (!stateRaw) return c.json({ error: "Invalid or expired state" }, 400);
+      if (!stateRaw) {
+        console.error("[OAUTH CALLBACK] Invalid or expired state", { state, platform });
+        return c.json({ error: "Invalid or expired state" }, 400);
+      }
       await redisConnection.del(`oauth:state:${state}`);
 
       const stateData = JSON.parse(stateRaw) as Record<string, string>;
