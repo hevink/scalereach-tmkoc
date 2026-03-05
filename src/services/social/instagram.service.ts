@@ -92,8 +92,8 @@ export const InstagramService = {
     const meData = await meRes.json() as any;
     const igUserId = meData.id;
 
-    // Step 1: Create media container
-    const containerRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media`, {
+    // Step 1: Create media container (use graph.instagram.com for Instagram API tokens)
+    const containerRes = await fetch(`https://graph.instagram.com/v21.0/${igUserId}/media`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -104,6 +104,7 @@ export const InstagramService = {
       }),
     });
     const containerData = await containerRes.json() as any;
+    console.log("[INSTAGRAM] Container response:", JSON.stringify(containerData));
     if (containerData.error) throw new Error(`Instagram container error: ${containerData.error.message}`);
     const containerId = containerData.id;
 
@@ -111,7 +112,7 @@ export const InstagramService = {
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 5000));
       const statusRes = await fetch(
-        `https://graph.facebook.com/v19.0/${containerId}?fields=status_code&access_token=${accessToken}`
+        `https://graph.instagram.com/v21.0/${containerId}?fields=status_code&access_token=${accessToken}`
       );
       const statusData = await statusRes.json() as any;
       if (statusData.status_code === "FINISHED") break;
@@ -121,7 +122,7 @@ export const InstagramService = {
     }
 
     // Step 3: Publish
-    const publishRes = await fetch(`https://graph.facebook.com/v19.0/${igUserId}/media_publish`, {
+    const publishRes = await fetch(`https://graph.instagram.com/v21.0/${igUserId}/media_publish`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ creation_id: containerId, access_token: accessToken }),
