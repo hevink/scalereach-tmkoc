@@ -130,9 +130,21 @@ export const InstagramService = {
     const publishData = await publishRes.json() as any;
     if (publishData.error) throw new Error(`Instagram publish error: ${publishData.error.message}`);
 
+    // Fetch the permalink (shortcode URL) from the published media
+    let postUrl = `https://www.instagram.com/p/${publishData.id}`;
+    try {
+      const mediaRes = await fetch(
+        `https://graph.instagram.com/v21.0/${publishData.id}?fields=permalink&access_token=${accessToken}`
+      );
+      const mediaData = await mediaRes.json() as any;
+      if (mediaData.permalink) postUrl = mediaData.permalink;
+    } catch {
+      // Fall back to numeric ID URL if permalink fetch fails
+    }
+
     return {
       platformPostId: publishData.id,
-      platformPostUrl: `https://www.instagram.com/p/${publishData.id}`,
+      platformPostUrl: postUrl,
     };
   },
 };
