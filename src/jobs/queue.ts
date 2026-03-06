@@ -76,11 +76,14 @@ export function getPlanPriority(plan?: string | null): number {
 export interface SocialPostingJobData {
   postId: string;
   workspaceId: string;
-  clipId: string;
+  clipId?: string;
   socialAccountId: string;
   platform: string;
   caption?: string;
   hashtags?: string[];
+  // Custom media post fields
+  mediaUrl?: string;
+  mediaType?: "video" | "image";
 }
 
 export interface VideoProcessingJobData {

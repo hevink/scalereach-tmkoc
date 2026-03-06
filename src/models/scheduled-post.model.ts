@@ -45,6 +45,10 @@ export class ScheduledPostModel {
           updatedAt: scheduledPost.updatedAt,
           clipTitle: viralClip.title,
           clipThumbnailUrl: viralClip.thumbnailUrl,
+          mediaUrl: scheduledPost.mediaUrl,
+          mediaType: scheduledPost.mediaType,
+          mediaThumbnailUrl: scheduledPost.mediaThumbnailUrl,
+          mediaStorageKey: scheduledPost.mediaStorageKey,
         })
         .from(scheduledPost)
         .leftJoin(viralClip, eq(scheduledPost.clipId, viralClip.id))
@@ -67,7 +71,7 @@ export class ScheduledPostModel {
 
   static async create(params: {
     workspaceId: string;
-    clipId: string;
+    clipId?: string;
     socialAccountId: string;
     platform: string;
     postType: string;
@@ -77,6 +81,10 @@ export class ScheduledPostModel {
     dripGroupId?: string;
     dripOrder?: number;
     createdBy?: string;
+    mediaUrl?: string;
+    mediaType?: string;
+    mediaThumbnailUrl?: string;
+    mediaStorageKey?: string;
   }) {
     this.logOperation("CREATE", { workspaceId: params.workspaceId, platform: params.platform });
     const start = performance.now();
@@ -86,7 +94,7 @@ export class ScheduledPostModel {
       .values({
         id: this.generateId(),
         workspaceId: params.workspaceId,
-        clipId: params.clipId,
+        clipId: params.clipId || null,
         socialAccountId: params.socialAccountId,
         platform: params.platform,
         postType: params.postType,
@@ -97,6 +105,10 @@ export class ScheduledPostModel {
         dripGroupId: params.dripGroupId,
         dripOrder: params.dripOrder,
         createdBy: params.createdBy,
+        mediaUrl: params.mediaUrl,
+        mediaType: params.mediaType,
+        mediaThumbnailUrl: params.mediaThumbnailUrl,
+        mediaStorageKey: params.mediaStorageKey,
       })
       .returning();
 

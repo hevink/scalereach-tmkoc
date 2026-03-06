@@ -53,8 +53,7 @@ export const scheduledPost = pgTable(
       .notNull()
       .references(() => workspace.id, { onDelete: "cascade" }),
     clipId: text("clip_id")
-      .notNull()
-      .references(() => viralClip.id, { onDelete: "cascade" }),
+      .references(() => viralClip.id, { onDelete: "cascade" }), // nullable for custom posts
     socialAccountId: text("social_account_id")
       .notNull()
       .references(() => socialAccount.id, { onDelete: "cascade" }),
@@ -77,6 +76,11 @@ export const scheduledPost = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date())
       .notNull(),
+    // Custom media post fields (when clipId is null)
+    mediaUrl: text("media_url"), // R2 URL of uploaded media
+    mediaType: text("media_type"), // "video" | "image"
+    mediaThumbnailUrl: text("media_thumbnail_url"),
+    mediaStorageKey: text("media_storage_key"), // R2 key for cleanup
   },
   (table) => ({
     workspaceIdIdx: index("idx_scheduled_post_workspace_id").on(table.workspaceId),
@@ -86,6 +90,39 @@ export const scheduledPost = pgTable(
     scheduledAtIdx: index("idx_scheduled_post_scheduled_at").on(table.scheduledAt),
   })
 );
+
+// Uploaded media library for custom social posts
+export const socialMedia = pgTable(
+  "social_media",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspace.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    storageKey: text("storage_key").notNull(),
+    url: text("url").notNull(),
+    contentType: text("content_type").notNull(),
+    mediaType: text("media_type").notNull(), // "video" | "image"
+    fileSize: integer("file_size"),
+    uploadedBy: text("uploaded_by").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    workspaceIdIdx: index("idx_social_media_workspace_id").on(table.workspaceId),
+  })
+);
+
+export const socialMediaRelations = relations(socialMedia, ({ one }) => ({
+  workspace: one(workspace, {
+    fields: [socialMedia.workspaceId],
+    references: [workspace.id],
+  }),
+  uploadedByUser: one(user, {
+    fields: [socialMedia.uploadedBy],
+    references: [user.id],
+  }),
+}));
 
 export const socialAccountRelations = relations(socialAccount, ({ one, many }) => ({
   workspace: one(workspace, {

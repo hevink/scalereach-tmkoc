@@ -12,23 +12,46 @@ import { FacebookService } from "../services/social/facebook.service";
 import { ThreadsService } from "../services/social/threads.service";
 import { db } from "../db";
 import { viralClip } from "../db/schema/project.schema";
+import { scheduledPost } from "../db/schema/social.schema";
 import { eq } from "drizzle-orm";
 
 async function processPost(job: Job<SocialPostingJobData>) {
-  const { postId, clipId, socialAccountId, platform, caption, hashtags } = job.data;
-  console.log(`[SOCIAL WORKER] Processing post ${postId} for platform ${platform}`);
+  const { postId, clipId, socialAccountId, platform, caption, hashtags, mediaUrl, mediaType } = job.data;
+  console.log(`[SOCIAL WORKER] Processing post ${postId} for platform ${platform}`, { clipId, mediaUrl: !!mediaUrl });
 
   // Mark as posting
   await ScheduledPostModel.updateStatus(postId, "posting");
 
-  // Get clip storage URL
-  const clips = await db
-    .select({ storageUrl: viralClip.storageUrl })
-    .from(viralClip)
-    .where(eq(viralClip.id, clipId));
+  // Get the video/media URL — either from job data or fall back to DB lookup
+  let storageUrl: string;
 
-  const storageUrl = clips[0]?.storageUrl;
-  if (!storageUrl) throw new Error(`Clip ${clipId} has no storageUrl`);
+  if (mediaUrl) {
+    // Custom uploaded media (from job data)
+    storageUrl = mediaUrl;
+  } else if (clipId) {
+    // Clip-based post
+    const clips = await db
+      .select({ storageUrl: viralClip.storageUrl })
+      .from(viralClip)
+      .where(eq(viralClip.id, clipId));
+
+    const clipStorageUrl = clips[0]?.storageUrl;
+    if (!clipStorageUrl) throw new Error(`Clip ${clipId} has no storageUrl`);
+    storageUrl = clipStorageUrl;
+  } else {
+    // Fallback: check the scheduled_post record for mediaUrl (handles jobs queued before worker update)
+    const post = await db
+      .select({ mediaUrl: scheduledPost.mediaUrl })
+      .from(scheduledPost)
+      .where(eq(scheduledPost.id, postId));
+
+    const dbMediaUrl = post[0]?.mediaUrl;
+    if (dbMediaUrl) {
+      storageUrl = dbMediaUrl;
+    } else {
+      throw new Error(`Post ${postId} has neither clipId nor mediaUrl`);
+    }
+  }
 
   // Get account with encrypted tokens
   const account = await SocialAccountModel.getById(socialAccountId);

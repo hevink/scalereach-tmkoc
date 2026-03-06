@@ -29,6 +29,11 @@ export class SocialPostController {
         postType,
         scheduledAt,
         dripClips, // Array<{ clipId, socialAccountId }> for drip
+        // Custom media post fields
+        mediaUrl,
+        mediaType,
+        mediaThumbnailUrl,
+        mediaStorageKey,
       } = body;
 
       if (!workspaceId || !postType) {
@@ -92,8 +97,11 @@ export class SocialPostController {
       }
 
       // immediate or scheduled
-      if (!clipId || !socialAccountId) {
-        return c.json({ error: "clipId and socialAccountId are required" }, 400);
+      if (!clipId && !mediaUrl) {
+        return c.json({ error: "clipId or mediaUrl is required" }, 400);
+      }
+      if (!socialAccountId) {
+        return c.json({ error: "socialAccountId is required" }, 400);
       }
 
       const account = await SocialAccountModel.getById(socialAccountId);
@@ -113,7 +121,7 @@ export class SocialPostController {
 
       const post = await ScheduledPostModel.create({
         workspaceId,
-        clipId,
+        clipId: clipId || undefined,
         socialAccountId,
         platform: account.platform,
         postType,
@@ -121,17 +129,23 @@ export class SocialPostController {
         hashtags,
         scheduledAt: scheduledTime,
         createdBy: user.id,
+        mediaUrl,
+        mediaType,
+        mediaThumbnailUrl,
+        mediaStorageKey,
       });
 
       await addSocialPostingJob(
         {
           postId: post.id,
           workspaceId,
-          clipId,
+          clipId: clipId || undefined,
           socialAccountId,
           platform: account.platform,
           caption,
           hashtags,
+          mediaUrl,
+          mediaType,
         },
         delayMs
       );
@@ -206,7 +220,7 @@ export class SocialPostController {
           {
             postId: post.id,
             workspaceId: post.workspaceId,
-            clipId: post.clipId,
+            clipId: post.clipId ?? undefined,
             socialAccountId: post.socialAccountId,
             platform: post.platform,
             caption: caption ?? post.caption ?? undefined,
