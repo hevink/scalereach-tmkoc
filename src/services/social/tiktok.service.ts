@@ -82,6 +82,8 @@ export const TikTokService = {
       : caption;
 
     // Step 1: Init upload
+    // TODO: After TikTok app approval, change privacy_level from "SELF_ONLY" to "PUBLIC_TO_EVERYONE"
+    // For unaudited apps, posting as draft may work better than SELF_ONLY
     const initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
       method: "POST",
       headers: {
@@ -91,10 +93,8 @@ export const TikTokService = {
       body: JSON.stringify({
         post_info: { 
           title: fullCaption, 
-          privacy_level: "SELF_ONLY", // Use SELF_ONLY for unaudited apps, change to PUBLIC_TO_EVERYONE after approval
-          disable_comment: false,
-          disable_duet: false,
-          disable_stitch: false,
+          privacy_level: "SELF_ONLY",
+          auto_add_music: false,
         },
         source_info: { source: "PULL_FROM_URL", video_url: videoUrl },
       }),
