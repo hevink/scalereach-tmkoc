@@ -17,7 +17,7 @@ import { eq } from "drizzle-orm";
 
 async function processPost(job: Job<SocialPostingJobData>) {
   const { postId, clipId, socialAccountId, platform, caption, hashtags, mediaUrl, mediaType } = job.data;
-  console.log(`[SOCIAL WORKER] Processing post ${postId} for platform ${platform}`, { clipId, mediaUrl: !!mediaUrl });
+  console.log(`[SOCIAL WORKER] Processing post ${postId} for platform ${platform}`, { clipId, mediaUrl });
 
   // Mark as posting
   await ScheduledPostModel.updateStatus(postId, "posting");

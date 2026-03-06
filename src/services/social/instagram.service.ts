@@ -112,12 +112,13 @@ export const InstagramService = {
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 5000));
       const statusRes = await fetch(
-        `https://graph.instagram.com/v21.0/${containerId}?fields=status_code&access_token=${accessToken}`
+        `https://graph.instagram.com/v21.0/${containerId}?fields=status_code,status&access_token=${accessToken}`
       );
       const statusData = await statusRes.json() as any;
+      console.log(`[INSTAGRAM] Container status poll ${i + 1}:`, JSON.stringify(statusData));
       if (statusData.status_code === "FINISHED") break;
       if (statusData.status_code === "ERROR") {
-        throw new Error("Instagram media processing failed");
+        throw new Error(`Instagram media processing failed: ${statusData.status || "unknown error"}`);
       }
     }
 
