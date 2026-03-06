@@ -89,7 +89,13 @@ export const TikTokService = {
         "Content-Type": "application/json; charset=UTF-8",
       },
       body: JSON.stringify({
-        post_info: { title: fullCaption, privacy_level: "PUBLIC_TO_EVERYONE" },
+        post_info: { 
+          title: fullCaption, 
+          privacy_level: "SELF_ONLY", // Use SELF_ONLY for unaudited apps, change to PUBLIC_TO_EVERYONE after approval
+          disable_comment: false,
+          disable_duet: false,
+          disable_stitch: false,
+        },
         source_info: { source: "PULL_FROM_URL", video_url: videoUrl },
       }),
     });
