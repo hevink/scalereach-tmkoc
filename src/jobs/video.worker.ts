@@ -150,7 +150,17 @@ async function processYouTubeVideo(
 
     } else if (existingStorageKey && existingStorageUrl) {
       // ── RESUME: uploaded but not transcribed yet ──────────
-      console.log(`[VIDEO WORKER] Resuming from transcription step — audio already in R2`);
+      // First verify the file actually exists in R2 (it may have been deleted on a previous failed attempt)
+      const fileExists = await R2Service.fileExists(existingStorageKey);
+      if (!fileExists) {
+        console.log(`[VIDEO WORKER] Audio file not found in R2, clearing stale storage reference and re-downloading`);
+        // Clear the stale storage reference so we do a full re-download
+        await db.update(video).set({ storageKey: null, storageUrl: null }).where(eq(video.id, videoId));
+        // Throw to trigger retry which will now do full flow
+        throw new Error("Audio file missing from R2, retrying with fresh download");
+      }
+
+      console.log(`[VIDEO WORKER] Resuming from transcription step — audio verified in R2`);
       storageKey = existingStorageKey;
       await updateVideoStatus(videoId, "transcribing");
       await job.updateProgress(60);

@@ -118,6 +118,23 @@ export class R2Service {
     console.log(`[R2 SERVICE] Delete complete: ${key}`);
   }
 
+  static async fileExists(key: string): Promise<boolean> {
+    try {
+      const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
+      const command = new HeadObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: key,
+      });
+      await s3Client.send(command);
+      return true;
+    } catch (error: any) {
+      if (error.name === "NotFound" || error.$metadata?.httpStatusCode === 404) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
   static async getSignedDownloadUrl(
     key: string,
     expiresIn: number = 3600
