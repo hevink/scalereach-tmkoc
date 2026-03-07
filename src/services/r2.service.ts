@@ -67,6 +67,9 @@ export class R2Service {
   ): Promise<{ key: string; url: string }> {
     console.log(`[R2 SERVICE] Uploading from stream: ${key}`);
 
+    // Track total bytes uploaded
+    let totalBytes = 0;
+
     // Use multipart upload for streams (handles unknown content length)
     const upload = new Upload({
       client: s3Client,
@@ -82,6 +85,7 @@ export class R2Service {
     });
 
     upload.on("httpUploadProgress", (progress) => {
+      totalBytes = progress.loaded || 0;
       console.log(`[R2 SERVICE] Upload progress: ${progress.loaded} bytes`);
     });
 
@@ -97,11 +101,22 @@ export class R2Service {
       });
       throw err;
     }
+
+    // Validate that we actually uploaded data
+    if (totalBytes === 0) {
+      console.error(`[R2 SERVICE] Upload completed but 0 bytes were uploaded - stream was empty`);
+      // Clean up the empty file
+      try {
+        await this.deleteFile(key);
+      } catch {}
+      throw new Error("Upload failed: stream was empty (0 bytes received)");
+    }
+
     const url = R2_PUBLIC_URL
       ? `${R2_PUBLIC_URL}/${key}`
       : `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${key}`;
 
-    console.log(`[R2 SERVICE] Stream upload complete: ${key}`);
+    console.log(`[R2 SERVICE] Stream upload complete: ${key} (${totalBytes} bytes)`);
 
     return { key, url };
   }
