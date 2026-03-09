@@ -193,6 +193,8 @@ export class ExportController {
         } : undefined,
         textOverlays: captionData.textOverlays?.length ? captionData.textOverlays : undefined,
         splitScreen: splitScreenData,
+        backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
+        videoScale: videoConfig?.videoScale ?? 125,
         smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
       });
 
@@ -428,6 +430,7 @@ export class ExportController {
           emojis: batchEmojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
           introTitle: batchIntroTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
           backgroundStyle: (batchVideoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
+          videoScale: batchVideoConfig?.videoScale ?? 125,
           captions: batchCaptionsEnabled && words.length > 0 ? {
             words,
             style: style || undefined,

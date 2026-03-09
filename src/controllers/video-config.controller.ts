@@ -114,6 +114,8 @@ export class VideoConfigController {
         splitRatio: body.splitRatio ?? 50,
         // Background Style
         backgroundStyle: body.backgroundStyle ?? "black",
+        // Video Scale
+        videoScale: body.videoScale ?? 125,
         // Smart AI Reframing
         enableSmartCrop: body.enableSmartCrop ?? false,
       };
@@ -240,6 +242,8 @@ export class VideoConfigController {
       if (body.splitRatio !== undefined) configInput.splitRatio = body.splitRatio;
       // Background Style
       if (body.backgroundStyle !== undefined) configInput.backgroundStyle = body.backgroundStyle;
+      // Video Scale
+      if (body.videoScale !== undefined) configInput.videoScale = body.videoScale;
       // Smart AI Reframing
       if (body.enableSmartCrop !== undefined) configInput.enableSmartCrop = body.enableSmartCrop;
 

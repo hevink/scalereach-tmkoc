@@ -45,6 +45,7 @@ export interface ClipGenerationOptions {
   emojis?: string;
   introTitle?: string;
   backgroundStyle?: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom";
+  videoScale?: number; // 100 = 1.0x, 125 = 1.25x default, 200 = 2.0x
   splitScreen?: {
     backgroundStorageKey: string;
     backgroundDuration: number;
@@ -89,6 +90,7 @@ export interface ClipGenerationOptions {
     color: string;
     backgroundColor: string;
     backgroundOpacity: number;
+    borderRadius?: number;
     startTime: number;
     endTime: number;
     animation?: "none" | "fade-in" | "slide-up" | "typewriter";
@@ -339,7 +341,10 @@ export class ClipGeneratorService {
           rawSourcePath, rawOutputPath, width, height,
           undefined, // no subtitles
           options.watermark, options.quality,
-          options.backgroundStyle
+          options.backgroundStyle,
+          undefined, // no emoji overlays
+          false, // not already converted
+          options.videoScale
         );
       }
       clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
@@ -559,7 +564,8 @@ export class ClipGeneratorService {
             options.backgroundStyle,
             emojiOverlaysArg,
             // Skip aspect ratio conversion if already reframed
-            options.smartCropEnabled ? true : false
+            options.smartCropEnabled ? true : false,
+            options.videoScale
           );
         }
 
@@ -1700,7 +1706,7 @@ print(f"OK:{total_w}x{total_h}")
 
         if (isVertical) {
           // Use blur background filter for vertical videos
-          let filterComplex = this.buildBlurBackgroundFilter(width, height);
+          let filterComplex = this.buildBlurBackgroundFilter(width, height, 1.25);
 
           // Add subtitles to the final output if provided
           if (subsPathToUse) {
@@ -2038,7 +2044,8 @@ print(f"OK:{total_w}x{total_h}")
     quality: VideoQuality = "1080p",
     backgroundStyle: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "black",
     emojiOverlays?: EmojiOverlayPng[],
-    alreadyConverted = false
+    alreadyConverted = false,
+    videoScale = 125
   ): Promise<void> {
     const wmConfig = watermark
       ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())
@@ -2076,7 +2083,7 @@ print(f"OK:{total_w}x{total_h}")
       } else if (isVertical) {
         // Use background filter based on style (complex filter graph)
         // buildBackgroundFilter returns a filter chain ending with the scaled/composited video (no label)
-        let filterComplex = this.buildBackgroundFilter(targetWidth, targetHeight, backgroundStyle);
+        let filterComplex = this.buildBackgroundFilter(targetWidth, targetHeight, backgroundStyle, videoScale);
 
         // Add subtitles to the final output if provided
         if (subtitlesPath) {
@@ -2303,7 +2310,7 @@ print(f"OK:{total_w}x{total_h}")
     // This creates the effect where the original video is centered and 
     // blurred/zoomed version fills the top and bottom
     if (targetAspect < 1) {
-      return this.buildBlurBackgroundFilter(targetWidth, targetHeight);
+      return this.buildBlurBackgroundFilter(targetWidth, targetHeight, 1.25);
     }
     
     // For other aspect ratios (1:1, 16:9), use center-crop
@@ -2319,7 +2326,7 @@ print(f"OK:{total_w}x{total_h}")
    * 
    * This is the popular TikTok/Reels style for horizontal videos
    */
-  private static buildBlurBackgroundFilter(targetWidth: number, targetHeight: number): string {
+  private static buildBlurBackgroundFilter(targetWidth: number, targetHeight: number, fgScale: number): string {
     // Filter explanation:
     // [0:v]split=2[bg][fg] - Split input into two streams: background and foreground
     // 
@@ -2342,8 +2349,8 @@ print(f"OK:{total_w}x{total_h}")
       `crop=${targetWidth}:${targetHeight},` +
       `gblur=sigma=20,` +
       `eq=brightness=-0.1[bg_blur];` +
-      // Foreground: scale to 1.25x width for a zoomed-in look, sides cropped by overlay boundary
-      `[fg]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
+      // Foreground: scale to fgScale width for a zoomed-in look, sides cropped by overlay boundary
+      `[fg]scale=${Math.round(targetWidth * fgScale)}:-2,setsar=1[fg_scaled];` +
       // Overlay foreground centered on blurred background
       `[bg_blur][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
   }
@@ -2351,9 +2358,9 @@ print(f"OK:{total_w}x{total_h}")
   /**
    * Build a solid color background filter for vertical clips
    */
-  private static buildSolidBackgroundFilter(targetWidth: number, targetHeight: number, color: string): string {
+  private static buildSolidBackgroundFilter(targetWidth: number, targetHeight: number, color: string, fgScale: number): string {
     return `color=c=${color}:s=${targetWidth}x${targetHeight}[bg_solid];` +
-      `[0:v]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
+      `[0:v]scale=${Math.round(targetWidth * fgScale)}:-2,setsar=1[fg_scaled];` +
       `[bg_solid][fg_scaled]overlay=(W-w)/2:(H-h)/2:eof_action=endall,setsar=1`;
   }
 
@@ -2361,11 +2368,11 @@ print(f"OK:{total_w}x{total_h}")
    * Build a gradient background filter for vertical clips
    * Uses two solid colors blended vertically
    */
-  private static buildGradientBackgroundFilter(targetWidth: number, targetHeight: number, topColor: string, bottomColor: string): string {
+  private static buildGradientBackgroundFilter(targetWidth: number, targetHeight: number, topColor: string, bottomColor: string, fgScale: number): string {
     return `color=c=${topColor}:s=${targetWidth}x${targetHeight}[c1];` +
       `color=c=${bottomColor}:s=${targetWidth}x${targetHeight}[c2];` +
       `[c1][c2]blend=all_expr='A*(1-Y/H)+B*(Y/H)'[bg_grad];` +
-      `[0:v]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
+      `[0:v]scale=${Math.round(targetWidth * fgScale)}:-2,setsar=1[fg_scaled];` +
       `[bg_grad][fg_scaled]overlay=(W-w)/2:(H-h)/2:eof_action=endall,setsar=1`;
   }
 
@@ -2373,7 +2380,7 @@ print(f"OK:{total_w}x{total_h}")
    * Build a mirror background filter for vertical clips
    * Flips the video vertically for top and bottom bars
    */
-  private static buildMirrorBackgroundFilter(targetWidth: number, targetHeight: number): string {
+  private static buildMirrorBackgroundFilter(targetWidth: number, targetHeight: number, fgScale: number): string {
     const halfHeight = Math.round(targetHeight / 2);
     return `[0:v]split=3[bg_top][bg_bot][fg];` +
       `[bg_top]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,` +
@@ -2381,7 +2388,7 @@ print(f"OK:{total_w}x{total_h}")
       `[bg_bot]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,` +
       `crop=${targetWidth}:${halfHeight}:(iw-${targetWidth})/2:ih-${halfHeight},vflip[bot_mirror];` +
       `[top_mirror][bot_mirror]vstack[bg_full];` +
-      `[fg]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
+      `[fg]scale=${Math.round(targetWidth * fgScale)}:-2,setsar=1[fg_scaled];` +
       `[bg_full][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
   }
 
@@ -2389,37 +2396,38 @@ print(f"OK:{total_w}x{total_h}")
    * Build a zoom background filter for vertical clips
    * Uses a zoomed-in, slightly darkened version of the video as background (no blur)
    */
-  private static buildZoomBackgroundFilter(targetWidth: number, targetHeight: number): string {
+  private static buildZoomBackgroundFilter(targetWidth: number, targetHeight: number, fgScale: number): string {
     return `[0:v]split=2[bg][fg];` +
       `[bg]scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=increase,` +
       `crop=${targetWidth}:${targetHeight},` +
       `eq=brightness=-0.15[bg_zoom];` +
-      `[fg]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
+      `[fg]scale=${Math.round(targetWidth * fgScale)}:-2,setsar=1[fg_scaled];` +
       `[bg_zoom][fg_scaled]overlay=(W-w)/2:(H-h)/2,setsar=1`;
   }
 
   /**
    * Dispatcher: pick the right background filter based on style
    */
-  private static buildBackgroundFilter(targetWidth: number, targetHeight: number, style: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "blur"): string {
+  private static buildBackgroundFilter(targetWidth: number, targetHeight: number, style: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom" = "blur", videoScale = 125): string {
+    const fgScale = videoScale / 100;
     switch (style) {
       case "black":
-        return this.buildSolidBackgroundFilter(targetWidth, targetHeight, "black");
+        return this.buildSolidBackgroundFilter(targetWidth, targetHeight, "black", fgScale);
       case "white":
-        return this.buildSolidBackgroundFilter(targetWidth, targetHeight, "white");
+        return this.buildSolidBackgroundFilter(targetWidth, targetHeight, "white", fgScale);
       case "gradient-ocean":
-        return this.buildGradientBackgroundFilter(targetWidth, targetHeight, "0x1CB5E0", "0x000851");
+        return this.buildGradientBackgroundFilter(targetWidth, targetHeight, "0x1CB5E0", "0x000851", fgScale);
       case "gradient-midnight":
-        return this.buildGradientBackgroundFilter(targetWidth, targetHeight, "0x4b6cb7", "0x182848");
+        return this.buildGradientBackgroundFilter(targetWidth, targetHeight, "0x4b6cb7", "0x182848", fgScale);
       case "gradient-sunset":
-        return this.buildGradientBackgroundFilter(targetWidth, targetHeight, "0xFF512F", "0xF09819");
+        return this.buildGradientBackgroundFilter(targetWidth, targetHeight, "0xFF512F", "0xF09819", fgScale);
       case "mirror":
-        return this.buildMirrorBackgroundFilter(targetWidth, targetHeight);
+        return this.buildMirrorBackgroundFilter(targetWidth, targetHeight, fgScale);
       case "zoom":
-        return this.buildZoomBackgroundFilter(targetWidth, targetHeight);
+        return this.buildZoomBackgroundFilter(targetWidth, targetHeight, fgScale);
       case "blur":
       default:
-        return this.buildBlurBackgroundFilter(targetWidth, targetHeight);
+        return this.buildBlurBackgroundFilter(targetWidth, targetHeight, fgScale);
     }
   }
 

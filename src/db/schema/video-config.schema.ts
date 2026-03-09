@@ -62,6 +62,9 @@ export const videoConfig = pgTable(
     // Background Style (for vertical non-split-screen clips)
     backgroundStyle: text("background_style").default("black"), // blur, black, white
 
+    // Video scale factor for foreground in background mode (1.0 = fit, 1.25 = default zoom, 2.0 = max)
+    videoScale: integer("video_scale").default(125), // stored as percentage (100 = 1.0x, 125 = 1.25x)
+
     // Smart AI Reframing
     enableSmartCrop: boolean("enable_smart_crop").default(false),
 

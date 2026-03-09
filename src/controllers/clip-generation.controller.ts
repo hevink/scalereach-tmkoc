@@ -210,6 +210,8 @@ export class ClipGenerationController {
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
         splitScreen: splitScreenData,
+        backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
+        videoScale: videoConfig?.videoScale ?? 125,
         smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
       }, getPlanPriority(ws?.plan));
 
@@ -418,6 +420,8 @@ export class ClipGenerationController {
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
         splitScreen: splitScreenData,
+        backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
+        videoScale: videoConfig?.videoScale ?? 125,
         smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
       }, getPlanPriority(ws?.plan));
 
