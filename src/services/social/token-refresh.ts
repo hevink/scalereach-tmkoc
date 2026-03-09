@@ -1,5 +1,4 @@
 import { decryptToken, encryptToken } from "../../lib/token-encryption";
-import { TikTokService } from "./tiktok.service";
 import { InstagramService } from "./instagram.service";
 import { YouTubeShortsService } from "./youtube-shorts.service";
 import { TwitterService } from "./twitter.service";
@@ -38,9 +37,6 @@ export async function maybeRefreshToken(account: AccountTokens): Promise<{
   let refreshed: OAuthTokens;
 
   switch (account.platform) {
-    case "tiktok":
-      refreshed = await TikTokService.refreshAccessToken(plainRefresh);
-      break;
     case "instagram":
       refreshed = await InstagramService.refreshAccessToken(plainRefresh);
       break;

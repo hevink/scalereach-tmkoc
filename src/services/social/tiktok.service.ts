@@ -37,26 +37,6 @@ export const TikTokService = {
     };
   },
 
-  async refreshAccessToken(refreshToken: string): Promise<OAuthTokens> {
-    const res = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_key: CLIENT_KEY,
-        client_secret: CLIENT_SECRET,
-        grant_type: "refresh_token",
-        refresh_token: refreshToken,
-      }),
-    });
-    const data = await res.json() as any;
-    if (data.error) throw new Error(`TikTok refresh error: ${data.error_description}`);
-    return {
-      accessToken: data.access_token,
-      refreshToken: data.refresh_token,
-      expiresAt: new Date(Date.now() + data.expires_in * 1000),
-    };
-  },
-
   async getUserInfo(accessToken: string): Promise<PlatformAccountInfo> {
     const res = await fetch(
       "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url",
