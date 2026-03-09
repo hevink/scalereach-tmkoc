@@ -2352,9 +2352,9 @@ print(f"OK:{total_w}x{total_h}")
    * Build a solid color background filter for vertical clips
    */
   private static buildSolidBackgroundFilter(targetWidth: number, targetHeight: number, color: string): string {
-    return `color=c=${color}:s=${targetWidth}x${targetHeight}:d=1[bg_solid];` +
+    return `color=c=${color}:s=${targetWidth}x${targetHeight}[bg_solid];` +
       `[0:v]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
-      `[bg_solid][fg_scaled]overlay=(W-w)/2:(H-h)/2:shortest=1,setsar=1`;
+      `[bg_solid][fg_scaled]overlay=(W-w)/2:(H-h)/2:eof_action=endall,setsar=1`;
   }
 
   /**
@@ -2362,11 +2362,11 @@ print(f"OK:{total_w}x{total_h}")
    * Uses two solid colors blended vertically
    */
   private static buildGradientBackgroundFilter(targetWidth: number, targetHeight: number, topColor: string, bottomColor: string): string {
-    return `color=c=${topColor}:s=${targetWidth}x${targetHeight}:d=1[c1];` +
-      `color=c=${bottomColor}:s=${targetWidth}x${targetHeight}:d=1[c2];` +
+    return `color=c=${topColor}:s=${targetWidth}x${targetHeight}[c1];` +
+      `color=c=${bottomColor}:s=${targetWidth}x${targetHeight}[c2];` +
       `[c1][c2]blend=all_expr='A*(1-Y/H)+B*(Y/H)'[bg_grad];` +
       `[0:v]scale=${Math.round(targetWidth * 1.25)}:-2,setsar=1[fg_scaled];` +
-      `[bg_grad][fg_scaled]overlay=(W-w)/2:(H-h)/2:shortest=1,setsar=1`;
+      `[bg_grad][fg_scaled]overlay=(W-w)/2:(H-h)/2:eof_action=endall,setsar=1`;
   }
 
   /**
@@ -2502,35 +2502,38 @@ print(f"OK:{total_w}x{total_h}")
     height: number,
     offsetSeconds: number = 1
   ): Promise<Buffer> {
+    const tempThumbPath = videoPath.replace(/\.\w+$/, "-thumb.jpg");
     return new Promise((resolve, reject) => {
       const args = [
+        "-nostdin", "-y",
         "-i", videoPath,
         "-ss", String(offsetSeconds),
-        "-vframes", "1",
-        "-vf", `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=yuvj420p`,
+        "-frames:v", "1",
+        "-update", "1",
+        "-vf", `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
         "-q:v", "2",
-        "-an",
-        "-f", "image2pipe",
-        "-vcodec", "mjpeg",
-        "-",
+        tempThumbPath,
       ];
       const proc = spawn("ffmpeg", args);
-      const chunks: Buffer[] = [];
       let stderr = "";
-      proc.stdout?.on("data", (d) => chunks.push(d));
       proc.stderr?.on("data", (d) => { stderr += d.toString(); });
       proc.on("error", (err) => reject(new Error(`FFmpeg thumbnail spawn failed: ${err.message}`)));
-      proc.on("close", (code) => {
+      proc.on("close", async (code) => {
         if (code !== 0) {
-          reject(new Error(`FFmpeg thumbnail failed (code ${code}): ${stderr.slice(-300)}`));
+          reject(new Error(`FFmpeg thumbnail failed (code ${code}): ${stderr.slice(-500)}`));
           return;
         }
-        const buf = Buffer.concat(chunks);
-        if (buf.length < 100) {
-          reject(new Error(`FFmpeg thumbnail produced empty output (${buf.length} bytes)`));
-          return;
+        try {
+          const buf = await fs.promises.readFile(tempThumbPath);
+          await fs.promises.unlink(tempThumbPath).catch(() => {});
+          if (buf.length < 100) {
+            reject(new Error(`FFmpeg thumbnail produced empty output (${buf.length} bytes). stderr: ${stderr.slice(-500)}`));
+            return;
+          }
+          resolve(buf);
+        } catch (readErr) {
+          reject(new Error(`Failed to read thumbnail file: ${readErr}`));
         }
-        resolve(buf);
       });
     });
   }
@@ -2553,30 +2556,23 @@ print(f"OK:{total_w}x{total_h}")
     
     // Generate thumbnail key (same path as clip but with .jpg extension)
     const thumbnailKey = storageKey.replace(/\.mp4$/, "-thumb.jpg");
+    const tempThumbPath = path.join(os.tmpdir(), `thumb-${nanoid()}.jpg`);
 
     return new Promise((resolve, reject) => {
       const args = [
+        "-nostdin", "-y",
         "-i", clipUrl,
-        "-ss", "1",           // Seek to 1 second (after -i for accuracy)
-        "-vframes", "1",      // Extract 1 frame
-        "-vf", `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=yuvj420p`,
-        "-q:v", "2",          // High quality JPEG
-        "-an",
-        "-f", "image2pipe",
-        "-vcodec", "mjpeg",
-        "-",
+        "-frames:v", "1",
+        "-update", "1",
+        "-vf", `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
+        "-q:v", "2",
+        tempThumbPath,
       ];
 
       this.logOperation("FFMPEG_THUMBNAIL", { args: args.join(" ") });
 
       const ffmpegProcess = spawn("ffmpeg", args);
-
-      const chunks: Buffer[] = [];
       let stderr = "";
-
-      ffmpegProcess.stdout?.on("data", (data) => {
-        chunks.push(data);
-      });
 
       ffmpegProcess.stderr?.on("data", (data) => {
         stderr += data.toString();
@@ -2588,12 +2584,13 @@ print(f"OK:{total_w}x{total_h}")
 
       ffmpegProcess.on("close", async (code) => {
         if (code !== 0) {
-          reject(new Error(`FFmpeg thumbnail failed with code ${code}: ${stderr}`));
+          reject(new Error(`FFmpeg thumbnail failed with code ${code}: ${stderr.slice(-500)}`));
           return;
         }
 
         try {
-          const thumbnailBuffer = Buffer.concat(chunks);
+          const thumbnailBuffer = await fs.promises.readFile(tempThumbPath);
+          await fs.promises.unlink(tempThumbPath).catch(() => {});
           
           // Upload thumbnail to R2
           const { url: thumbnailUrl } = await R2Service.uploadFile(
