@@ -520,9 +520,9 @@ export class ClipGeneratorService {
             const pngPath = await ClipGeneratorService.renderEmojiOverlayAsPng(
               options.introTitle,
               36,
-              "#FFFFFF",
               "#000000",
-              0,
+              "#FFFFFF",
+              100,
               width, height,
               80
             );
@@ -888,7 +888,7 @@ YCbCr Matrix: None
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,${effectiveFontFamily},${fontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},0
 Style: Highlight,${effectiveFontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},${backColour},1,0,0,0,${highlightScale},${highlightScale},0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},0
-Style: IntroTitle,${effectiveFontFamily},${introFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,3,${Math.round(2 * scaleFactor)},0,8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},0
+Style: IntroTitle,${effectiveFontFamily},${introFontSize},&H00000000,&H00000000,&H00000000,&H00FFFFFF,0,0,0,0,100,100,0,0,3,${Math.round(2 * scaleFactor)},0,8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},0
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},0
 Style: Glow,${effectiveFontFamily},${fontSize},${glowColor},${glowColor},${glowColor},&H00000000,1,0,0,0,100,100,0,0,1,${Math.round(glowIntensity * scaleFactor)},0,${alignment},${marginL},${marginR},${marginV},0
 `;
@@ -904,7 +904,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Scale up + fade in from top, then fade out
       // {\fad(400,500)} = 400ms fade in, 500ms fade out
       // {\fscx80\fscy80\t(0,300,\fscx100\fscy100)} = start at 80% scale, animate to 100% in 300ms
-      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
+      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\b600\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
     }
 
     // Group words into lines based on wordsPerLine setting
@@ -1351,8 +1351,9 @@ total_h = sum(s[1] for s in line_sizes) + line_gap * max(0, len(lines) - 1) + pa
 img = Image.new("RGBA", (total_w, total_h), (0, 0, 0, 0))
 draw = ImageDraw.Draw(img)
 
+border_radius = max(4, font_size // 6)
 if bg_color[3] > 0:
-    draw.rectangle([0, 0, total_w - 1, total_h - 1], fill=bg_color)
+    draw.rounded_rectangle([0, 0, total_w - 1, total_h - 1], radius=min(border_radius, total_w // 2, total_h // 2), fill=bg_color)
 
 y = padding
 for i, line in enumerate(lines):
@@ -1538,7 +1539,10 @@ print(f"OK:{total_w}x{total_h}")
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         const isCode222 = lastError.message.includes("ffmpeg exited with code 222");
-        const isRetryableError = isCode222 ||
+        const isBotBlocked = lastError.message.includes("Sign in") ||
+                              lastError.message.includes("not a bot") ||
+                              lastError.message.includes("cookies");
+        const isRetryableError = isCode222 || isBotBlocked ||
                                   lastError.message.includes("ffmpeg exited with code 202") ||
                                   lastError.message.includes("ffmpeg exited with code 1") ||
                                   lastError.message.includes("Interrupted by user") ||
@@ -1548,10 +1552,12 @@ print(f"OK:{total_w}x{total_h}")
           // code 222 is caused by --force-keyframes-at-cuts on certain streams — disable it on retry
           if (isCode222) forceKeyframes = false;
 
+          // Bot-blocked needs a longer cooldown so YouTube unblocks the IP
           // "Interrupted by user" means the process was killed mid-download (e.g. worker restart)
-          // Use a longer delay to let the system settle before retrying
           const isInterrupted = lastError.message.includes("Interrupted by user");
-          const delayMs = isInterrupted ? 5000 : Math.pow(2, attempt) * 1000;
+          const delayMs = isBotBlocked ? 8000 + Math.random() * 4000
+                        : isInterrupted ? 5000
+                        : Math.pow(2, attempt) * 1000;
           this.logOperation("YT_DLP_RETRY", {
             attempt,
             maxRetries,
@@ -1583,7 +1589,9 @@ print(f"OK:{total_w}x{total_h}")
     return new Promise((resolve, reject) => {
       const formatSelector = "bestvideo+bestaudio/best";
       const downloadSection = formatYtDlpTimestamp(startTime, endTime);
-      const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
+      const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
+        || (fs.existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
+        || (fs.existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
 
       const args = [
         "-f", formatSelector,

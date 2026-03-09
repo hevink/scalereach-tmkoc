@@ -1,5 +1,6 @@
-import { spawn } from "child_process";
+ import { spawn } from "child_process";
 import { Readable } from "stream";
+import { existsSync } from "fs";
 import axios from "axios";
 
 export interface YouTubeVideoInfo {
@@ -218,8 +219,10 @@ export class YouTubeService {
     console.log(`[YOUTUBE SERVICE] Getting video info via yt-dlp for: ${url}`);
 
     return new Promise((resolve, reject) => {
-      // Add cookies if available
-      const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
+      // Add cookies if available — check env var first, then fallback to config files
+      const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
+        || (existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
+        || (existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
       
@@ -227,7 +230,7 @@ export class YouTubeService {
         "--dump-json",
         "--no-download",
         "--no-check-certificates",
-        "--extractor-args", "youtube:player_client=tv_embedded,mweb;player_skip=webpage",
+        "--extractor-args", "youtube:player_client=android_vr,web,android",
         "--extractor-retries", "3",
         url,
       ];
@@ -349,8 +352,10 @@ export class YouTubeService {
 
     const videoInfo = await this.getVideoInfo(url);
 
-    // Add cookies if available
-    const cookiesPath = process.env.YOUTUBE_COOKIES_PATH;
+    // Add cookies if available — check env var first, then fallback to config files
+    const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
+      || (existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
+      || (existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
     const proxy = process.env.YOUTUBE_PROXY;
     const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
     
@@ -361,7 +366,7 @@ export class YouTubeService {
       "--no-warnings",
       "--no-check-certificates",
       "--prefer-free-formats",
-      "--extractor-args", "youtube:player_client=tv_embedded,mweb;player_skip=webpage",
+      "--extractor-args", "youtube:player_client=android_vr,web,android",
       "--extractor-retries", "3",
       "--fragment-retries", "5",
       "--retry-sleep", "2",

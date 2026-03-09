@@ -371,8 +371,8 @@ setInterval(async () => {
  * Add a clip generation job to the queue
  * Validates: Requirements 7.5
  */
-export async function addClipGenerationJob(data: ClipGenerationJobData, priority?: number) {
-  console.log(`[QUEUE] Adding clip generation job for clip: ${data.clipId} (priority: ${priority ?? 3})`);
+export async function addClipGenerationJob(data: ClipGenerationJobData, priority?: number, delayMs?: number) {
+  console.log(`[QUEUE] Adding clip generation job for clip: ${data.clipId} (priority: ${priority ?? 3}${delayMs ? `, delay: ${delayMs}ms` : ""})`);
 
   const jobId = `clip-${data.clipId}`;
 
@@ -387,6 +387,7 @@ export async function addClipGenerationJob(data: ClipGenerationJobData, priority
   const job = await clipGenerationQueue.add("generate-clip", data, {
     jobId,
     priority: priority ?? 3,
+    ...(delayMs ? { delay: delayMs } : {}),
   });
 
   console.log(`[QUEUE] Clip generation job added with ID: ${job.id}`);

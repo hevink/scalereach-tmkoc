@@ -358,7 +358,9 @@ async function processYouTubeVideo(
 
       // Auto-generate clips with captions burned in
       // Extract words for each clip's time range and queue generation
-      for (const clipRecord of clipRecords) {
+      // Stagger clip jobs by 5s each to avoid YouTube bot-detection rate limits
+      for (let clipIdx = 0; clipIdx < clipRecords.length; clipIdx++) {
+        const clipRecord = clipRecords[clipIdx];
         const clipWords = transcriptWords.filter(
           (w) => w.start >= clipRecord.startTime && w.end <= clipRecord.endTime
         );
@@ -420,6 +422,7 @@ async function processYouTubeVideo(
           ? await pickSplitScreenBg(splitScreenBgPool, videoConfig.splitRatio ?? 50)
           : undefined;
 
+        // Stagger: first clip starts immediately, each subsequent clip delayed by 5s
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -442,9 +445,9 @@ async function processYouTubeVideo(
           } : undefined,
           splitScreen: splitScreenData,
           smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
-        });
+        }, undefined, clipIdx * 5000);
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''} (delay: ${clipIdx * 5}s)`);
       }
     }
 
@@ -792,7 +795,8 @@ async function processUploadedVideo(
 
       // Auto-generate clips with captions burned in
       // Extract words for each clip's time range and queue generation
-      for (const clipRecord of clipRecords) {
+      for (let clipIdx = 0; clipIdx < clipRecords.length; clipIdx++) {
+        const clipRecord = clipRecords[clipIdx];
         const clipWords = transcriptResult.words.filter(
           (w) => w.start >= clipRecord.startTime && w.end <= clipRecord.endTime
         );

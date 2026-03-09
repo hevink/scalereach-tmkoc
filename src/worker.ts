@@ -17,7 +17,7 @@ import { startSmartCropWorker } from "./jobs/smart-crop.worker";
 import { redisConnection, videoProcessingQueue, clipGenerationQueue, socialPostingQueue, smartCropQueue } from "./jobs/queue";
 
 const VIDEO_WORKER_CONCURRENCY = parseInt(process.env.VIDEO_WORKER_CONCURRENCY || "2", 10);
-const CLIP_WORKER_CONCURRENCY = parseInt(process.env.CLIP_WORKER_CONCURRENCY || "2", 10);
+const CLIP_WORKER_CONCURRENCY = parseInt(process.env.CLIP_WORKER_CONCURRENCY || "1", 10);
 const WORKER_HEALTH_PORT = parseInt(process.env.WORKER_HEALTH_PORT || "3002", 10);
 const DUBBING_WORKER_CONCURRENCY = parseInt(process.env.DUBBING_WORKER_CONCURRENCY || "1", 10);
 const SMART_CROP_WORKER_CONCURRENCY = parseInt(process.env.SMART_CROP_WORKER_CONCURRENCY || "1", 10);
