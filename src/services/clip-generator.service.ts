@@ -385,16 +385,20 @@ export class ClipGeneratorService {
               let args: string[];
 
               if (result.mode === "split") {
-                const { screen, pip, split_ratio } = result;
-                const outW = width, outH = height;
-                const screenH = Math.round(outH * split_ratio / 100);
-                const faceH = outH - screenH;
+                const { pip, src_w: srcW, src_h: srcH } = result;
+                const outW = width;   // 1080
+                const outH = height;  // 1920
+                const halfH = Math.round(outH / 2); // 960 each
+                // Full video scaled to fit width, centered with black bars on top half
+                const scaledH = Math.round(outW * srcH / srcW); // maintain aspect ratio
+                const padY = Math.round((halfH - scaledH) / 2);
+                // Face cam scaled to fill bottom half
                 args = [
                   "-i", rawOutputPath,
                   "-filter_complex",
-                  `[0:v]crop=${screen.w}:${screen.h}:${screen.x}:${screen.y},scale=${outW}:${screenH}:flags=lanczos[top];` +
-                  `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[bottom];` +
-                  `[top][bottom]vstack=inputs=2,format=yuv420p[out]`,
+                  `[0:v]scale=${outW}:${scaledH}:flags=lanczos,pad=${outW}:${halfH}:0:${padY}:black[full];` +
+                  `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${halfH}:flags=lanczos[face];` +
+                  `[full][face]vstack=inputs=2,format=yuv420p[out]`,
                   "-map", "[out]", "-map", "0:a?",
                   "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                   "-c:a", "aac", "-b:a", "192k",

@@ -96,6 +96,29 @@ if src_w == 0 or src_h == 0 or fps <= 0 or duration <= 0:
 
 log(f"Video: {src_w}x{src_h} @ {fps:.1f}fps, {duration:.1f}s")
 
+# ── Speed optimization: pre-downscale large videos for face detection ─────────
+# OpenCV decodes full-res frames even if we resize after. For 4K+ videos,
+# create a 720p proxy for face detection (FFmpeg decode is much faster).
+PROXY_MAX_H = 720
+proxy_video = local_video
+proxy_scale = 1.0
+if src_h > PROXY_MAX_H:
+    proxy_video = os.path.join(tmp_dir, f"{clip_id}_proxy.mp4")
+    proxy_scale = PROXY_MAX_H / src_h
+    log(f"Pre-downscaling {src_w}x{src_h} → {int(src_w * proxy_scale)}x{PROXY_MAX_H} for face detection...")
+    proxy_result = subprocess.run(
+        ["ffmpeg", "-y", "-i", local_video,
+         "-vf", f"scale=-2:{PROXY_MAX_H}", "-c:v", "libx264", "-preset", "ultrafast",
+         "-crf", "28", "-an", proxy_video],
+        capture_output=True
+    )
+    if proxy_result.returncode != 0:
+        log("WARNING: Proxy downscale failed, using original")
+        proxy_video = local_video
+        proxy_scale = 1.0
+    else:
+        log("Proxy ready.")
+
 crop_w = int(src_h * 9 / 16)
 if crop_w > src_w:
     crop_w = src_w
@@ -123,26 +146,48 @@ if not os.path.exists(model_path):
     )
 
 base_options  = mp_python.BaseOptions(model_asset_path=model_path)
-detector_opts = mp_vision.FaceDetectorOptions(base_options=base_options, min_detection_confidence=0.4)
+detector_opts = mp_vision.FaceDetectorOptions(base_options=base_options, min_detection_confidence=0.25)
 face_detector = mp_vision.FaceDetector.create_from_options(detector_opts)
 
-def detect_faces_in_frame(frame):
-    rgb      = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+# ── Speed optimization: downscale large frames for face detection ─────────────
+# MediaPipe doesn't need full resolution — 480p is plenty for face detection.
+# This gives ~4-6x speedup on 1080p and ~16x on 4K.
+DETECT_MAX_H = 480
+
+def detect_faces_in_frame(frame, proxy_scale=1.0):
+    orig_h, orig_w = frame.shape[:2]
+    # If we're already using a proxy video, coordinates need to be scaled back
+    # to original resolution. Also downscale further for detection if still large.
+    if orig_h > DETECT_MAX_H:
+        det_scale = DETECT_MAX_H / orig_h
+        small = cv2.resize(frame, (int(orig_w * det_scale), DETECT_MAX_H), interpolation=cv2.INTER_AREA)
+    else:
+        small = frame
+        det_scale = 1.0
+
+    rgb      = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
     results  = face_detector.detect(mp_image)
     faces = []
+    # Total scale from detection pixels back to original video resolution
+    total_scale = 1.0 / (det_scale * proxy_scale) if proxy_scale != 1.0 else 1.0 / det_scale
     if results.detections:
         for det in results.detections:
             bb = det.bounding_box
-            x, y, w, h = bb.origin_x, bb.origin_y, bb.width, bb.height
+            # Scale coordinates back to original resolution
+            x = int(bb.origin_x * total_scale)
+            y = int(bb.origin_y * total_scale)
+            w = int(bb.width * total_scale)
+            h = int(bb.height * total_scale)
+            orig_full_w = int(orig_w / proxy_scale) if proxy_scale != 1.0 else orig_w
             # Use nose+eye blend as face center — more accurate than bbox center
             kps = det.keypoints
             if len(kps) >= 3:
-                eye_cx  = int((kps[0].x + kps[1].x) / 2 * frame.shape[1])
-                nose_cx = int(kps[2].x * frame.shape[1])
+                eye_cx  = int((kps[0].x + kps[1].x) / 2 * orig_full_w)
+                nose_cx = int(kps[2].x * orig_full_w)
                 face_cx = int(eye_cx * 0.4 + nose_cx * 0.6)
             elif len(kps) >= 2:
-                face_cx = int((kps[0].x + kps[1].x) / 2 * frame.shape[1])
+                face_cx = int((kps[0].x + kps[1].x) / 2 * orig_full_w)
             else:
                 face_cx = x + w // 2
             faces.append({"x": x, "y": y, "w": w, "h": h, "cx": face_cx, "cy": y + h//2, "area": w * h})
@@ -183,30 +228,56 @@ def get_crop_y(faces, src_h, crop_h):
 
 log("Detecting video type...")
 
-sample_times = [duration * i / 10 for i in range(1, 10)]
+# Sample more frames for better classification (15 instead of 9)
+sample_times = [duration * i / 16 for i in range(1, 16)]
 sample_faces = []
 pip_detections = 0
 full_detections = 0
+small_corner_count = 0  # Track consistent small corner faces
 
-cap = cv2.VideoCapture(local_video)
+cap = cv2.VideoCapture(proxy_video)
 for t in sample_times:
     cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
     ret, frame = cap.read()
     if not ret:
         continue
-    faces = detect_faces_in_frame(frame)
+    faces = detect_faces_in_frame(frame, proxy_scale)
     sample_faces.append(faces)
 
     for face in faces:
-        on_side    = face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.65
+        w_ratio = face["w"] / src_w   # face width relative to frame
+        h_ratio = face["h"] / src_h   # face height relative to frame
+
+        # Small face heuristic: if face is small (< 15% of frame width),
+        # it's almost certainly a PiP webcam overlay, regardless of position
+        is_small_face = w_ratio < 0.20
+
+        # Corner detection: face center is in outer 30% of frame on any axis
+        in_corner = (face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.70) and \
+                    (face["cy"] < src_h * 0.30 or face["cy"] > src_h * 0.70)
+
+        # Side detection: face is on the left or right edge (non-overlapping with centered)
+        on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
+
+        # Centered: face is in the middle area AND reasonably sized (not a tiny webcam)
         is_centered = src_w * 0.25 < face["cx"] < src_w * 0.75 and \
-                      src_h * 0.15 < face["cy"] < src_h * 0.85
-        if on_side:
+                      src_h * 0.15 < face["cy"] < src_h * 0.85 and \
+                      w_ratio >= 0.08  # must be at least 8% of frame width
+
+        if is_small_face and in_corner:
+            # Small face in corner = definitely PiP webcam
+            pip_detections += 2
+            small_corner_count += 1
+        elif is_small_face:
+            # Small face anywhere = likely PiP
+            pip_detections += 1
+        elif on_side:
             pip_detections += 1
         elif is_centered:
             full_detections += 1
 
-    centered_faces = [f for f in faces if src_w * 0.25 < f["cx"] < src_w * 0.75]
+    centered_faces = [f for f in faces if src_w * 0.25 < f["cx"] < src_w * 0.75
+                      and f["w"] / src_w >= 0.08]
     if len(centered_faces) >= 2:
         full_detections += 2
 
@@ -219,16 +290,22 @@ no_face_frames    = len(sample_times) - total_face_frames
 group_shot_frames = sum(1 for f in sample_faces if len(f) >= 4)
 is_group_shot = group_shot_frames >= len(sample_times) * 0.4  # 4+ faces in 40%+ of samples
 
+# Screen PiP detection:
+# - If we see consistent small corner faces (even just 2+), it's screen_pip
+# - Or if pip score is high enough relative to full
 if total_face_frames == 0:
     video_type = "no_face"
 elif is_group_shot:
     video_type = "group"
-elif pip_detections > full_detections and pip_detections >= 3:
+elif small_corner_count >= 2:
+    # Consistent small face in corner = definitely screen recording with webcam
+    video_type = "screen_pip"
+elif pip_detections >= 3 and pip_detections >= full_detections * 0.5:
     video_type = "screen_pip"
 else:
     video_type = "podcast"
 
-log(f"Video type: {video_type} (pip={pip_detections}, full={full_detections}, no_face={no_face_frames}, group_frames={group_shot_frames}/{len(sample_times)})")
+log(f"Video type: {video_type} (pip={pip_detections}, full={full_detections}, no_face={no_face_frames}, small_corner={small_corner_count}, group_frames={group_shot_frames}/{len(sample_times)})")
 
 # ── Step 5: Handle each video type ───────────────────────────────────────────
 
@@ -274,6 +351,7 @@ if video_type == "screen_pip":
 
     log(f"PiP region: {pip_region}")
 
+    # Screen region: everything except the PiP corner
     pip_cx = pip_region["x"] + pip_region["w"] // 2
     if pip_cx > src_w * 0.5:
         screen_x = 0
@@ -283,14 +361,27 @@ if video_type == "screen_pip":
         screen_w = src_w - screen_x
 
     if screen_w < 100:
-        screen_w = crop_w
-        screen_x = 0 if pip_cx > src_w * 0.5 else src_w - crop_w
+        screen_w = src_w
+        screen_x = 0
+
+    # Layout: face on TOP, screen on BOTTOM (zoomed 1.25x)
+    # Target: 1080x1920 portrait
+    target_w = crop_w if crop_w > 0 else int(src_h * 9 / 16)
+    target_h = src_h  # full portrait height
+    # Face takes ~55% of height, screen takes ~45%
+    face_h = int(target_h * 0.55)
+    screen_h = target_h - face_h
 
     result = {
         "mode": "split",
         "screen": {"x": screen_x, "y": 0, "w": screen_w, "h": src_h},
         "pip": pip_region,
-        "split_ratio": 50,
+        "src_w": src_w,
+        "src_h": src_h,
+        "target_w": target_w,
+        "face_h": face_h,
+        "screen_h": screen_h,
+        "screen_zoom": 1.25,
     }
     with open(coords_path, "w") as f:
         json.dump(result, f)
@@ -301,30 +392,36 @@ if video_type == "screen_pip":
 
 log("Podcast/talking-head — running face tracking...")
 
-log("Extracting audio...")
-audio_result = subprocess.run(
-    ["ffmpeg", "-y", "-i", local_video,
-     "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audio_path],
-    capture_output=True
-)
-has_audio = audio_result.returncode == 0
-if not has_audio:
-    log("WARNING: No audio track found — skipping diarization")
-
 hf_token = os.environ.get("HF_TOKEN")
+has_audio = False
 diarization_segments = []
-if hf_token and has_audio:
-    try:
-        log("Running speaker diarization...")
-        from pyannote.audio import Pipeline
-        pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", token=hf_token)
-        diarization = pipeline(audio_path)
-        for turn, _, speaker in diarization.itertracks(yield_label=True):
-            diarization_segments.append({"start": turn.start, "end": turn.end, "speaker": speaker})
-        speakers = set(s["speaker"] for s in diarization_segments)
-        log(f"Diarization done: {len(diarization_segments)} segments, {len(speakers)} speakers")
-    except Exception as e:
-        log(f"WARNING: Diarization failed ({e}) — face-only tracking")
+
+# Only extract audio if HF_TOKEN is set (needed for diarization)
+if hf_token:
+    log("Extracting audio for diarization...")
+    audio_result = subprocess.run(
+        ["ffmpeg", "-y", "-i", local_video,
+         "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1", audio_path],
+        capture_output=True
+    )
+    has_audio = audio_result.returncode == 0
+    if not has_audio:
+        log("WARNING: No audio track found — skipping diarization")
+
+    if has_audio:
+        try:
+            log("Running speaker diarization...")
+            from pyannote.audio import Pipeline
+            pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", token=hf_token)
+            diarization = pipeline(audio_path)
+            for turn, _, speaker in diarization.itertracks(yield_label=True):
+                diarization_segments.append({"start": turn.start, "end": turn.end, "speaker": speaker})
+            speakers = set(s["speaker"] for s in diarization_segments)
+            log(f"Diarization done: {len(diarization_segments)} segments, {len(speakers)} speakers")
+        except Exception as e:
+            log(f"WARNING: Diarization failed ({e}) — face-only tracking")
+else:
+    log("No HF_TOKEN — skipping audio extraction & diarization")
 
 def get_speaker_at(t):
     for seg in diarization_segments:
@@ -334,8 +431,10 @@ def get_speaker_at(t):
 
 # ── IMPROVEMENT 3: Face detection loop with identity matching ─────────────────
 
-cap = cv2.VideoCapture(local_video)
-sample_interval = 0.1
+cap = cv2.VideoCapture(proxy_video)
+# Adaptive sample interval: 0.1s for short clips, 0.2s for longer ones
+sample_interval = 0.2 if duration > 30 else 0.1
+log(f"Face tracking interval: {sample_interval}s ({int(duration / sample_interval)} samples)")
 frame_data = []
 prev_faces = []
 t = 0.0
@@ -344,7 +443,7 @@ while t < duration:
     ret, frame = cap.read()
     if not ret:
         break
-    faces = detect_faces_in_frame(frame)
+    faces = detect_faces_in_frame(frame, proxy_scale)
     faces = match_faces_across_frames(prev_faces, faces)
     frame_data.append({"t": round(t, 2), "faces": faces})
     prev_faces = faces
@@ -653,7 +752,9 @@ with open(coords_path, "w") as f:
     else:
         json.dump({"mode": "skip"}, f)
 
-for path in [audio_path, local_video]:
+for path in [audio_path, local_video, proxy_video if proxy_video != local_video else None]:
+    if path is None:
+        continue
     try:
         os.unlink(path)
     except Exception:
