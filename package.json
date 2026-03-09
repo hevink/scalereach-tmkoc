@@ -23,6 +23,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.44",
     "@ai-sdk/azure": "^3.0.12",
+    "@ai-sdk/google": "^3.0.43",
     "@ai-sdk/groq": "^3.0.11",
     "@ai-sdk/openai": "^3.0.12",
     "@asteasolutions/zod-to-openapi": "^8.4.0",
@@ -38,7 +39,7 @@
     "@polar-sh/sdk": "^0.42.2",
     "@sentry/node": "^10.38.0",
     "@types/archiver": "^7.0.0",
-    "ai": "^6.0.39",
+    "ai": "^6.0.116",
     "archiver": "^7.0.1",
     "axios": "^1.13.2",
     "bcryptjs": "^3.0.3",
