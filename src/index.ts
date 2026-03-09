@@ -111,6 +111,30 @@ app.route("/api/caption-templates", captionTemplateRouter);
 app.route("/api/exports", exportRouter);
 app.route("/api", subtitleRouter); // Subtitle download routes
 app.route("/api/admin", adminRouter);
+
+// Magic login - public endpoint to consume admin-generated magic links
+app.get("/api/magic-login", async (c) => {
+  const token = c.req.query("token");
+  if (!token) return c.json({ error: "Token required" }, 400);
+
+  const { eq, and, gt } = await import("drizzle-orm");
+  const { session: sessionTable } = await import("./db/schema");
+  const { db } = await import("./db");
+
+  const [sess] = await db
+    .select()
+    .from(sessionTable)
+    .where(and(eq(sessionTable.token, token), gt(sessionTable.expiresAt, new Date())))
+    .limit(1);
+
+  if (!sess) return c.json({ error: "Invalid or expired token" }, 401);
+
+  const isProduction = process.env.NODE_ENV === "production";
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+  c.header("Set-Cookie", `better-auth.session_token=${token}; Path=/; HttpOnly; ${isProduction ? "SameSite=Lax" : "SameSite=None"}; Secure; Max-Age=3600`);
+  return c.redirect(`${frontendUrl}/workspaces`);
+});
 app.route("/api/translations", translationRouter);
 app.route("/api/dubbing", dubbingRouter);
 app.route("/api/backgrounds", backgroundVideoRouter);

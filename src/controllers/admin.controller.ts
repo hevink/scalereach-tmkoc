@@ -5,8 +5,9 @@ import { VideoModel } from "../models/video.model";
 import { ClipModel } from "../models/clip.model";
 import { R2Service } from "../services/r2.service";
 import { db } from "../db";
-import { videoExport, voiceDubbing, dubbedClipAudio } from "../db/schema";
+import { videoExport, voiceDubbing, dubbedClipAudio, session as sessionTable } from "../db/schema";
 import { inArray, eq, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
 export class AdminController {
   /**
@@ -507,6 +508,42 @@ export class AdminController {
     } catch (error) {
       console.error("[ADMIN] Failed to get user clips:", error);
       return c.json({ error: "Failed to get user clips" }, 500);
+    }
+  }
+
+  /**
+   * Generate a magic login link for a user (admin only)
+   * POST /api/admin/users/:id/magic-link
+   */
+  static async generateMagicLink(c: Context) {
+    try {
+      const userId = c.req.param("id");
+      const user = await AdminModel.getUserById(userId);
+      if (!user) return c.json({ error: "User not found" }, 404);
+
+      const token = nanoid(48);
+      const sessionId = nanoid();
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour
+
+      await db.insert(sessionTable).values({
+        id: sessionId,
+        token,
+        userId,
+        expiresAt,
+        createdAt: now,
+        updatedAt: now,
+        ipAddress: "admin-magic-link",
+      });
+
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+      const backendUrl = process.env.BETTER_AUTH_URL || "http://localhost:3001";
+      const magicLink = `${backendUrl}/api/magic-login?token=${token}`;
+
+      return c.json({ magicLink });
+    } catch (error) {
+      console.error("[ADMIN] Failed to generate magic link:", error);
+      return c.json({ error: "Failed to generate magic link" }, 500);
     }
   }
 }

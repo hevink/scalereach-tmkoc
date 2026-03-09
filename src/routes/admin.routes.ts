@@ -35,6 +35,7 @@ adminRouter.get("/users/:id/videos", AdminController.getUserVideos);
 adminRouter.get("/users/:id/clips", AdminController.getUserClips);
 adminRouter.get("/users/:id/workspaces", AdminController.getUserWorkspaces);
 adminRouter.get("/users/:id", AdminController.getUserById);
+adminRouter.post("/users/:id/magic-link", AdminController.generateMagicLink);
 
 // Workspace management
 adminRouter.get("/workspaces", AdminController.getAllWorkspaces);
