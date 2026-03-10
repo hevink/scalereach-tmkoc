@@ -100,18 +100,23 @@ export const FacebookService = {
     );
     const pagesData = await pagesRes.json() as any;
 
-    let pageId: string;
-    let pageToken: string;
+    if (pagesData.error) {
+      throw new Error(`Facebook pages fetch error: ${pagesData.error.message}`);
+    }
 
-    if (pagesData.data && pagesData.data.length > 0) {
-      pageId = pagesData.data[0].id;
-      pageToken = pagesData.data[0].access_token;
-    } else {
-      // Post as user if no pages
-      const meRes = await fetch(`https://graph.facebook.com/v19.0/me?access_token=${accessToken}`);
-      const me = await meRes.json() as any;
-      pageId = me.id;
-      pageToken = accessToken;
+    if (!pagesData.data || pagesData.data.length === 0) {
+      throw new Error(
+        "No Facebook Pages found for this account. Video publishing requires a Facebook Page — personal profiles cannot publish videos via the API. Please connect a Facebook Page."
+      );
+    }
+
+    const pageId = pagesData.data[0].id;
+    const pageToken = pagesData.data[0].access_token;
+
+    if (!pageToken) {
+      throw new Error(
+        "Facebook Page access token is missing. The user may not have granted pages_manage_posts or publish_video permissions. Please re-authenticate."
+      );
     }
 
     // Upload video to Facebook
