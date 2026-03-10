@@ -15,7 +15,7 @@ export const FacebookService = {
     return `https://www.facebook.com/v19.0/dialog/oauth?${params}`;
   },
 
-  async exchangeCode(code: string, redirectUri: string): Promise<OAuthTokens> {
+  async exchangeCode(code: string, redirectUri: string): Promise<OAuthTokens & { pageId?: string; pageName?: string }> {
     const res = await fetch("https://graph.facebook.com/v19.0/oauth/access_token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -29,18 +29,56 @@ export const FacebookService = {
     const data = await res.json() as any;
     if (data.error) throw new Error(`Facebook OAuth error: ${data.error.message}`);
 
-    // Exchange short-lived for long-lived token
+    // Exchange short-lived for long-lived user token
     const llRes = await fetch(
       `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${data.access_token}`
     );
     const llData = await llRes.json() as any;
+    const longLivedUserToken = llData.access_token || data.access_token;
+
+    // Get page access token from the long-lived user token
+    // Page tokens derived from long-lived user tokens do not expire
+    const pagesRes = await fetch(
+      `https://graph.facebook.com/v19.0/me/accounts?access_token=${longLivedUserToken}`
+    );
+    const pagesData = await pagesRes.json() as any;
+
+    if (pagesData.data && pagesData.data.length > 0) {
+      const page = pagesData.data[0];
+      console.log(`[FACEBOOK] Storing page token for "${page.name}" (${page.id}) — token never expires`);
+      return {
+        accessToken: page.access_token,
+        // Page tokens from long-lived user tokens don't expire, but set a far-future date
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        pageId: page.id,
+        pageName: page.name,
+      };
+    }
+
+    // No pages found — store user token but warn
+    console.warn(`[FACEBOOK] No pages found during OAuth. Storing user token — video posting will fail without a page.`);
     return {
-      accessToken: llData.access_token || data.access_token,
+      accessToken: longLivedUserToken,
       expiresAt: llData.expires_in ? new Date(Date.now() + llData.expires_in * 1000) : undefined,
     };
   },
 
   async refreshAccessToken(token: string): Promise<OAuthTokens> {
+    // Check if this is a page token (page tokens from long-lived user tokens don't expire)
+    const meRes = await fetch(
+      `https://graph.facebook.com/v19.0/me?fields=id,category&access_token=${token}`
+    );
+    const me = await meRes.json() as any;
+
+    if (me.category) {
+      // It's a page token — these don't expire, just return as-is
+      return {
+        accessToken: token,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      };
+    }
+
+    // It's a user token — exchange for new long-lived token
     const res = await fetch(
       `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${token}`
     );
@@ -53,16 +91,31 @@ export const FacebookService = {
   },
 
   async getUserInfo(accessToken: string): Promise<PlatformAccountInfo> {
-    // Get user's pages and use the first one as the posting identity
-    const res = await fetch(
+    // First try: the token might be a page token (new flow) — check /me which returns page identity
+    const meRes = await fetch(
+      `https://graph.facebook.com/v19.0/me?fields=id,name,category&access_token=${accessToken}`
+    );
+    const me = await meRes.json() as any;
+    if (me.error) throw new Error(`Facebook user info error: ${me.error.message}`);
+
+    // If /me returns a category, it's a page token
+    if (me.category) {
+      return {
+        platformAccountId: me.id,
+        accountName: me.name,
+        accountHandle: me.name,
+        avatarUrl: `https://graph.facebook.com/${me.id}/picture?type=square`,
+      };
+    }
+
+    // It's a user token — try to get pages
+    const pagesRes = await fetch(
       `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
     );
-    const data = await res.json() as any;
-    if (data.error) throw new Error(`Facebook user info error: ${data.error.message}`);
+    const pagesData = await pagesRes.json() as any;
 
-    // If user has pages, use the first page
-    if (data.data && data.data.length > 0) {
-      const page = data.data[0];
+    if (pagesData.data && pagesData.data.length > 0) {
+      const page = pagesData.data[0];
       return {
         platformAccountId: page.id,
         accountName: page.name,
@@ -72,10 +125,6 @@ export const FacebookService = {
     }
 
     // Fallback to user profile
-    const meRes = await fetch(
-      `https://graph.facebook.com/v19.0/me?fields=id,name&access_token=${accessToken}`
-    );
-    const me = await meRes.json() as any;
     return {
       platformAccountId: me.id,
       accountName: me.name,
@@ -94,29 +143,45 @@ export const FacebookService = {
       ? `${caption}\n\n${hashtags.map((h) => `#${h}`).join(" ")}`
       : caption;
 
-    // Get page access token — we need to post as the page
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
+    // Determine if this is a page token or user token
+    const meRes = await fetch(
+      `https://graph.facebook.com/v19.0/me?fields=id,name,category&access_token=${accessToken}`
     );
-    const pagesData = await pagesRes.json() as any;
+    const me = await meRes.json() as any;
+    if (me.error) throw new Error(`Facebook API error: ${me.error.message}`);
 
-    if (pagesData.error) {
-      throw new Error(`Facebook pages fetch error: ${pagesData.error.message}`);
-    }
+    let pageId: string;
+    let pageToken: string;
 
-    if (!pagesData.data || pagesData.data.length === 0) {
-      throw new Error(
-        "No Facebook Pages found for this account. Video publishing requires a Facebook Page — personal profiles cannot publish videos via the API. Please connect a Facebook Page."
+    if (me.category) {
+      // It's a page token — use directly
+      pageId = me.id;
+      pageToken = accessToken;
+    } else {
+      // It's a user token (legacy accounts) — fetch page token
+      const pagesRes = await fetch(
+        `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
       );
-    }
+      const pagesData = await pagesRes.json() as any;
 
-    const pageId = pagesData.data[0].id;
-    const pageToken = pagesData.data[0].access_token;
+      if (pagesData.error) {
+        throw new Error(`Facebook pages fetch error: ${pagesData.error.message}`);
+      }
 
-    if (!pageToken) {
-      throw new Error(
-        "Facebook Page access token is missing. The user may not have granted pages_manage_posts or publish_video permissions. Please re-authenticate."
-      );
+      if (!pagesData.data || pagesData.data.length === 0) {
+        throw new Error(
+          "No Facebook Pages found for this account. Video publishing requires a Facebook Page. Please disconnect and reconnect your Facebook account."
+        );
+      }
+
+      pageId = pagesData.data[0].id;
+      pageToken = pagesData.data[0].access_token;
+
+      if (!pageToken) {
+        throw new Error(
+          "Facebook Page access token is missing. Please re-authenticate with all permissions."
+        );
+      }
     }
 
     // Upload video to Facebook
