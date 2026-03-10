@@ -422,7 +422,8 @@ async function processYouTubeVideo(
           ? await pickSplitScreenBg(splitScreenBgPool, videoConfig.splitRatio ?? 50)
           : undefined;
 
-        // Stagger: first clip starts immediately, each subsequent clip delayed by 5s
+        // Stagger: first clip starts immediately, each subsequent clip delayed by 10s
+        // to avoid YouTube bot-detection rate limits on datacenter IPs
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -445,9 +446,9 @@ async function processYouTubeVideo(
           } : undefined,
           splitScreen: splitScreenData,
           smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
-        }, undefined, clipIdx * 5000);
+        }, undefined, clipIdx * 10000);
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''} (delay: ${clipIdx * 5}s)`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''} (delay: ${clipIdx * 10}s)`);
       }
     }
 

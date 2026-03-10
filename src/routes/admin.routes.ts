@@ -53,6 +53,10 @@ adminRouter.post("/clips/:id/retry", AdminController.retryClip);
 // System health
 adminRouter.get("/system-health", AdminController.getSystemHealth);
 
+// YouTube health (proxied from worker)
+adminRouter.get("/youtube-health", AdminController.getYouTubeHealth);
+adminRouter.post("/youtube-health", AdminController.getYouTubeHealth);
+
 // Credit analytics
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);
 

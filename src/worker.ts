@@ -537,6 +537,99 @@ try {
         }
       }
 
+      // ── PROTECTED: YouTube health status (JSON API) ──────
+      if (url.pathname === "/health/youtube-status") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
+        }
+
+        const cookiesPath = process.env.YOUTUBE_COOKIES_PATH || "/opt/scalereach/config/youtube_cookies.txt";
+        const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
+        const fsModule = await import("fs");
+
+        // Cookie status
+        let cookieStatus: "valid" | "expired" | "missing" | "error" = "missing";
+        let cookieExpiry: string | null = null;
+        let cookieDaysLeft: number | null = null;
+        let cookieCount = 0;
+
+        try {
+          if (fsModule.existsSync(cookiesPath)) {
+            const content = fsModule.readFileSync(cookiesPath, "utf8");
+            const lines = content.split("\n").filter(l => l && !l.startsWith("#"));
+            cookieCount = lines.length;
+            const authCookies = ["SID", "SSID", "HSID", "SAPISID", "__Secure-1PSID", "__Secure-3PSID"];
+            let minExpiry = Infinity;
+            for (const line of lines) {
+              const parts = line.split("\t");
+              if (parts.length >= 6 && authCookies.includes(parts[5])) {
+                const exp = parseInt(parts[4], 10);
+                if (exp > 0 && exp < minExpiry) minExpiry = exp;
+              }
+            }
+            if (minExpiry !== Infinity) {
+              const expiryDate = new Date(minExpiry * 1000);
+              const daysLeft = Math.floor((expiryDate.getTime() - Date.now()) / 86400000);
+              cookieExpiry = expiryDate.toISOString();
+              cookieDaysLeft = daysLeft;
+              cookieStatus = daysLeft > 0 ? "valid" : "expired";
+            } else {
+              cookieStatus = "valid";
+            }
+          }
+        } catch { cookieStatus = "error"; }
+
+        // POT server status
+        let potStatus: "running" | "stopped" | "not_configured" = "not_configured";
+        if (bgutilBaseUrl) {
+          try {
+            const res = await fetch(bgutilBaseUrl, { signal: AbortSignal.timeout(3000) });
+            potStatus = res.ok || res.status < 500 ? "running" : "stopped";
+          } catch {
+            potStatus = "stopped";
+          }
+        }
+
+        // yt-dlp version
+        let ytdlpVersion = "unknown";
+        try {
+          const { execSync } = await import("child_process");
+          ytdlpVersion = execSync("yt-dlp --version", { timeout: 5000 }).toString().trim();
+        } catch {}
+
+        // POST: also run a live test
+        if (req.method === "POST") {
+          const body = await req.json().catch(() => ({}));
+          const testUrl = (body as any).url || "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+          const start = Date.now();
+          try {
+            const { YouTubeService } = await import("./services/youtube.service");
+            const videoInfo = await YouTubeService.getVideoInfoYtDlp(testUrl);
+            const elapsed = Date.now() - start;
+            return new Response(JSON.stringify({
+              cookie: { status: cookieStatus, expiry: cookieExpiry, daysLeft: cookieDaysLeft, count: cookieCount, path: cookiesPath },
+              pot: { status: potStatus, url: bgutilBaseUrl || null },
+              ytdlp: { version: ytdlpVersion },
+              test: { ok: true, elapsed_ms: elapsed, videoInfo },
+            }), { headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+          } catch (err: any) {
+            const elapsed = Date.now() - start;
+            return new Response(JSON.stringify({
+              cookie: { status: cookieStatus, expiry: cookieExpiry, daysLeft: cookieDaysLeft, count: cookieCount, path: cookiesPath },
+              pot: { status: potStatus, url: bgutilBaseUrl || null },
+              ytdlp: { version: ytdlpVersion },
+              test: { ok: false, elapsed_ms: elapsed, error: err?.message || "Unknown error" },
+            }), { headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+          }
+        }
+
+        return new Response(JSON.stringify({
+          cookie: { status: cookieStatus, expiry: cookieExpiry, daysLeft: cookieDaysLeft, count: cookieCount, path: cookiesPath },
+          pot: { status: potStatus, url: bgutilBaseUrl || null },
+          ytdlp: { version: ytdlpVersion },
+        }), { headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+      }
+
       // ── PROTECTED: YouTube cookie tester ─────────────────
       if (url.pathname === "/health/hevin/youtube-test") {
         if (!isAuthorized(req)) {

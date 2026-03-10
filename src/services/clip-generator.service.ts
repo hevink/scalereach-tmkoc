@@ -1531,7 +1531,7 @@ print(f"OK:{total_w}x{total_h}")
     endTime: number,
     outputPath: string,
     quality: VideoQuality,
-    maxRetries: number = 3
+    maxRetries: number = 4
   ): Promise<void> {
     let lastError: Error | null = null;
     let forceKeyframes = true;
@@ -1557,9 +1557,9 @@ print(f"OK:{total_w}x{total_h}")
           if (isCode222) forceKeyframes = false;
 
           // Bot-blocked needs a longer cooldown so YouTube unblocks the IP
-          // "Interrupted by user" means the process was killed mid-download (e.g. worker restart)
+          // Use exponential backoff: 10s, 20s, 40s + jitter
           const isInterrupted = lastError.message.includes("Interrupted by user");
-          const delayMs = isBotBlocked ? 8000 + Math.random() * 4000
+          const delayMs = isBotBlocked ? Math.pow(2, attempt) * 5000 + Math.random() * 5000
                         : isInterrupted ? 5000
                         : Math.pow(2, attempt) * 1000;
           this.logOperation("YT_DLP_RETRY", {
@@ -1596,6 +1596,7 @@ print(f"OK:{total_w}x{total_h}")
       const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
         || (fs.existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
         || (fs.existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
+      const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
       const args = [
         "-f", formatSelector,
@@ -1609,8 +1610,19 @@ print(f"OK:{total_w}x{total_h}")
         "--no-post-overwrites",
         "--js-runtimes", "deno",
         "--extractor-args", "youtube:player_client=android_vr,web,android",
+        "--extractor-retries", "3",
+        "--fragment-retries", "5",
+        "--retry-sleep", "2",
         url,
       ];
+
+      // Add bgutil POT provider if server is running (critical for bot bypass on datacenter IPs)
+      if (bgutilBaseUrl) {
+        args.splice(args.indexOf("--extractor-retries"), 0,
+          "--extractor-args", `youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`
+        );
+        this.logOperation("YT_DLP_USING_POT", { baseUrl: bgutilBaseUrl });
+      }
 
       if (cookiesPath) {
         args.unshift("--cookies", cookiesPath);
