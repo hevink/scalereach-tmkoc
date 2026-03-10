@@ -15,7 +15,7 @@ export const FacebookService = {
     return `https://www.facebook.com/v19.0/dialog/oauth?${params}`;
   },
 
-  async exchangeCode(code: string, redirectUri: string): Promise<OAuthTokens & { pageId?: string; pageName?: string }> {
+  async exchangeCode(code: string, redirectUri: string): Promise<OAuthTokens & { pages?: Array<{ pageId: string; pageName: string; pageToken: string; avatarUrl: string }> }> {
     const res = await fetch("https://graph.facebook.com/v19.0/oauth/access_token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -36,22 +36,28 @@ export const FacebookService = {
     const llData = await llRes.json() as any;
     const longLivedUserToken = llData.access_token || data.access_token;
 
-    // Get page access token from the long-lived user token
+    // Get ALL page access tokens from the long-lived user token
     // Page tokens derived from long-lived user tokens do not expire
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?access_token=${longLivedUserToken}`
+      `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token&access_token=${longLivedUserToken}`
     );
     const pagesData = await pagesRes.json() as any;
 
     if (pagesData.data && pagesData.data.length > 0) {
-      const page = pagesData.data[0];
-      console.log(`[FACEBOOK] Storing page token for "${page.name}" (${page.id}) — token never expires`);
-      return {
-        accessToken: page.access_token,
-        // Page tokens from long-lived user tokens don't expire, but set a far-future date
-        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      const pages = pagesData.data.map((page: any) => ({
         pageId: page.id,
         pageName: page.name,
+        pageToken: page.access_token,
+        avatarUrl: `https://graph.facebook.com/${page.id}/picture?type=square`,
+      }));
+      console.log(`[FACEBOOK] Found ${pages.length} pages during OAuth: ${pages.map((p: any) => p.pageName).join(", ")}`);
+
+      // Return first page token as the primary accessToken (for backward compat)
+      // but include all pages so the callback can upsert each one
+      return {
+        accessToken: pages[0].pageToken,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        pages,
       };
     }
 

@@ -170,6 +170,32 @@ export class SocialAccountController {
         userInfo = await LinkedInService.getUserInfo(tokens.accessToken);
       } else if (platform === "facebook") {
         tokens = await FacebookService.exchangeCode(code, redirectUri);
+
+        // Facebook returns multiple pages — upsert each one as a separate social account
+        const fbTokens = tokens as typeof tokens & { pages?: Array<{ pageId: string; pageName: string; pageToken: string; avatarUrl: string }> };
+        if (fbTokens.pages && fbTokens.pages.length > 0) {
+          for (const page of fbTokens.pages) {
+            await SocialAccountModel.upsert({
+              workspaceId,
+              platform,
+              platformAccountId: page.pageId,
+              accountName: page.pageName,
+              accountHandle: page.pageName,
+              avatarUrl: page.avatarUrl,
+              accessToken: page.pageToken,
+              tokenExpiresAt: fbTokens.expiresAt,
+            });
+          }
+          console.log(`[OAUTH CALLBACK] Facebook: upserted ${fbTokens.pages.length} page accounts`);
+
+          // Redirect — skip the single upsert below
+          const ws = await WorkspaceModel.getById(workspaceId);
+          const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+          const slug = ws?.slug || workspaceId;
+          return c.redirect(`${frontendUrl}/${slug}/social?connected=${platform}`);
+        }
+
+        // Fallback: no pages, store as user token (will fail on video post)
         userInfo = await FacebookService.getUserInfo(tokens.accessToken);
       } else if (platform === "threads") {
         tokens = await ThreadsService.exchangeCode(code, redirectUri);
