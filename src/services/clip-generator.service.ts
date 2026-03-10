@@ -475,7 +475,8 @@ export class ClipGeneratorService {
           width, height,
           options.introTitle,
           options.emojis,
-          options.textOverlays
+          options.textOverlays,
+          hasSplitScreen ? options.splitScreen!.splitRatio : undefined
         );
         const tempSubsPath = path.join(tempDir, `subs-${tempId}.ass`);
         tempPaths.push(tempSubsPath);
@@ -535,7 +536,9 @@ export class ClipGeneratorService {
             emojiOverlayPngs.push({
               pngPath,
               x: Math.round(width / 2),
-              y: Math.round(height * 0.20),
+              y: hasSplitScreen
+                ? Math.round(height * (options.splitScreen!.splitRatio / 100))
+                : Math.round(height * 0.20),
               startTime: 0,
               endTime: 3,
             });
@@ -555,7 +558,8 @@ export class ClipGeneratorService {
             options.splitScreen!.splitRatio,
             options.splitScreen!.backgroundDuration,
             tempSubsPath,
-            options.watermark, options.quality
+            options.watermark, options.quality,
+            emojiOverlaysArg
           );
         } else {
           // If smart crop ran, burn captions onto the reframed file (already aspect-ratio converted).
@@ -734,7 +738,8 @@ export class ClipGeneratorService {
     height: number,
     introTitle?: string,
     emojis?: string,
-    textOverlays?: ClipGenerationOptions["textOverlays"]
+    textOverlays?: ClipGenerationOptions["textOverlays"],
+    splitRatio?: number
   ): string {
     // Default style values
     const fontFamily = style?.fontFamily || "Arial";
@@ -844,10 +849,13 @@ export class ClipGeneratorService {
       marginR = marginL;
     }
 
-    // Intro title style - larger than captions, positioned at 20% from top
-    // Uses BorderStyle 3 (opaque box) with semi-transparent dark background for readability
+    // Intro title style - larger than captions
+    // When split screen is active, position at the split boundary (center between top and bottom video)
+    // Otherwise default to 20% from top
     const introFontSize = Math.round(fontSize * 1.4);
-    const introMarginV = Math.round(height * 0.20);
+    const introMarginV = splitRatio
+      ? Math.round(height * (splitRatio / 100))
+      : Math.round(height * 0.20);
 
     // Emoji overlay style - large, centered above captions
     const emojiFontSize = Math.round(fontSize * 3);
@@ -908,7 +916,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Scale up + fade in from top, then fade out
       // {\fad(400,500)} = 400ms fade in, 500ms fade out
       // {\fscx80\fscy80\t(0,300,\fscx100\fscy100)} = start at 80% scale, animate to 100% in 300ms
-      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\b600\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
+      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\b800\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
     }
 
     // Group words into lines based on wordsPerLine setting
@@ -1951,7 +1959,8 @@ print(f"OK:{total_w}x{total_h}")
     backgroundDuration: number,
     subtitlesPath?: string,
     watermark?: boolean,
-    quality: VideoQuality = "1080p"
+    quality: VideoQuality = "1080p",
+    emojiOverlays?: EmojiOverlayPng[]
   ): Promise<void> {
     const wmConfig = watermark
       ? this.getWatermarkFilterConfig(targetWidth, targetHeight, await this.getWatermarkLogoPath())
@@ -1961,8 +1970,9 @@ print(f"OK:{total_w}x{total_h}")
     const topHeight = Math.round(targetHeight * (splitRatio / 100));
     const bottomHeight = targetHeight - topHeight;
     const bgArgs = SplitScreenCompositorService.getBackgroundInputArgs(clipDuration, backgroundDuration);
+    const hasEmojiOverlays = emojiOverlays && emojiOverlays.length > 0;
 
-    // Build single filter_complex: scale both inputs → vstack → optional subs → optional watermark
+    // Build single filter_complex: scale both inputs → vstack → optional subs → optional watermark → optional emoji overlays
     let filterComplex = [
       `[0:v]scale=${targetWidth}:${topHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${topHeight}[main]`,
       `[1:v]scale=${targetWidth}:${bottomHeight}:force_original_aspect_ratio=increase,crop=${targetWidth}:${bottomHeight}[bg]`,
@@ -1976,11 +1986,30 @@ print(f"OK:{total_w}x{total_h}")
       filterComplex = `${filterComplex},ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
     }
 
-    // Append watermark or finalize
+    // Append watermark or finalize to base_out label for emoji compositing
     if (wmConfig) {
-      filterComplex = `${filterComplex}[pre_wm];${wmConfig.filterFragment},format=yuv420p[outv]`;
+      filterComplex = `${filterComplex}[pre_wm];${wmConfig.filterFragment},format=yuv420p[base_out]`;
     } else {
-      filterComplex = `${filterComplex},format=yuv420p[outv]`;
+      filterComplex = `${filterComplex},format=yuv420p[base_out]`;
+    }
+
+    // Composite emoji overlay PNGs on top (same pattern as convertAspectRatioFile)
+    const extraEmojiInputs: string[] = [];
+    if (hasEmojiOverlays) {
+      // Input indices: 0=main video, 1=background video, 2=watermark logo (if present), then emoji PNGs
+      const baseIdx = wmConfig ? 3 : 2;
+      let prevLabel = "[base_out]";
+      for (let ei = 0; ei < emojiOverlays!.length; ei++) {
+        const eo = emojiOverlays![ei];
+        extraEmojiInputs.push("-i", eo.pngPath);
+        const inputIdx = baseIdx + ei;
+        const nextLabel = ei === emojiOverlays!.length - 1 ? "[outv]" : `[ov${ei}]`;
+        filterComplex += `;[${inputIdx}:v]format=rgba[emoji${ei}];${prevLabel}[emoji${ei}]overlay=${eo.x}-w/2:${eo.y}-h/2:enable='between(t,${eo.startTime},${eo.endTime})'${nextLabel}`;
+        prevLabel = nextLabel;
+      }
+    } else {
+      // No emoji overlays — rename base_out to outv
+      filterComplex = filterComplex.replace("[base_out]", "[outv]");
     }
 
     const args = [
@@ -1991,6 +2020,8 @@ print(f"OK:{total_w}x{total_h}")
       "-i", backgroundVideoPath,
       // Watermark logo input (if any)
       ...(wmConfig ? wmConfig.extraInputArgs : []),
+      // Emoji overlay PNG inputs
+      ...extraEmojiInputs,
       // Filter
       "-filter_complex", filterComplex,
       "-map", "[outv]",
@@ -2014,6 +2045,8 @@ print(f"OK:{total_w}x{total_h}")
       args: args.join(" "),
       hasSubtitles: !!subtitlesPath,
       hasWatermark: !!watermark,
+      hasEmojiOverlays: !!hasEmojiOverlays,
+      emojiOverlayCount: emojiOverlays?.length ?? 0,
       splitRatio,
     });
 

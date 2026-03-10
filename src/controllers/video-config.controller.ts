@@ -103,7 +103,7 @@ export class VideoConfigController {
         // Editing Options
         enableCaptions: body.enableCaptions ?? true,
         enableEmojis: body.enableEmojis ?? false,
-        enableIntroTitle: body.enableIntroTitle ?? false,
+        enableIntroTitle: body.enableIntroTitle ?? true,
         // Split-Screen Options
         enableSplitScreen: body.enableSplitScreen ?? false,
         splitScreenBgVideoId: Array.isArray(body.splitScreenBgVideoIds) && body.splitScreenBgVideoIds.length > 0

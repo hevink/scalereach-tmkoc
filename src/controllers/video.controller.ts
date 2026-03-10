@@ -203,7 +203,7 @@ export class VideoController {
           // Editing Options
           enableCaptions: config.enableCaptions ?? true,
           enableEmojis: config.enableEmojis ?? false,
-          enableIntroTitle: config.enableIntroTitle ?? false,
+          enableIntroTitle: config.enableIntroTitle ?? true,
           // Split-Screen Options
           enableSplitScreen: config.enableSplitScreen ?? false,
           splitScreenBgVideoId: config.splitScreenBgVideoId ?? null,
