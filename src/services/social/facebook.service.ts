@@ -39,12 +39,50 @@ export const FacebookService = {
     // Get ALL page access tokens from the long-lived user token
     // Page tokens derived from long-lived user tokens do not expire
     const pagesRes = await fetch(
-      `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token&access_token=${longLivedUserToken}`
+      `https://graph.facebook.com/v19.0/me/accounts?fields=id,name,access_token&limit=100&access_token=${longLivedUserToken}`
     );
     const pagesData = await pagesRes.json() as any;
 
-    if (pagesData.data && pagesData.data.length > 0) {
-      const pages = pagesData.data.map((page: any) => ({
+    // Also check granular_scopes for pages that /me/accounts might miss (dev mode limitation)
+    let allPages = pagesData.data || [];
+
+    if (allPages.length < 5) {
+      // /me/accounts may not return all pages in dev mode
+      // Use debug_token to find all page IDs from granular_scopes, then fetch each page's token
+      const debugRes = await fetch(
+        `https://graph.facebook.com/debug_token?input_token=${longLivedUserToken}&access_token=${APP_ID}|${APP_SECRET}`
+      );
+      const debugData = await debugRes.json() as any;
+      const granularScopes = debugData.data?.granular_scopes || [];
+
+      // Collect all unique page IDs from pages_manage_posts scope
+      const managedPageIds = new Set<string>();
+      for (const scope of granularScopes) {
+        if (scope.scope === "pages_manage_posts" && scope.target_ids) {
+          for (const id of scope.target_ids) managedPageIds.add(id);
+        }
+      }
+
+      // For pages not already in /me/accounts, try fetching their token directly
+      const existingIds = new Set(allPages.map((p: any) => p.id));
+      for (const pageId of managedPageIds) {
+        if (existingIds.has(pageId)) continue;
+        try {
+          const pageRes = await fetch(
+            `https://graph.facebook.com/v19.0/${pageId}?fields=id,name,access_token&access_token=${longLivedUserToken}`
+          );
+          const pageData = await pageRes.json() as any;
+          if (pageData.id && pageData.access_token) {
+            allPages.push(pageData);
+          }
+        } catch (e) {
+          console.warn(`[FACEBOOK] Could not fetch page ${pageId}:`, e);
+        }
+      }
+    }
+
+    if (allPages.length > 0) {
+      const pages = allPages.map((page: any) => ({
         pageId: page.id,
         pageName: page.name,
         pageToken: page.access_token,
