@@ -292,7 +292,7 @@ export class ClipGeneratorService {
     const tempPaths: string[] = [rawSourcePath, captionedOutputPath, rawOutputPath];
 
     let clipWithCaptionsBuffer: Buffer;
-    let clipWithoutCaptionsBuffer: Buffer;
+    let clipWithoutCaptionsBuffer!: Buffer;
 
     try {
       // ── STEP 1: Download/extract source segment ONCE ──
@@ -335,6 +335,10 @@ export class ClipGeneratorService {
           undefined, // no subtitles
           options.watermark, options.quality
         );
+      } else if (options.smartCropEnabled) {
+        // Smart crop enabled — skip aspect ratio conversion here.
+        // Smart crop (step 3b) will run on the original source and produce the 9:16 output directly.
+        this.logOperation("SKIP_ASPECT_RATIO_CONVERT", { reason: "smartCropEnabled, will reframe from source" });
       } else {
         // Single-pass: aspect ratio conversion only
         await this.convertAspectRatioFile(
@@ -347,27 +351,31 @@ export class ClipGeneratorService {
           options.videoScale
         );
       }
-      clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
 
-      if (clipWithoutCaptionsBuffer.length < 10000) {
-        throw new Error(`FFmpeg produced an empty or corrupt clip (${clipWithoutCaptionsBuffer.length} bytes). The segment may be outside the video's duration.`);
+      // Only read the raw output if it was actually produced (not when smart crop will handle it)
+      if (!options.smartCropEnabled || hasSplitScreen) {
+        clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
+
+        if (clipWithoutCaptionsBuffer.length < 10000) {
+          throw new Error(`FFmpeg produced an empty or corrupt clip (${clipWithoutCaptionsBuffer.length} bytes). The segment may be outside the video's duration.`);
+        }
       }
 
       // ── STEP 3b: Smart AI Reframe (optional) ──
-      // Run face detection on the raw converted clip, then replace rawOutputPath
-      // with the reframed version so captions are burned on top of the reframed video.
+      // Run face detection on the ORIGINAL SOURCE (landscape 16:9), not the converted file.
+      // The Python script detects faces and produces crop coords, then FFmpeg crops + scales to 9:16.
       if (options.smartCropEnabled && !hasSplitScreen) {
         try {
-          this.logOperation("SMART_CROP_START", { clipId: options.clipId });
+          this.logOperation("SMART_CROP_START", { clipId: options.clipId, inputFile: rawSourcePath });
           const PYTHON_PATH = process.env.PYTHON_PATH || "python3";
           const SMART_CROP_SCRIPT = path.join(__dirname, "../scripts/smart_crop.py");
           const TMP_DIR = os.tmpdir();
           const reframedPath = path.join(TMP_DIR, `reframed-${tempId}.mp4`);
           tempPaths.push(reframedPath);
 
-          // Run Python face detection sidecar on the local raw file
+          // Run Python face detection sidecar on the ORIGINAL SOURCE file (landscape)
           await new Promise<void>((resolve, reject) => {
-            const proc = spawn(PYTHON_PATH, [SMART_CROP_SCRIPT, rawOutputPath, options.clipId, TMP_DIR]);
+            const proc = spawn(PYTHON_PATH, [SMART_CROP_SCRIPT, rawSourcePath, options.clipId, TMP_DIR]);
             proc.stdout?.on("data", (d) => process.stdout.write(`[SMART CROP PY] ${d}`));
             proc.stderr?.on("data", (d) => process.stderr.write(`[SMART CROP PY] ${d}`));
             proc.on("error", (err) => reject(new Error(`Python spawn failed: ${err.message}`)));
@@ -379,22 +387,21 @@ export class ClipGeneratorService {
           await fs.promises.unlink(coordsPath).catch(() => {});
 
           if (result.mode !== "skip") {
-            // Apply FFmpeg reframe to local file → local reframed file
+            // Apply FFmpeg reframe to the ORIGINAL SOURCE → reframed 9:16 output
             await new Promise<void>((resolve, reject) => {
               const { spawn: spawnFfmpeg } = require("child_process");
               let args: string[];
 
               if (result.mode === "split") {
+                // Screen recording + PiP face cam → split layout
                 const { pip, src_w: srcW, src_h: srcH } = result;
-                const outW = width;   // 1080
-                const outH = height;  // 1920
-                const halfH = Math.round(outH / 2); // 960 each
-                // Full video scaled to fit width, centered with black bars on top half
-                const scaledH = Math.round(outW * srcH / srcW); // maintain aspect ratio
+                const outW = width;
+                const outH = height;
+                const halfH = Math.round(outH / 2);
+                const scaledH = Math.round(outW * srcH / srcW);
                 const padY = Math.round((halfH - scaledH) / 2);
-                // Face cam scaled to fill bottom half
                 args = [
-                  "-i", rawOutputPath,
+                  "-i", rawSourcePath,
                   "-filter_complex",
                   `[0:v]scale=${outW}:${scaledH}:flags=lanczos,pad=${outW}:${halfH}:0:${padY}:black[full];` +
                   `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${halfH}:flags=lanczos[face];` +
@@ -404,7 +411,64 @@ export class ClipGeneratorService {
                   "-c:a", "aac", "-b:a", "192k",
                   "-y", reframedPath,
                 ];
-              } else {
+              } else if (result.mode === "letterbox") {
+                // Group shot (4+ faces) — letterbox full frame into 9:16
+                args = [
+                  "-i", rawSourcePath,
+                  "-vf", `scale=${width}:-2:flags=lanczos,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p`,
+                  "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                  "-c:a", "aac", "-b:a", "192k",
+                  "-y", reframedPath,
+                ];
+              } else if (result.mode === "mixed" && result.segments) {
+                // Mixed segments — face-tracked + no-face sections
+                // Extract coords from all segments; for letterbox segments without coords,
+                // generate center-crop coords so the whole clip is covered.
+                const allCoords: Array<{ t: number; x: number; y: number; w: number; h: number }> = [];
+                const cropW = result.crop_w || width;
+                const cropH = result.crop_h || height;
+
+                for (const seg of result.segments) {
+                  if (seg.coords && seg.coords.length > 0) {
+                    allCoords.push(...seg.coords);
+                  } else {
+                    // No coords for this segment — use center crop as fallback
+                    // (Python script should always provide coords now, but just in case)
+                    this.logOperation("SMART_CROP_MIXED_CENTER_FALLBACK", {
+                      clipId: options.clipId,
+                      segType: seg.type,
+                      start: seg.start,
+                      end: seg.end,
+                    });
+                    allCoords.push({
+                      t: seg.start,
+                      x: 0, // will be overridden by sendcmd if other coords exist
+                      y: 0,
+                      w: cropW,
+                      h: cropH,
+                    });
+                  }
+                }
+                if (allCoords.length === 0) {
+                  this.logOperation("SMART_CROP_MIXED_NO_COORDS", { clipId: options.clipId });
+                  reject(new Error("__FALLBACK__"));
+                  return;
+                }
+                const first = allCoords[0];
+                const cmdLines = allCoords.flatMap(({ t, x, y, w, h }: any) => [
+                  `${t} crop x ${x};`, `${t} crop y ${y};`, `${t} crop w ${w};`, `${t} crop h ${h};`,
+                ]);
+                const cmdFile = path.join(TMP_DIR, `sc-cmds-${tempId}.txt`);
+                tempPaths.push(cmdFile);
+                require("fs").writeFileSync(cmdFile, cmdLines.join("\n"));
+                args = [
+                  "-i", rawSourcePath,
+                  "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h},scale=${width}:${height}:flags=lanczos`,
+                  "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                  "-c:a", "aac", "-b:a", "192k",
+                  "-y", reframedPath,
+                ];
+              } else if (result.mode === "crop" && result.coords?.length) {
                 // Standard face-tracking crop
                 const coords: Array<{ t: number; x: number; y: number; w: number; h: number }> = result.coords;
                 const first = coords[0];
@@ -415,12 +479,17 @@ export class ClipGeneratorService {
                 tempPaths.push(cmdFile);
                 require("fs").writeFileSync(cmdFile, cmdLines.join("\n"));
                 args = [
-                  "-i", rawOutputPath,
+                  "-i", rawSourcePath,
                   "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h},scale=${width}:${height}:flags=lanczos`,
                   "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                   "-c:a", "aac", "-b:a", "192k",
                   "-y", reframedPath,
                 ];
+              } else {
+                // Unknown mode or missing data — skip reframe
+                this.logOperation("SMART_CROP_UNKNOWN_MODE_FALLBACK", { clipId: options.clipId, mode: result.mode });
+                reject(new Error("__FALLBACK__"));
+                return;
               }
 
               const ff = spawnFfmpeg("ffmpeg", args);
@@ -433,16 +502,40 @@ export class ClipGeneratorService {
               });
             });
 
-            // Replace rawOutputPath content with reframed version for caption burn
+            // Write reframed version to rawOutputPath for caption burn
             const reframedBuf = await fs.promises.readFile(reframedPath);
             await fs.promises.writeFile(rawOutputPath, reframedBuf);
             clipWithoutCaptionsBuffer = reframedBuf;
             this.logOperation("SMART_CROP_DONE", { clipId: options.clipId, size: reframedBuf.length });
           } else {
-            this.logOperation("SMART_CROP_SKIP", { clipId: options.clipId, reason: "no face detected" });
+            // No faces detected — fall back to standard aspect ratio conversion
+            this.logOperation("SMART_CROP_SKIP_FALLBACK", { clipId: options.clipId, reason: "no face detected, falling back to standard conversion" });
+            await this.convertAspectRatioFile(
+              rawSourcePath, rawOutputPath, width, height,
+              undefined, options.watermark, options.quality,
+              options.backgroundStyle, undefined, false, options.videoScale
+            );
+            clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
+
+            if (clipWithoutCaptionsBuffer.length < 10000) {
+              throw new Error(`FFmpeg produced an empty or corrupt clip (${clipWithoutCaptionsBuffer.length} bytes).`);
+            }
           }
         } catch (scErr) {
-          console.warn(`[CLIP GENERATOR] Smart crop failed (non-fatal), continuing without reframe:`, scErr);
+          // If it's a fallback signal (not a real error), do standard conversion
+          if (scErr instanceof Error && scErr.message === "__FALLBACK__") {
+            this.logOperation("SMART_CROP_FALLBACK_TO_STANDARD", { clipId: options.clipId });
+            await this.convertAspectRatioFile(
+              rawSourcePath, rawOutputPath, width, height,
+              undefined, options.watermark, options.quality,
+              options.backgroundStyle, undefined, false, options.videoScale
+            );
+            clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
+          } else {
+            // Smart crop was explicitly enabled — fail the job so the user knows
+            console.error(`[CLIP GENERATOR] Smart crop FAILED for clip ${options.clipId}:`, scErr);
+            throw new Error(`Smart AI Reframing failed: ${scErr instanceof Error ? scErr.message : scErr}`);
+          }
         }
       }
 
@@ -785,8 +878,11 @@ export class ClipGeneratorService {
     const maxWordsPerLine = style?.wordsPerLine ?? 5;
 
     // Helper — apply textTransform from style (matching frontend)
-    const transformWord = (word: string) => 
-      style?.textTransform === "uppercase" ? word.toUpperCase() : word;
+    // Also wraps non-Latin words with \fn override for correct font rendering
+    const transformWord = (word: string) => {
+      const transformed = style?.textTransform === "uppercase" ? word.toUpperCase() : word;
+      return wrapWordWithFont(transformed);
+    };
 
     // Determine positioning from x/y percentages or fallback to position preset
     // Frontend: x (0-100) = horizontal center, y (0-100) = vertical center
@@ -879,10 +975,51 @@ export class ClipGeneratorService {
     const borderStyle = bgOpacity > 0 ? 3 : 1;
 
     // For non-Latin scripts (Hindi/Devanagari, Arabic, CJK, etc.) the selected
-    // fontFamily won't have glyphs. We append "Noto Sans Devanagari" as a
-    // fallback so libass can find the right glyphs via fontconfig.
-    // libass resolves fonts left-to-right, so the primary font is tried first.
+    // fontFamily won't have glyphs. We detect non-Latin text per-word and use
+    // ASS \fn override tags to switch to the appropriate Noto Sans font.
+    // The Noto Sans font files must be present in assets/fonts/.
     const effectiveFontFamily = fontFamily;
+
+    /**
+     * Detect if a word contains non-Latin characters and return the
+     * appropriate Noto Sans font name for ASS \fn override.
+     * Returns null if the word is Latin-only (no override needed).
+     */
+    const getNonLatinFont = (word: string): string | null => {
+      // Devanagari (Hindi, Marathi, Sanskrit, Nepali)
+      if (/[\u0900-\u097F]/.test(word)) return "Noto Sans Devanagari";
+      // Arabic / Urdu / Persian / Hebrew
+      if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(word)) return "Noto Sans Arabic";
+      if (/[\u0590-\u05FF]/.test(word)) return "Noto Sans Hebrew";
+      // CJK (Chinese, Japanese, Korean)
+      if (/[\u3000-\u9FFF\uF900-\uFAFF\u{20000}-\u{2FA1F}]|[\uAC00-\uD7AF]|[\u3040-\u309F\u30A0-\u30FF]/u.test(word)) return "Noto Sans CJK SC";
+      // Bengali
+      if (/[\u0980-\u09FF]/.test(word)) return "Noto Sans Bengali";
+      // Tamil
+      if (/[\u0B80-\u0BFF]/.test(word)) return "Noto Sans Tamil";
+      // Telugu
+      if (/[\u0C00-\u0C7F]/.test(word)) return "Noto Sans Telugu";
+      // Kannada
+      if (/[\u0C80-\u0CFF]/.test(word)) return "Noto Sans Kannada";
+      // Thai
+      if (/[\u0E00-\u0E7F]/.test(word)) return "Noto Sans Thai";
+      // Cyrillic (Russian, Ukrainian, etc.)
+      if (/[\u0400-\u04FF]/.test(word)) return "Noto Sans";
+      // Greek
+      if (/[\u0370-\u03FF]/.test(word)) return "Noto Sans";
+      return null;
+    };
+
+    /**
+     * Wrap a word with ASS \fn override tag if it contains non-Latin characters.
+     * This switches libass to the appropriate Noto Sans font for that word,
+     * then switches back to the primary font for the next word.
+     */
+    const wrapWordWithFont = (word: string): string => {
+      const notoFont = getNonLatinFont(word);
+      if (!notoFont) return word;
+      return `{\\fn${notoFont}}${word}{\\fn${effectiveFontFamily}}`;
+    };
 
     // UTF-8 BOM ensures libass parses the file as UTF-8 (required for Hindi/non-Latin)
     const UTF8_BOM = "\uFEFF";

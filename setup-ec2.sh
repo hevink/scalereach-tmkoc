@@ -18,6 +18,10 @@ echo "📦 Updating system packages..."
 sudo apt-get update -y
 sudo apt-get install -y git curl ffmpeg python3 python3-pip build-essential
 
+# ── Noto Sans fonts for non-Latin caption rendering (Hindi, Arabic, CJK, etc.) ──
+echo "📦 Installing Noto Sans fonts for multilingual captions..."
+sudo apt-get install -y fonts-noto-core fonts-noto-cjk fonts-noto-extra fonts-noto-color-emoji 2>/dev/null || echo "⚠️  Some Noto font packages not available, using bundled fonts in assets/fonts/"
+
 # ── yt-dlp ───────────────────────────────────────────────────
 echo "📦 Installing yt-dlp..."
 sudo pip3 install -U yt-dlp
