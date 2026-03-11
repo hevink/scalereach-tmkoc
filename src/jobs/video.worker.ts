@@ -120,6 +120,7 @@ async function processYouTubeVideo(
       aspectRatio: videoConfig.aspectRatio,
       timeframeStart: videoConfig.timeframeStart,
       timeframeEnd: videoConfig.timeframeEnd,
+      enableSmartCrop: videoConfig.enableSmartCrop,
     } : 'No config found, using defaults');
 
     // Workspace + plan (needed for quality selection)
@@ -557,6 +558,7 @@ async function processUploadedVideo(
       aspectRatio: videoConfig.aspectRatio,
       timeframeStart: videoConfig.timeframeStart,
       timeframeEnd: videoConfig.timeframeEnd,
+      enableSmartCrop: videoConfig.enableSmartCrop,
     } : 'No config found, using defaults');
 
     // Get the video record to get the storage key

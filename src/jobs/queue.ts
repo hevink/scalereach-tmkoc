@@ -57,7 +57,6 @@ export const QUEUE_NAMES = {
   VIDEO_PROCESSING: `${QUEUE_PREFIX}video-processing`,
   CLIP_GENERATION: `${QUEUE_PREFIX}clip-generation`,
   SOCIAL_POSTING: `${QUEUE_PREFIX}social-posting`,
-  SMART_CROP: `${QUEUE_PREFIX}smart-crop`,
 } as const;
 
 /**
@@ -443,39 +442,4 @@ export async function addSocialPostingJob(data: SocialPostingJobData, delayMs?: 
   return job;
 }
 
-export interface SmartCropJobData {
-  clipId: string;
-  videoId: string;
-  workspaceId: string;
-  userId: string;
-  storageKey: string;
-}
 
-export const smartCropQueue = new Queue<SmartCropJobData>(
-  QUEUE_NAMES.SMART_CROP,
-  {
-    connection: createRedisConnection(),
-    defaultJobOptions: {
-      attempts: 2,
-      backoff: { type: "exponential", delay: 5000 },
-      removeOnComplete: { count: 50, age: 24 * 60 * 60 },
-      removeOnFail: { count: 25, age: 7 * 24 * 60 * 60 },
-    },
-  }
-);
-
-export async function addSmartCropJob(data: SmartCropJobData, priority?: number) {
-  const jobId = `smart-crop-${data.clipId}`;
-  const existing = await smartCropQueue.getJob(jobId);
-  if (existing) await existing.remove();
-  const job = await smartCropQueue.add("smart-crop", data, { jobId, priority: priority ?? 3 });
-  console.log(`[QUEUE] Smart crop job added: ${job.id}`);
-  return job;
-}
-
-export async function getSmartCropJobStatus(clipId: string) {
-  const job = await smartCropQueue.getJob(`smart-crop-${clipId}`);
-  if (!job) return null;
-  const state = await job.getState();
-  return { id: job.id, state, progress: job.progress, failedReason: job.failedReason };
-}

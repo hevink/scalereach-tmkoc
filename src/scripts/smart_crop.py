@@ -219,7 +219,8 @@ def match_faces_across_frames(prev_faces, curr_faces):
 
 def get_crop_y(faces, src_h, crop_h):
     if not faces:
-        return 0
+        # No face — center crop vertically (better for B-roll / text screens)
+        return max(0, (src_h - crop_h) // 2)
     top_face_y = min(f["y"] for f in faces)
     target_y = top_face_y - int(crop_h * 0.20)
     return max(0, min(target_y, src_h - crop_h))
@@ -248,9 +249,11 @@ for t in sample_times:
         w_ratio = face["w"] / src_w   # face width relative to frame
         h_ratio = face["h"] / src_h   # face height relative to frame
 
-        # Small face heuristic: if face is small (< 15% of frame width),
-        # it's almost certainly a PiP webcam overlay, regardless of position
-        is_small_face = w_ratio < 0.20
+        log(f"  face: cx={face['cx']}, cy={face['cy']}, w={face['w']}, h={face['h']}, w_ratio={w_ratio:.3f}, area={face['area']}")
+
+        # Small face heuristic: if face is very small (< 10% of frame width),
+        # it's almost certainly a PiP webcam overlay
+        is_small_face = w_ratio < 0.10
 
         # Corner detection: face center is in outer 30% of frame on any axis
         in_corner = (face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.70) and \
@@ -259,8 +262,9 @@ for t in sample_times:
         # Side detection: face is on the left or right edge (non-overlapping with centered)
         on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
 
-        # Centered: face is in the middle area AND reasonably sized (not a tiny webcam)
-        is_centered = src_w * 0.25 < face["cx"] < src_w * 0.75 and \
+        # Centered: face is reasonably sized and not a tiny webcam overlay
+        # Use wider range (15%-85%) since talking heads are often slightly off-center
+        is_centered = src_w * 0.15 < face["cx"] < src_w * 0.85 and \
                       src_h * 0.15 < face["cy"] < src_h * 0.85 and \
                       w_ratio >= 0.08  # must be at least 8% of frame width
 
@@ -268,12 +272,16 @@ for t in sample_times:
             # Small face in corner = definitely PiP webcam
             pip_detections += 2
             small_corner_count += 1
-        elif is_small_face:
-            # Small face anywhere = likely PiP
+        elif is_small_face and on_side:
+            # Small face on the edge = likely PiP webcam
             pip_detections += 1
-        elif on_side:
+        elif is_small_face:
+            # Small face elsewhere = possibly PiP
             pip_detections += 1
         elif is_centered:
+            full_detections += 1
+        else:
+            # Large face that's off-center — still a normal speaker, not PiP
             full_detections += 1
 
     centered_faces = [f for f in faces if src_w * 0.25 < f["cx"] < src_w * 0.75
@@ -574,9 +582,14 @@ for fd in frame_data:
     has_face = bool(fd["faces"])
 
     if x is None:
-        predicted_x   = last_x + last_velocity * 0.5
+        # No face detected — smoothly transition toward center crop
+        # instead of blindly holding the last face position.
+        # This handles B-roll, text screens, etc. much better.
+        center_x = (src_w - crop_w) // 2
+        # Blend toward center: 20% per step (reaches center in ~1-2s)
+        predicted_x = last_x + (center_x - last_x) * 0.20
         x             = int(max(0, min(predicted_x, src_w - crop_w)))
-        last_velocity *= 0.5
+        last_velocity *= 0.3
     else:
         last_velocity = x - last_x
         last_cx       = x + crop_w // 2

@@ -1,7 +1,7 @@
 import { Context } from "hono";
 import { ClipModel } from "../models/clip.model";
 import { VideoModel } from "../models/video.model";
-import { addSmartCropJob, getSmartCropJobStatus } from "../jobs/queue";
+import { addClipGenerationJob, getClipJobStatus } from "../jobs/queue";
 
 export class SmartCropController {
   private static logRequest(c: Context, operation: string, details?: any) {
@@ -13,7 +13,7 @@ export class SmartCropController {
 
   /**
    * POST /api/clips/:id/smart-crop
-   * Trigger smart crop job for a clip
+   * Trigger smart crop by adding a clip generation job with smartCropEnabled
    */
   static async trigger(c: Context) {
     const clipId = c.req.param("id");
@@ -40,7 +40,7 @@ export class SmartCropController {
 
       // Idempotent: already in progress
       if (smartCropStatus === "processing" || smartCropStatus === "pending") {
-        return c.json({ status: smartCropStatus, jobId: `smart-crop-${clipId}` });
+        return c.json({ status: smartCropStatus, jobId: `clip-${clipId}` });
       }
 
       const video = await VideoModel.getById(clip.videoId);
@@ -52,16 +52,24 @@ export class SmartCropController {
         return c.json({ error: "Clip has no video file. Generate the clip first." }, 400);
       }
 
-      await addSmartCropJob({
+      // Add to clip generation queue with smartCropEnabled flag
+      await addClipGenerationJob({
         clipId,
         videoId: clip.videoId,
         workspaceId: (video as any).workspaceId || "",
         userId: video.userId || "",
+        sourceType: (video as any).sourceType || "upload",
         storageKey,
+        startTime: clip.startTime,
+        endTime: clip.endTime,
+        aspectRatio: "9:16",
+        quality: "1080p",
+        creditCost: 0, // smart crop re-generation doesn't cost credits
+        smartCropEnabled: true,
       });
 
-      console.log(`[SMART CROP CONTROLLER] Job enqueued for clip: ${clipId}`);
-      return c.json({ status: "pending", jobId: `smart-crop-${clipId}` }, 201);
+      console.log(`[SMART CROP CONTROLLER] Job enqueued on clip queue for clip: ${clipId}`);
+      return c.json({ status: "pending", jobId: `clip-${clipId}` }, 201);
     } catch (error) {
       console.error(`[SMART CROP CONTROLLER] TRIGGER error:`, error);
       return c.json({ error: "Failed to start smart crop" }, 500);
@@ -70,7 +78,7 @@ export class SmartCropController {
 
   /**
    * GET /api/clips/:id/smart-crop/status
-   * Poll smart crop job status
+   * Poll smart crop job status (uses clip generation queue)
    */
   static async status(c: Context) {
     const clipId = c.req.param("id");
@@ -81,7 +89,7 @@ export class SmartCropController {
       if (!clip) return c.json({ error: "Clip not found" }, 404);
 
       const smartCropStatus = (clip as any).smartCropStatus || "not_started";
-      const jobStatus = await getSmartCropJobStatus(clipId);
+      const jobStatus = await getClipJobStatus(`clip-${clipId}`);
       const progress = typeof jobStatus?.progress === "number" ? jobStatus.progress : 0;
 
       return c.json({

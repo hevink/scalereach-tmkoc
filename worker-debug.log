@@ -1,0 +1,484 @@
+[SENTRY] Initialized for error tracking
+[AI] provider: google (vertex-ai)
+[AI] model: gemini-3-pro-preview
+[AI] key set: true
+[REDIS] Using REDIS_URL connection
+[EMAIL SERVICE] Transporter initialized
+[POT] Starting bgutil POT server on port 4416...
+[POT] YT_DLP_GET_POT_BGUTIL_BASE_URL set to http://localhost:4416
+[WORKER] Starting video processing worker...
+[VIDEO WORKER] Starting worker with concurrency: 2
+[WORKER] Starting clip generation worker...
+[CLIP WORKER] Starting worker with concurrency: 1
+[WORKER] Starting translation worker...
+[TRANSLATION WORKER] Starting translation worker...
+[TRANSLATION WORKER] Translation worker started
+[WORKER] Starting dubbing worker...
+[DUBBING WORKER] Starting dubbing worker with concurrency: 1
+[DUBBING WORKER] Dubbing worker started
+[WORKER] Starting social posting worker...
+[WORKER] Starting storage cleanup job...
+[STORAGE CLEANUP] Job scheduled — runs every 24h.
+[WORKER] Starting credit expiry job...
+[CREDIT EXPIRY JOB] Running...
+[CREDIT MODEL] EXPIRE_STALE_CREDITS 
+[WORKER] Health check server running on http://localhost:3002
+[WORKER] Workers are running and waiting for jobs...
+[REDIS] Connected to Redis
+[CREDIT EXPIRY JOB] Done — workspaces updated: 0, credits expired: 0
+[POT] Started POT server (v1.3.1) on on address [::]:4416
+[CLIP WORKER] Processing clip generation job: LutTW2MZsGfibpZ5eY1rD
+[CLIP WORKER] Source type: youtube, Aspect ratio: 9:16
+[CLIP WORKER] Time range: 2056s - 2105s
+[CLIP WORKER] Captions: 189 words
+[CLIP WORKER] Intro title: yes
+[CLIP WORKER] Emojis: no
+[CLIP WORKER] Text overlays: 0
+[CLIP WORKER] Target language: original
+[CLIP WORKER] Split-screen: no
+[CLIP WORKER] Smart crop: ENABLED
+[CLIP MODEL] UPDATE_CLIP {"id":"LutTW2MZsGfibpZ5eY1rD","fields":["status"]}
+[CLIP MODEL] UPDATE_CLIP completed in 781.12ms, updated: true
+[CLIP WORKER] Starting clip generation...
+[CLIP GENERATOR] GENERATE_CLIP_V2 {"clipId":"LutTW2MZsGfibpZ5eY1rD","sourceType":"youtube","aspectRatio":"9:16","quality":"1080p","startTime":2056,"endTime":2105,"hasCaptions":true,"hasIntroTitle":true,"hasSplitScreen":false}
+[CLIP GENERATOR] YT_DLP_USING_POT {"baseUrl":"http://localhost:4416"}
+[CLIP GENERATOR] YT_DLP_DOWNLOAD {"args":"--cookies ./config/youtube_cookies_local.txt -f bestvideo+bestaudio/best --download-sections *00:34:16.000-00:35:05.000 --force-keyframes-at-cuts --merge-output-format mp4 -o /var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/src-mpD9Uubsmdp4S5fbZLo9K.mp4 --no-playlist --quiet --no-warnings --no-post-overwrites --js-runtimes deno --extractor-args youtube:player_client=android_vr,web,android --extractor-args youtubepot-bgutilhttp:base_url=http://localhost:4416 --extractor-retries 3 --fragment-retries 5 --retry-sleep 2 https://www.youtube.com/watch?v=4W9qbZ0HE6o"}
+[CLIP GENERATOR] Downloading segment: ]8;;https://www.youtube.com/watch?v=4W9qbZ0HE6o&t=2056\https://www.youtube.com/watch?v=4W9qbZ0HE6o [00:34:16.000 → 00:35:05.000]]8;;\
+[STORAGE CLEANUP] Starting run at 2026-03-11T11:29:28.522Z
+[STORAGE CLEANUP] No expired videos found.
+[CLIP GENERATOR] SOURCE_DOWNLOADED_ONCE {"path":"/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/src-mpD9Uubsmdp4S5fbZLo9K.mp4"}
+[CLIP GENERATOR] SKIP_ASPECT_RATIO_CONVERT {"reason":"smartCropEnabled, will reframe from source"}
+[CLIP GENERATOR] SMART_CROP_START {"clipId":"LutTW2MZsGfibpZ5eY1rD","inputFile":"/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/src-mpD9Uubsmdp4S5fbZLo9K.mp4"}
+[SMART CROP PY] [SMART CROP PY] clip_id=LutTW2MZsGfibpZ5eY1rD tmp_dir=/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T
+[SMART CROP PY] [SMART CROP PY] Downloading video to tmp...
+[SMART CROP PY] [SMART CROP PY] Download done.
+[SMART CROP PY] [SMART CROP PY] Video: 3840x2160 @ 25.0fps, 49.0s
+[SMART CROP PY] [SMART CROP PY] Pre-downscaling 3840x2160 → 1280x720 for face detection...
+[SMART CROP PY] [SMART CROP PY] Proxy ready.
+[SMART CROP PY] I0000 00:00:1773228631.218163 1143270 gl_context.cc:407] GL version: 2.1 (2.1 Metal - 90.5), renderer: Apple M3
+[SMART CROP PY] INFO: [SMART CROP PY] Created TensorFlow Lite XNNPACK delegate for CPU.
+[SMART CROP PY] W0000 00:00:1773228631.223902 1143274 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+[SMART CROP PY] [SMART CROP PY] Detecting video type...
+[SMART CROP PY] [SMART CROP PY]   face: cx=1769, cy=832, w=603, h=603, w_ratio=0.157, area=363609
+[SMART CROP PY]   face: cx=3057, cy=1264, w=612, h=612, w_ratio=0.159, area=374544
+[SMART CROP PY]   face: cx=986, cy=1489, w=900, h=900, w_ratio=0.234, area=810000
+[SMART CROP PY] [SMART CROP PY]   face: cx=2348, cy=789, w=625, h=625, w_ratio=0.163, area=390625
+[SMART CROP PY]   face: cx=1528, cy=364, w=639, h=639, w_ratio=0.166, area=408321
+[SMART CROP PY] [SMART CROP PY]   face: cx=2205, cy=825, w=580, h=580, w_ratio=0.151, area=336400
+[SMART CROP PY]   face: cx=1504, cy=361, w=625, h=625, w_ratio=0.163, area=390625
+[SMART CROP PY] [SMART CROP PY]   face: cx=2156, cy=715, w=585, h=585, w_ratio=0.152, area=342225
+[SMART CROP PY]   face: cx=1481, cy=404, w=639, h=639, w_ratio=0.166, area=408321
+[SMART CROP PY] [SMART CROP PY]   face: cx=1565, cy=778, w=630, h=630, w_ratio=0.164, area=396900
+[SMART CROP PY]   face: cx=3097, cy=1217, w=634, h=634, w_ratio=0.165, area=401956
+[SMART CROP PY] [SMART CROP PY]   face: cx=1782, cy=776, w=616, h=616, w_ratio=0.160, area=379456
+[SMART CROP PY]   face: cx=3081, cy=1196, w=621, h=621, w_ratio=0.162, area=385641
+[SMART CROP PY]   face: cx=2008, cy=915, w=607, h=607, w_ratio=0.158, area=368449
+[SMART CROP PY] [SMART CROP PY]   face: cx=1816, cy=857, w=670, h=670, w_ratio=0.174, area=448900
+[SMART CROP PY]   face: cx=3064, cy=1203, w=643, h=643, w_ratio=0.167, area=413449
+[SMART CROP PY] [SMART CROP PY]   face: cx=1819, cy=827, w=567, h=567, w_ratio=0.148, area=321489
+[SMART CROP PY]   face: cx=3047, cy=1241, w=639, h=639, w_ratio=0.166, area=408321
+[SMART CROP PY] [SMART CROP PY]   face: cx=1355, cy=703, w=589, h=589, w_ratio=0.153, area=346921
+[SMART CROP PY] [SMART CROP PY]   face: cx=1683, cy=807, w=643, h=643, w_ratio=0.167, area=413449
+[SMART CROP PY]   face: cx=3060, cy=1261, w=607, h=607, w_ratio=0.158, area=368449
+[SMART CROP PY] [SMART CROP PY]   face: cx=1348, cy=821, w=616, h=616, w_ratio=0.160, area=379456
+[SMART CROP PY]   face: cx=3067, cy=1257, w=607, h=607, w_ratio=0.158, area=368449
+[SMART CROP PY]   face: cx=2039, cy=1082, w=544, h=544, w_ratio=0.142, area=295936
+[SMART CROP PY] [SMART CROP PY]   face: cx=1485, cy=863, w=603, h=603, w_ratio=0.157, area=363609
+[SMART CROP PY]   face: cx=3005, cy=829, w=535, h=535, w_ratio=0.139, area=286225
+[SMART CROP PY]   face: cx=1823, cy=859, w=567, h=567, w_ratio=0.148, area=321489
+[SMART CROP PY]   face: cx=3085, cy=1543, w=693, h=693, w_ratio=0.180, area=480249
+[SMART CROP PY] [SMART CROP PY]   face: cx=1642, cy=774, w=612, h=612, w_ratio=0.159, area=374544
+[SMART CROP PY]   face: cx=3071, cy=1284, w=625, h=625, w_ratio=0.163, area=390625
+[SMART CROP PY] [SMART CROP PY]   face: cx=1694, cy=834, w=616, h=616, w_ratio=0.160, area=379456
+[SMART CROP PY]   face: cx=3071, cy=1189, w=625, h=625, w_ratio=0.163, area=390625
+[SMART CROP PY] [SMART CROP PY]   face: cx=1345, cy=778, w=639, h=639, w_ratio=0.166, area=408321
+[SMART CROP PY]   face: cx=3058, cy=1270, w=625, h=625, w_ratio=0.163, area=390625
+[SMART CROP PY]   face: cx=568, cy=1741, w=666, h=666, w_ratio=0.173, area=443556
+[SMART CROP PY] [SMART CROP PY] Video type: podcast (pip=0, full=49, no_face=0, small_corner=0, group_frames=1/15)
+[SMART CROP PY] Podcast/talking-head — running face tracking...
+[SMART CROP PY] [SMART CROP PY] Extracting audio for diarization...
+[SMART CROP PY] [SMART CROP PY] Running speaker diarization...
+[SMART CROP PY] [SMART CROP PY] WARNING: Diarization failed (No module named 'pyannote') — face-only tracking
+[SMART CROP PY] [SMART CROP PY] Face tracking interval: 0.2s (245 samples)
+[SMART CROP PY] [SMART CROP PY] Face detection done: 245/245 frames have faces
+[SMART CROP PY] [SMART CROP PY] No speaker-face mapping established
+[SMART CROP PY] [SMART CROP PY] Generated 245 crop keyframes
+[SMART CROP PY] [SMART CROP PY] Interpolated to 1221 per-frame coords (25.0fps)
+[SMART CROP PY] [SMART CROP PY] Segments after merge: 1 (min_dur=1.5s)
+[SMART CROP PY] [SMART CROP PY] Done.
+[CLIP GENERATOR] SMART_CROP_DONE {"clipId":"LutTW2MZsGfibpZ5eY1rD","size":32811757}
+[CLIP GENERATOR] ASS_FONT_SCALING {"inputFontSize":44,"scaledFontSize":121,"scaleFactor":"2.743","outputResolution":"1080x1920"}
+[CLIP GENERATOR] ASS_CONTENT_SUMMARY {"wordCount":189,"lineCount":63,"animation":"bounce","hasIntroTitle":true,"hasEmojis":false,"textOverlayCount":0,"totalLength":30355}
+[CLIP GENERATOR] EMOJI_PNG_RENDERED {"path":"/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/emoji-overlay-mCCB3AnSbQmApwGR0AOle.png","size":"OK:894x246"}
+[CLIP GENERATOR] EMOJI_INTRO_TITLE_PNG_READY {"text":"The Dark Reality Of Underworld! 🛑"}
+[CLIP GENERATOR] FFMPEG_CONVERT_ASPECT {"args":"-i /var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/raw-mpD9Uubsmdp4S5fbZLo9K.mp4 -vf scale=1080:1920:flags=lanczos,format=yuv420p,ass=/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/subs-mpD9Uubsmdp4S5fbZLo9K.ass:fontsdir=/Users/hevinkalathiya/scalereach/scalereach-tmkoc/assets/fonts -map 0:v -map 0:a? -c:v libx264 -preset ultrafast -crf 22 -profile:v high -level 4.0 -c:a aac -b:a 192k -movflags +faststart -y /var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/cap-mpD9Uubsmdp4S5fbZLo9K.mp4","hasSubtitles":true,"isVertical":true,"useBlurBackground":true}
+[CLIP GENERATOR] CLIP_GENERATION_COMPLETE {"clipId":"LutTW2MZsGfibpZ5eY1rD","captionedSize":32131148,"rawSize":32811757}
+[CLIP GENERATOR] UPLOADING_CLIP_WITH_CAPTIONS {"storageKey":"PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlyi6aq.mp4","size":32131148}
+[R2 SERVICE] Uploading file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlyi6aq.mp4
+[R2 SERVICE] Upload complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlyi6aq.mp4
+[CLIP GENERATOR] UPLOADING_RAW_CLIP {"rawStorageKey":"PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-raw-mmlyi6aq.mp4","size":32811757}
+[R2 SERVICE] Uploading file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-raw-mmlyi6aq.mp4
+[R2 SERVICE] Upload complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-raw-mmlyi6aq.mp4
+[CLIP GENERATOR] THUMBNAIL_EXTRACTED_LOCALLY {"size":109590,"offset":1}
+[CLIP WORKER] Uploading thumbnail...
+[R2 SERVICE] Uploading file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlyi6aq-thumb.jpg
+[R2 SERVICE] Upload complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlyi6aq-thumb.jpg
+[CLIP WORKER] Thumbnail uploaded: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlyi6aq-thumb.jpg (109590 bytes)
+[CLIP MODEL] GET_CLIP_BY_ID {"id":"LutTW2MZsGfibpZ5eY1rD"}
+[CLIP MODEL] GET_CLIP_BY_ID completed in 812.40ms, found: true
+[R2 SERVICE] Deleting file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlvy3dt.mp4
+[R2 SERVICE] Deleting file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-raw-mmlvy3dt.mp4
+[R2 SERVICE] Deleting file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlvy3dt-thumb.jpg
+[CLIP MODEL] UPDATE_CLIP {"id":"LutTW2MZsGfibpZ5eY1rD","fields":["status","storageKey","storageUrl","rawStorageKey","rawStorageUrl","thumbnailKey","thumbnailUrl","aspectRatio"]}
+[CLIP MODEL] UPDATE_CLIP completed in 175.15ms, updated: true
+[CLIP WORKER] TIMING | clipId=LutTW2MZsGfibpZ5eY1rD total=122.4s generate=119.8s thumbnail=1.8s clipDuration=49s ratio=2.50x
+[CLIP WORKER] Clip generation complete: LutTW2MZsGfibpZ5eY1rD
+[CLIP WORKER] Storage URL: https://cdn.scalereach.ai/PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlyi6aq.mp4
+[CLIP WORKER] File size: 30.64 MB
+[CLIP MODEL] GET_CLIPS_BY_VIDEO {"videoId":"7qufj995ZviMj4odYDnrN","filters":{}}
+[R2 SERVICE] Delete complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlvy3dt.mp4
+[R2 SERVICE] Delete complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-raw-mmlvy3dt.mp4
+[R2 SERVICE] Delete complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/7qufj995ZviMj4odYDnrN/clips/LutTW2MZsGfibpZ5eY1rD-9x16-mmlvy3dt-thumb.jpg
+[CLIP MODEL] GET_CLIPS_BY_VIDEO completed in 325.27ms, found 4 clips
+[CLIP WORKER] All 4 clips ready for video 7qufj995ZviMj4odYDnrN, sending notification...
+[USER MODEL] GET_USER_BY_ID {"id":"PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw"}
+[VIDEO MODEL] GET_VIDEO_BY_ID {"id":"7qufj995ZviMj4odYDnrN"}
+[USER MODEL] GET_USER_BY_ID completed in 165.61ms, found: true
+[VIDEO MODEL] GET_VIDEO_BY_ID completed in 1730.21ms, found: true
+[WORKSPACE MODEL] GET_WORKSPACE_BY_ID {"id":"znrje9lkcidmmaiziti"}
+[WORKSPACE MODEL] GET_WORKSPACE_BY_ID completed in 181.11ms, found: true
+
+╔══════════════════════════════════════════════════════════════╗
+║              ALL CLIPS READY NOTIFICATION                    ║
+╠══════════════════════════════════════════════════════════════╣
+║ To: hevinkalathiya123@gmail.com
+║ Video: How D-Company Was Born: The Bombay Underworld War Nobody Knows!
+║ Clips ready: 4
+╚══════════════════════════════════════════════════════════════╝
+
+[EMAIL SERVICE] Email sent: <9a1efe73-2c3f-a76e-b9c5-aa3f891fb478@scalereach.ai>
+[CLIP WORKER] All clips ready notification sent to hevinkalathiya123@gmail.com
+[WORKER] Job clip-LutTW2MZsGfibpZ5eY1rD completed
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[WORKER] Worker error: connect ETIMEDOUT
+[QUEUE CLEANUP] Cleaned stale video processing jobs
+[QUEUE CLEANUP] Cleaned stale clip generation jobs
+[YOUTUBE SERVICE] Getting video info via yt-dlp for: https://www.youtube.com/watch?v=iHBJHOYUE6c
+[YOUTUBE SERVICE] Using bgutil POT provider at: http://localhost:4416
+[YOUTUBE SERVICE] Using cookies from: ./config/youtube_cookies_local.txt
+[YOUTUBE SERVICE] Estimated audio file size: ~11.8 MB
+[YOUTUBE SERVICE] Best available video height: 2160p
+[YOUTUBE SERVICE] Getting video info via yt-dlp for: https://www.youtube.com/watch?v=iHBJHOYUE6c
+[YOUTUBE SERVICE] Using bgutil POT provider at: http://localhost:4416
+[YOUTUBE SERVICE] Using cookies from: ./config/youtube_cookies_local.txt
+[YOUTUBE SERVICE] Estimated audio file size: ~11.8 MB
+[YOUTUBE SERVICE] Best available video height: 2160p
+[VIDEO WORKER] Processing job video-a3ZVQ0GWdXQnbTy8pQuO1, type: youtube
+[VIDEO WORKER] Processing YouTube video: a3ZVQ0GWdXQnbTy8pQuO1
+[VIDEO WORKER] Source URL: https://www.youtube.com/watch?v=iHBJHOYUE6c
+[VIDEO CONFIG MODEL] GET_BY_VIDEO_ID {"videoId":"a3ZVQ0GWdXQnbTy8pQuO1"}
+[VIDEO CONFIG MODEL] GET_BY_VIDEO_ID completed in 164.14ms, found: true
+[VIDEO WORKER] Video config loaded: {
+  skipClipping: false,
+  clipModel: "ClipBasic",
+  genre: "Auto",
+  captionTemplateId: "garyvee",
+  aspectRatio: "9:16",
+  timeframeStart: 0,
+  timeframeEnd: null,
+}
+[WORKSPACE MODEL] GET_WORKSPACE_BY_ID {"id":"znrje9lkcidmmaiziti"}
+[WORKSPACE MODEL] GET_WORKSPACE_BY_ID completed in 808.86ms, found: true
+[YOUTUBE SERVICE] Starting audio stream: https://www.youtube.com/watch?v=iHBJHOYUE6c
+[YOUTUBE SERVICE] Getting video info via yt-dlp for: https://www.youtube.com/watch?v=iHBJHOYUE6c
+[YOUTUBE SERVICE] Using bgutil POT provider at: http://localhost:4416
+[YOUTUBE SERVICE] Using cookies from: ./config/youtube_cookies_local.txt
+[YOUTUBE SERVICE] Estimated audio file size: ~11.8 MB
+[YOUTUBE SERVICE] Best available video height: 2160p
+[YOUTUBE SERVICE] Using cookies from: ./config/youtube_cookies_local.txt
+[YOUTUBE SERVICE] Audio stream started for: Why Dhurandhar: The Revenge Could Be India’s BIGGEST EVER Movie
+[VIDEO WORKER] Source video height: 2160p, plan: pro, splitScreen: false, clip quality: 4k
+[VIDEO WORKER] Audio stream started, uploading to R2...
+[R2 SERVICE] Uploading from stream: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/source.m4a
+[R2 SERVICE] Upload progress: 5242880 bytes
+[R2 SERVICE] Upload progress: 6187529 bytes
+[R2 SERVICE] Upload progress: 11430409 bytes
+[R2 SERVICE] Stream upload complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/source.m4a (11430409 bytes)
+[VIDEO WORKER] Starting transcription... (language: hi)
+[DEEPGRAM] Transcribing from URL: https://cdn.scalereach.ai/PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/source.m4a
+[DEEPGRAM] Using manual language selection: hi
+[DEEPGRAM] Language set to: hi (Hindi)
+[DEEPGRAM] Transcription complete: 2549 words, 706.2s duration, language: en, confidence: 0.989
+[VIDEO WORKER] Transcript stored with language: en, confidence: 0.989
+[VIDEO WORKER] Detecting viral clips...
+[VIDEO WORKER] Processing timeframe: 0s - 706s
+[VIRAL DETECTION] Analyzing transcript for viral clips...
+[VIRAL DETECTION] Using AI service (provider configured via env)
+[VIRAL DETECTION] Transcript length: 12514 chars
+[VIRAL DETECTION] Options: clipType=viral-clips, enableEmojis=false, enableIntroTitle=true, duration=AUTO
+[VIRAL DETECTION] Calling AI (generateObject with Zod schema)...
+[VIRAL DETECTION] Error analyzing transcript: DOMException {
+  stack: "",
+  code: 23,
+  name: "TimeoutError",
+  message: "The operation timed out.",
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25,
+  toString: [Function: toString],
+}
+[VIDEO WORKER] Error processing video a3ZVQ0GWdXQnbTy8pQuO1: DOMException {
+  stack: "",
+  code: 23,
+  name: "TimeoutError",
+  message: "The operation timed out.",
+  INDEX_SIZE_ERR: 1,
+  DOMSTRING_SIZE_ERR: 2,
+  HIERARCHY_REQUEST_ERR: 3,
+  WRONG_DOCUMENT_ERR: 4,
+  INVALID_CHARACTER_ERR: 5,
+  NO_DATA_ALLOWED_ERR: 6,
+  NO_MODIFICATION_ALLOWED_ERR: 7,
+  NOT_FOUND_ERR: 8,
+  NOT_SUPPORTED_ERR: 9,
+  INUSE_ATTRIBUTE_ERR: 10,
+  INVALID_STATE_ERR: 11,
+  SYNTAX_ERR: 12,
+  INVALID_MODIFICATION_ERR: 13,
+  NAMESPACE_ERR: 14,
+  INVALID_ACCESS_ERR: 15,
+  VALIDATION_ERR: 16,
+  TYPE_MISMATCH_ERR: 17,
+  SECURITY_ERR: 18,
+  NETWORK_ERR: 19,
+  ABORT_ERR: 20,
+  URL_MISMATCH_ERR: 21,
+  QUOTA_EXCEEDED_ERR: 22,
+  TIMEOUT_ERR: 23,
+  INVALID_NODE_TYPE_ERR: 24,
+  DATA_CLONE_ERR: 25,
+  toString: [Function: toString],
+}
+[R2 SERVICE] Deleting file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/source.m4a
+[R2 SERVICE] Delete complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/source.m4a
+[VIDEO WORKER] Cleaned up storage file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/source.m4a
+[WORKER] Job video-a3ZVQ0GWdXQnbTy8pQuO1 failed: The operation timed out.
+[VIDEO WORKER] Processing job video-a3ZVQ0GWdXQnbTy8pQuO1, type: youtube
+[VIDEO WORKER] Processing YouTube video: a3ZVQ0GWdXQnbTy8pQuO1
+[VIDEO WORKER] Source URL: https://www.youtube.com/watch?v=iHBJHOYUE6c
+[VIDEO CONFIG MODEL] GET_BY_VIDEO_ID {"videoId":"a3ZVQ0GWdXQnbTy8pQuO1"}
+[VIDEO CONFIG MODEL] GET_BY_VIDEO_ID completed in 156.06ms, found: true
+[VIDEO WORKER] Video config loaded: {
+  skipClipping: false,
+  clipModel: "ClipBasic",
+  genre: "Auto",
+  captionTemplateId: "garyvee",
+  aspectRatio: "9:16",
+  timeframeStart: 0,
+  timeframeEnd: null,
+}
+[WORKSPACE MODEL] GET_WORKSPACE_BY_ID {"id":"znrje9lkcidmmaiziti"}
+[WORKSPACE MODEL] GET_WORKSPACE_BY_ID completed in 307.44ms, found: true
+[VIDEO WORKER] Resuming from AI step — transcript already in DB
+[VIDEO WORKER] Detecting viral clips...
+[VIDEO WORKER] Processing timeframe: 0s - 9999s
+[VIRAL DETECTION] Analyzing transcript for viral clips...
+[VIRAL DETECTION] Using AI service (provider configured via env)
+[VIRAL DETECTION] Transcript length: 12514 chars
+[VIRAL DETECTION] Options: clipType=viral-clips, enableEmojis=false, enableIntroTitle=true, duration=AUTO
+[VIRAL DETECTION] Calling AI (generateObject with Zod schema)...
+[AI] 6354 tokens used
+[VIRAL DETECTION] Found 4 viral clips
+[VIRAL DETECTION] Raw clip durations: [ "\"The Hidden Mahabharata Connect...\": 117.0s (92-209)",
+  "\"The Horrifying True Story Behi...\": 42.0s (249-291)",
+  "\"Bollywood's Pro-Pakistan Propa...\": 40.0s (411-451)",
+  "\"The Insane Box Office Hype for...\": 34.0s (464-498)"
+]
+[VIRAL DETECTION] Recommended platforms from AI: [ "\"The Hidden Mahabhara...\": [\"youtube_shorts\",\"instagram_reels\",\"facebook_reels\"]",
+  "\"The Horrifying True ...\": [\"youtube_shorts\",\"tiktok\",\"instagram_reels\"]",
+  "\"Bollywood's Pro-Paki...\": [\"twitter\",\"youtube_shorts\",\"facebook_reels\"]",
+  "\"The Insane Box Offic...\": [\"tiktok\",\"instagram_reels\",\"youtube_shorts\"]"
+]
+[VIDEO WORKER] Saving 4 viral clips and queuing generation with captions...
+[CLIP_CAPTION_MODEL] CREATE {"clipId":"xmB6Hez1OHfremEa2C2Cn","wordCount":377}
+[QUEUE] Adding clip generation job for clip: xmB6Hez1OHfremEa2C2Cn (priority: 3)
+[QUEUE] Clip generation job added with ID: clip-xmB6Hez1OHfremEa2C2Cn
+[VIDEO WORKER] Queued clip generation with captions: xmB6Hez1OHfremEa2C2Cn (with intro title) (delay: 0s)
+[CLIP_CAPTION_MODEL] CREATE {"clipId":"_SK3qdU0YDFrt9uGUErrV","wordCount":153}
+[CLIP WORKER] Processing clip generation job: xmB6Hez1OHfremEa2C2Cn
+[CLIP WORKER] Source type: youtube, Aspect ratio: 9:16
+[CLIP WORKER] Time range: 92s - 209s
+[CLIP WORKER] Captions: 377 words
+[CLIP WORKER] Intro title: yes
+[CLIP WORKER] Emojis: no
+[CLIP WORKER] Text overlays: 0
+[CLIP WORKER] Target language: original
+[CLIP WORKER] Split-screen: no
+[CLIP WORKER] Smart crop: ENABLED
+[CLIP MODEL] UPDATE_CLIP {"id":"xmB6Hez1OHfremEa2C2Cn","fields":["status"]}
+[QUEUE] Adding clip generation job for clip: _SK3qdU0YDFrt9uGUErrV (priority: 3, delay: 10000ms)
+[QUEUE] Clip generation job added with ID: clip-_SK3qdU0YDFrt9uGUErrV
+[VIDEO WORKER] Queued clip generation with captions: _SK3qdU0YDFrt9uGUErrV (with intro title) (delay: 10s)
+[CLIP_CAPTION_MODEL] CREATE {"clipId":"F81pwbKq8GNfCuf4-acxQ","wordCount":145}
+[QUEUE] Adding clip generation job for clip: F81pwbKq8GNfCuf4-acxQ (priority: 3, delay: 20000ms)
+[QUEUE] Clip generation job added with ID: clip-F81pwbKq8GNfCuf4-acxQ
+[VIDEO WORKER] Queued clip generation with captions: F81pwbKq8GNfCuf4-acxQ (with intro title) (delay: 20s)
+[CLIP_CAPTION_MODEL] CREATE {"clipId":"ZKtNT1JJZoOX3WB4fqBGh","wordCount":130}
+[QUEUE] Adding clip generation job for clip: ZKtNT1JJZoOX3WB4fqBGh (priority: 3, delay: 30000ms)
+[QUEUE] Clip generation job added with ID: clip-ZKtNT1JJZoOX3WB4fqBGh
+[VIDEO WORKER] Queued clip generation with captions: ZKtNT1JJZoOX3WB4fqBGh (with intro title) (delay: 30s)
+[CLIP MODEL] UPDATE_CLIP completed in 782.21ms, updated: true
+[VIDEO WORKER] YouTube video processing complete: a3ZVQ0GWdXQnbTy8pQuO1, found 4 viral clips (generation queued)
+[WORKER] Job video-a3ZVQ0GWdXQnbTy8pQuO1 completed
+[CLIP WORKER] Starting clip generation...
+[CLIP GENERATOR] GENERATE_CLIP_V2 {"clipId":"xmB6Hez1OHfremEa2C2Cn","sourceType":"youtube","aspectRatio":"9:16","quality":"2k","startTime":92,"endTime":209,"hasCaptions":true,"hasIntroTitle":true,"hasSplitScreen":false}
+[CLIP GENERATOR] YT_DLP_USING_POT {"baseUrl":"http://localhost:4416"}
+[CLIP GENERATOR] YT_DLP_DOWNLOAD {"args":"--cookies ./config/youtube_cookies_local.txt -f bestvideo+bestaudio/best --download-sections *00:01:32.000-00:03:29.000 --force-keyframes-at-cuts --merge-output-format mp4 -o /var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/src-MtMKG0XAXFamF6WHNP7ux.mp4 --no-playlist --quiet --no-warnings --no-post-overwrites --js-runtimes deno --extractor-args youtube:player_client=android_vr,web,android --extractor-args youtubepot-bgutilhttp:base_url=http://localhost:4416 --extractor-retries 3 --fragment-retries 5 --retry-sleep 2 https://www.youtube.com/watch?v=iHBJHOYUE6c"}
+[CLIP GENERATOR] Downloading segment: ]8;;https://www.youtube.com/watch?v=iHBJHOYUE6c&t=92\https://www.youtube.com/watch?v=iHBJHOYUE6c [00:01:32.000 → 00:03:29.000]]8;;\
+[CLIP GENERATOR] SOURCE_DOWNLOADED_ONCE {"path":"/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/src-MtMKG0XAXFamF6WHNP7ux.mp4"}
+[CLIP GENERATOR] SKIP_ASPECT_RATIO_CONVERT {"reason":"smartCropEnabled, will reframe from source"}
+[CLIP GENERATOR] SMART_CROP_START {"clipId":"xmB6Hez1OHfremEa2C2Cn","inputFile":"/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/src-MtMKG0XAXFamF6WHNP7ux.mp4"}
+[SMART CROP PY] [SMART CROP PY] clip_id=xmB6Hez1OHfremEa2C2Cn tmp_dir=/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T
+[SMART CROP PY] [SMART CROP PY] Downloading video to tmp...
+[SMART CROP PY] [SMART CROP PY] Download done.
+[SMART CROP PY] [SMART CROP PY] Video: 3840x2160 @ 59.9fps, 117.0s
+[SMART CROP PY] [SMART CROP PY] Pre-downscaling 3840x2160 → 1280x720 for face detection...
+[SMART CROP PY] [SMART CROP PY] Proxy ready.
+[SMART CROP PY] I0000 00:00:1773234215.941845 1212171 gl_context.cc:407] GL version: 2.1 (2.1 Metal - 90.5), renderer: Apple M3
+[SMART CROP PY] INFO: [SMART CROP PY] Created TensorFlow Lite XNNPACK delegate for CPU.
+[SMART CROP PY] W0000 00:00:1773234215.947523 1212174 inference_feedback_manager.cc:121] Feedback manager requires a model with a single signature inference. Disabling support for feedback tensors.
+[SMART CROP PY] [SMART CROP PY] Detecting video type...
+[SMART CROP PY] [SMART CROP PY]   face: cx=1777, cy=1066, w=792, h=792, w_ratio=0.206, area=627264
+[SMART CROP PY]   face: cx=2994, cy=735, w=1273, h=1273, w_ratio=0.332, area=1620529
+[SMART CROP PY]   face: cx=665, cy=652, w=1044, h=1044, w_ratio=0.272, area=1089936
+[SMART CROP PY] [SMART CROP PY]   face: cx=2365, cy=1014, w=922, h=922, w_ratio=0.240, area=850084
+[SMART CROP PY] [SMART CROP PY]   face: cx=2667, cy=861, w=787, h=787, w_ratio=0.205, area=619369
+[SMART CROP PY]   face: cx=923, cy=1080, w=2218, h=2160, w_ratio=0.578, area=4790880
+[SMART CROP PY]   face: cx=3018, cy=899, w=1125, h=1125, w_ratio=0.293, area=1265625
+[SMART CROP PY] [SMART CROP PY]   face: cx=1879, cy=832, w=828, h=828, w_ratio=0.216, area=685584
+[SMART CROP PY]   face: cx=3130, cy=526, w=1008, h=1008, w_ratio=0.263, area=1016064
+[SMART CROP PY] [SMART CROP PY]   face: cx=521, cy=1277, w=1071, h=1071, w_ratio=0.279, area=1147041
+[SMART CROP PY]   face: cx=1805, cy=947, w=598, h=598, w_ratio=0.156, area=357604
+[SMART CROP PY]   face: cx=1180, cy=1072, w=625, h=625, w_ratio=0.163, area=390625
+[SMART CROP PY]   face: cx=905, cy=1559, w=706, h=706, w_ratio=0.184, area=498436
+[SMART CROP PY]   face: cx=2647, cy=829, w=751, h=751, w_ratio=0.196, area=564001
+[SMART CROP PY] [SMART CROP PY]   face: cx=2267, cy=972, w=828, h=828, w_ratio=0.216, area=685584
+[SMART CROP PY]   face: cx=2780, cy=1309, w=828, h=828, w_ratio=0.216, area=685584
+[SMART CROP PY] [SMART CROP PY]   face: cx=1714, cy=942, w=868, h=868, w_ratio=0.226, area=753424
+[SMART CROP PY]   face: cx=3145, cy=616, w=1008, h=1008, w_ratio=0.263, area=1016064
+[SMART CROP PY]   face: cx=1315, cy=560, w=922, h=922, w_ratio=0.240, area=850084
+[SMART CROP PY] [SMART CROP PY]   face: cx=1703, cy=888, w=940, h=940, w_ratio=0.245, area=883600
+[SMART CROP PY]   face: cx=349, cy=1944, w=810, h=810, w_ratio=0.211, area=656100
+[SMART CROP PY]   face: cx=3201, cy=585, w=1170, h=1170, w_ratio=0.305, area=1368900
+[SMART CROP PY] [SMART CROP PY]   face: cx=1921, cy=683, w=873, h=873, w_ratio=0.227, area=762129
+[SMART CROP PY] [SMART CROP PY]   face: cx=1877, cy=1080, w=2367, h=2160, w_ratio=0.616, area=5112720
+[SMART CROP PY] [SMART CROP PY]   face: cx=1905, cy=937, w=715, h=715, w_ratio=0.186, area=511225
+[SMART CROP PY]   face: cx=3059, cy=805, w=1269, h=1269, w_ratio=0.330, area=1610361
+[SMART CROP PY]   face: cx=598, cy=605, w=994, h=994, w_ratio=0.259, area=988036
+[SMART CROP PY] [SMART CROP PY]   face: cx=2092, cy=816, w=859, h=859, w_ratio=0.224, area=737881
+[SMART CROP PY]   face: cx=1359, cy=452, w=814, h=814, w_ratio=0.212, area=662596
+[SMART CROP PY]   face: cx=3156, cy=562, w=1071, h=1071, w_ratio=0.279, area=1147041
+[SMART CROP PY] [SMART CROP PY] Video type: podcast (pip=0, full=38, no_face=3, small_corner=0, group_frames=1/15)
+[SMART CROP PY] Podcast/talking-head — running face tracking...
+[SMART CROP PY] [SMART CROP PY] Extracting audio for diarization...
+[SMART CROP PY] [SMART CROP PY] Running speaker diarization...
+[SMART CROP PY] [SMART CROP PY] WARNING: Diarization failed (No module named 'pyannote') — face-only tracking
+[SMART CROP PY] [SMART CROP PY] Face tracking interval: 0.2s (585 samples)
+[SMART CROP PY] [SMART CROP PY] Face detection done: 498/585 frames have faces
+[SMART CROP PY] [SMART CROP PY] No speaker-face mapping established
+[SMART CROP PY] [SMART CROP PY] Generated 585 crop keyframes
+[SMART CROP PY] [SMART CROP PY] Interpolated to 7009 per-frame coords (59.94005994005994fps)
+[SMART CROP PY] [SMART CROP PY] Segments after merge: 14 (min_dur=1.5s)
+[SMART CROP PY] [SMART CROP PY] Done.
+[CLIP GENERATOR] SMART_CROP_DONE {"clipId":"xmB6Hez1OHfremEa2C2Cn","size":236045680}
+[CLIP GENERATOR] ASS_FONT_SCALING {"inputFontSize":44,"scaledFontSize":161,"scaleFactor":"3.657","outputResolution":"1440x2560"}
+[CLIP GENERATOR] ASS_CONTENT_SUMMARY {"wordCount":377,"lineCount":126,"animation":"word-by-word","hasIntroTitle":true,"hasEmojis":false,"textOverlayCount":0,"totalLength":46395}
+[CLIP GENERATOR] EMOJI_PNG_RENDERED {"path":"/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/emoji-overlay-qFqUiv8DxrNvqTQo67hM3.png","size":"OK:1138x514"}
+[CLIP GENERATOR] EMOJI_INTRO_TITLE_PNG_READY {"text":"The Hidden Mahabharata Connection! 🤯"}
+[CLIP GENERATOR] FFMPEG_CONVERT_ASPECT {"args":"-i /var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/raw-MtMKG0XAXFamF6WHNP7ux.mp4 -vf scale=1440:2560:flags=lanczos,format=yuv420p,ass=/var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/subs-MtMKG0XAXFamF6WHNP7ux.ass:fontsdir=/Users/hevinkalathiya/scalereach/scalereach-tmkoc/assets/fonts -map 0:v -map 0:a? -c:v libx264 -preset medium -crf 18 -profile:v high -level 4.0 -c:a aac -b:a 192k -movflags +faststart -y /var/folders/pf/br3ffm1x2yn_1przx64t2mvm0000gn/T/cap-MtMKG0XAXFamF6WHNP7ux.mp4","hasSubtitles":true,"isVertical":true,"useBlurBackground":true}
+[CLIP GENERATOR] CLIP_GENERATION_COMPLETE {"clipId":"xmB6Hez1OHfremEa2C2Cn","captionedSize":223734264,"rawSize":236045680}
+[CLIP GENERATOR] UPLOADING_CLIP_WITH_CAPTIONS {"storageKey":"PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-mmm1o90j.mp4","size":223734264}
+[R2 SERVICE] Uploading file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-mmm1o90j.mp4
+[R2 SERVICE] Upload complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-mmm1o90j.mp4
+[CLIP GENERATOR] UPLOADING_RAW_CLIP {"rawStorageKey":"PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-raw-mmm1o90j.mp4","size":236045680}
+[R2 SERVICE] Uploading file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-raw-mmm1o90j.mp4
+[R2 SERVICE] Upload complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-raw-mmm1o90j.mp4
+[CLIP GENERATOR] THUMBNAIL_EXTRACTED_LOCALLY {"size":198906,"offset":1}
+[CLIP WORKER] Uploading thumbnail...
+[R2 SERVICE] Uploading file: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-mmm1o90j-thumb.jpg
+[R2 SERVICE] Upload complete: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-mmm1o90j-thumb.jpg
+[CLIP WORKER] Thumbnail uploaded: PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-mmm1o90j-thumb.jpg (198906 bytes)
+[CLIP MODEL] GET_CLIP_BY_ID {"id":"xmB6Hez1OHfremEa2C2Cn"}
+[CLIP MODEL] GET_CLIP_BY_ID completed in 910.99ms, found: true
+[CLIP MODEL] UPDATE_CLIP {"id":"xmB6Hez1OHfremEa2C2Cn","fields":["status","storageKey","storageUrl","rawStorageKey","rawStorageUrl","thumbnailKey","thumbnailUrl","aspectRatio"]}
+[CLIP MODEL] UPDATE_CLIP completed in 183.36ms, updated: true
+[CLIP WORKER] TIMING | clipId=xmB6Hez1OHfremEa2C2Cn total=1141.7s generate=1138.3s thumbnail=2.5s clipDuration=117s ratio=9.76x
+[CLIP WORKER] Clip generation complete: xmB6Hez1OHfremEa2C2Cn
+[CLIP WORKER] Storage URL: https://cdn.scalereach.ai/PKwPme76C1vxTLnKYpZEnlb9IPTi1mYw/a3ZVQ0GWdXQnbTy8pQuO1/clips/xmB6Hez1OHfremEa2C2Cn-9x16-mmm1o90j.mp4
+[CLIP WORKER] File size: 213.37 MB
+[CLIP MODEL] GET_CLIPS_BY_VIDEO {"videoId":"a3ZVQ0GWdXQnbTy8pQuO1","filters":{}}
+[CLIP MODEL] GET_CLIPS_BY_VIDEO completed in 188.86ms, found 4 clips
+[CLIP WORKER] 1 clips still pending for video a3ZVQ0GWdXQnbTy8pQuO1
+[WORKER] Job clip-xmB6Hez1OHfremEa2C2Cn completed
+[YOUTUBE SERVICE] Getting video info via yt-dlp for: https://www.youtube.com/watch?v=UxpNAWCLPMk
+[YOUTUBE SERVICE] Using bgutil POT provider at: http://localhost:4416
+[YOUTUBE SERVICE] Using cookies from: ./config/youtube_cookies_local.txt
+[YOUTUBE SERVICE] Estimated audio file size: ~7.7 MB
+[YOUTUBE SERVICE] Best available video height: 1080p
+[QUEUE CLEANUP] Cleaned stale video processing jobs
+[QUEUE CLEANUP] Cleaned stale clip generation jobs
