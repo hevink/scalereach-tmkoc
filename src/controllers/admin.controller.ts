@@ -589,4 +589,75 @@ export class AdminController {
       return c.json({ error: `Failed to reach worker: ${msg}` }, 502);
     }
   }
+
+  /**
+   * Proxy worker debug dashboard data
+   * GET /api/admin/worker-status
+   */
+  static async getWorkerStatus(c: Context) {
+    try {
+      const workerUrl = process.env.WORKER_URL;
+      if (!workerUrl) return c.json({ error: "WORKER_URL not configured" }, 500);
+      const workerSecret = process.env.WORKER_SECRET;
+      if (!workerSecret) return c.json({ error: "WORKER_SECRET not configured" }, 500);
+
+      const res = await fetch(`${workerUrl}/health/hevin`, {
+        headers: { "Authorization": `Bearer ${workerSecret}` },
+        signal: AbortSignal.timeout(15000),
+      });
+      const data = await res.json();
+      if (res.status === 401 || res.status === 403) {
+        return c.json({ error: "Worker rejected request — check WORKER_SECRET" }, 502);
+      }
+      return c.json(data, res.status as any);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to reach worker: ${msg}` }, 502);
+    }
+  }
+
+  /**
+   * Proxy worker log stream (SSE)
+   * GET /api/admin/worker-logs/stream?type=out|err|both&lines=100
+   */
+  static async getWorkerLogStream(c: Context) {
+    try {
+      const workerUrl = process.env.WORKER_URL;
+      if (!workerUrl) return c.json({ error: "WORKER_URL not configured" }, 500);
+      const workerSecret = process.env.WORKER_SECRET;
+      if (!workerSecret) return c.json({ error: "WORKER_SECRET not configured" }, 500);
+
+      const type = c.req.query("type") || "both";
+      const lines = c.req.query("lines") || "100";
+
+      const res = await fetch(
+        `${workerUrl}/health/hevin/logs/stream?type=${type}&lines=${lines}`,
+        {
+          headers: { "Authorization": `Bearer ${workerSecret}` },
+          signal: c.req.raw.signal,
+        }
+      );
+
+      if (res.status === 401 || res.status === 403) {
+        return c.json({ error: "Worker rejected request — check WORKER_SECRET" }, 502);
+      }
+
+      if (!res.body) {
+        return c.json({ error: "No stream body from worker" }, 502);
+      }
+
+      return new Response(res.body, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "X-Accel-Buffering": "no",
+        },
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to reach worker: ${msg}` }, 502);
+    }
+  }
 }

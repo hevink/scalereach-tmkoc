@@ -1,4 +1,4 @@
-// Worker v1.3.0 — live log viewer at /health/hevin/logs
+// Worker v1.4.0 — dashboard & logs moved to admin panel
 // Initialize Sentry first (must be at the very top)
 import "./lib/sentry";
 
@@ -23,28 +23,8 @@ const DUBBING_WORKER_CONCURRENCY = parseInt(process.env.DUBBING_WORKER_CONCURREN
 const SMART_CROP_WORKER_CONCURRENCY = parseInt(process.env.SMART_CROP_WORKER_CONCURRENCY || "1", 10);
 const SESSION_SECRET = process.env.WORKER_SECRET || "dev-secret-change-me";
 
-// Only these emails can access /health/detailed and /health/hevin
-const ALLOWED_EMAILS = new Set(["hevinkalathiya123@gmail.com", "hevinatwork@gmail.com"]);
-
-// In-memory session store: token -> email (cleared on worker restart)
-const sessions = new Map<string, string>();
-
-function generateToken(): string {
-  return crypto.randomUUID() + "-" + Date.now().toString(36);
-}
-
-function getSessionEmail(req: Request): string | null {
-  const cookie = req.headers.get("cookie") || "";
-  const match = cookie.match(/worker_session=([^;]+)/);
-  if (!match) return null;
-  return sessions.get(match[1]) || null;
-}
-
 function isAuthorized(req: Request): boolean {
-  // Allow via session cookie (browser login)
-  const email = getSessionEmail(req);
-  if (email && ALLOWED_EMAILS.has(email)) return true;
-  // Also allow via Bearer token / header for curl/API access
+  // Allow via Bearer token / header for API access
   const auth = req.headers.get("authorization");
   const token = req.headers.get("x-worker-token");
   return auth === `Bearer ${SESSION_SECRET}` || token === SESSION_SECRET;
@@ -59,211 +39,13 @@ const SECURITY_HEADERS: Record<string, string> = {
   "Cache-Control": "no-store",
 };
 
-function loginPage(error?: string): Response {
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ScaleReach Worker — Login</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f0f;color:#e5e5e5;display:flex;align-items:center;justify-content:center;min-height:100vh}
-    .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:40px;width:100%;max-width:380px}
-    .logo{font-size:12px;color:#555;letter-spacing:.1em;text-transform:uppercase;margin-bottom:24px}
-    h1{font-size:20px;font-weight:600;margin-bottom:8px}
-    p{font-size:14px;color:#888;margin-bottom:28px;line-height:1.5}
-    label{display:block;font-size:13px;color:#aaa;margin-bottom:6px}
-    input{width:100%;padding:10px 14px;background:#111;border:1px solid #333;border-radius:8px;color:#e5e5e5;font-size:14px;outline:none}
-    input:focus{border-color:#555}
-    button{width:100%;margin-top:16px;padding:11px;background:#e5e5e5;color:#0f0f0f;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
-    button:hover{background:#fff}
-    .error{margin-top:16px;padding:10px 14px;background:#2a1a1a;border:1px solid #5a2a2a;border-radius:8px;font-size:13px;color:#f87171}
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="logo">ScaleReach · Worker</div>
-    <h1>Dashboard Login</h1>
-    <p>Enter your email address. Access is restricted to authorized accounts only.</p>
-    <form method="POST" action="/auth/login">
-      <label for="email">Email address</label>
-      <input type="email" id="email" name="email" placeholder="you@example.com" required autofocus>
-      <button type="submit">Continue →</button>
-    </form>
-    ${error ? `<div class="error">${error}</div>` : ""}
-  </div>
-</body>
-</html>`;
-  return new Response(html, {
-    status: error ? 403 : 200,
-    headers: { "Content-Type": "text/html", "X-Frame-Options": "DENY", "Cache-Control": "no-store" },
-  });
-}
 
 const startTime = Date.now();
 
-// ── Live log viewer ───────────────────────────────────────────────────────────
 const PM2_LOG_FILE = process.env.PM2_LOG_FILE ||
   `/opt/scalereach/logs/worker-out.log`;
 const PM2_ERR_FILE = process.env.PM2_ERR_FILE ||
   `/opt/scalereach/logs/worker-error.log`;
-
-function logViewerPage(): Response {
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ScaleReach Worker — Live Logs</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#e5e5e5;display:flex;flex-direction:column;height:100vh;overflow:hidden}
-    .topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#111;border-bottom:1px solid #222;flex-shrink:0}
-    .topbar-left{display:flex;align-items:center;gap:16px}
-    .logo{font-size:11px;color:#555;letter-spacing:.1em;text-transform:uppercase}
-    h1{font-size:15px;font-weight:600;color:#e5e5e5}
-    .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:20px;background:#1a2a1a;color:#4ade80;border:1px solid #2a4a2a}
-    .badge.err{background:#2a1a1a;color:#f87171;border-color:#4a2a2a}
-    .badge.disconnected{background:#2a2a1a;color:#facc15;border-color:#4a4a1a}
-    .dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.5s infinite}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-    .controls{display:flex;align-items:center;gap:10px}
-    .btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #333;background:#1a1a1a;color:#aaa;transition:all .15s}
-    .btn:hover{background:#222;color:#e5e5e5;border-color:#444}
-    .btn.active{background:#1a2a1a;color:#4ade80;border-color:#2a4a2a}
-    .btn.danger{background:#2a1a1a;color:#f87171;border-color:#4a2a2a}
-    select{padding:5px 10px;border-radius:6px;font-size:12px;background:#1a1a1a;color:#aaa;border:1px solid #333;cursor:pointer;outline:none}
-    select:focus{border-color:#444}
-    .log-wrap{flex:1;overflow-y:auto;padding:12px 16px;font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace;font-size:12.5px;line-height:1.7}
-    .log-wrap::-webkit-scrollbar{width:6px}
-    .log-wrap::-webkit-scrollbar-track{background:#111}
-    .log-wrap::-webkit-scrollbar-thumb{background:#333;border-radius:3px}
-    .line{display:flex;gap:10px;padding:1px 0;border-radius:3px}
-    .line:hover{background:#141414}
-    .ts{color:#444;flex-shrink:0;user-select:none;font-size:11px;padding-top:1px}
-    .msg{color:#d4d4d4;word-break:break-all;white-space:pre-wrap}
-    .msg.err{color:#f87171}
-    .msg.warn{color:#facc15}
-    .msg.info{color:#60a5fa}
-    .msg.success{color:#4ade80}
-    .statusbar{padding:6px 20px;background:#111;border-top:1px solid #1a1a1a;font-size:11px;color:#444;display:flex;gap:16px;flex-shrink:0}
-    .empty{color:#333;text-align:center;padding:60px 0;font-size:13px}
-    a.back{font-size:12px;color:#555;text-decoration:none}
-    a.back:hover{color:#aaa}
-  </style>
-</head>
-<body>
-  <div class="topbar">
-    <div class="topbar-left">
-      <a class="back" href="/health/hevin">← Dashboard</a>
-      <div class="logo">ScaleReach · Worker</div>
-      <h1>Live Logs</h1>
-      <span class="badge" id="status"><span class="dot"></span> Connecting…</span>
-    </div>
-    <div class="controls">
-      <select id="logType" onchange="reconnect()">
-        <option value="out">stdout</option>
-        <option value="err">stderr</option>
-        <option value="both">both</option>
-      </select>
-      <select id="lineCount" onchange="reconnect()">
-        <option value="100">Last 100</option>
-        <option value="200">Last 200</option>
-        <option value="500">Last 500</option>
-      </select>
-      <button class="btn active" id="scrollBtn" onclick="toggleScroll()">↓ Auto-scroll</button>
-      <button class="btn" onclick="clearLogs()">Clear</button>
-      <button class="btn danger" id="pauseBtn" onclick="togglePause()">Pause</button>
-    </div>
-  </div>
-  <div class="log-wrap" id="logWrap">
-    <div class="empty" id="empty">Waiting for logs…</div>
-  </div>
-  <div class="statusbar">
-    <span id="lineCounter">0 lines</span>
-    <span id="byteCounter">0 bytes</span>
-    <span id="lastTs">—</span>
-  </div>
-
-  <script>
-    let es = null, paused = false, autoScroll = true, lineCount = 0, byteCount = 0;
-    const wrap = document.getElementById('logWrap');
-    const empty = document.getElementById('empty');
-    const statusEl = document.getElementById('status');
-    const lineCounter = document.getElementById('lineCounter');
-    const byteCounter = document.getElementById('byteCounter');
-    const lastTs = document.getElementById('lastTs');
-
-    function colorClass(msg) {
-      if (/error|err:|failed|exception|fatal/i.test(msg)) return 'err';
-      if (/warn|warning/i.test(msg)) return 'warn';
-      if (/✓|success|done|complete|started|running|healthy/i.test(msg)) return 'success';
-      if (/\\[info\\]|info:/i.test(msg)) return 'info';
-      return '';
-    }
-
-    function addLine(text, isErr) {
-      if (paused) return;
-      empty.style.display = 'none';
-      const now = new Date();
-      const ts = now.toTimeString().slice(0,8);
-      const div = document.createElement('div');
-      div.className = 'line';
-      const cls = isErr ? 'err' : colorClass(text);
-      div.innerHTML = '<span class="ts">' + ts + '</span><span class="msg ' + cls + '">' + escHtml(text) + '</span>';
-      wrap.appendChild(div);
-      lineCount++;
-      byteCount += text.length;
-      lineCounter.textContent = lineCount + ' lines';
-      byteCounter.textContent = (byteCount / 1024).toFixed(1) + ' KB';
-      lastTs.textContent = 'Last: ' + now.toLocaleTimeString();
-      if (autoScroll) wrap.scrollTop = wrap.scrollHeight;
-      // Keep max 2000 lines in DOM
-      const lines = wrap.querySelectorAll('.line');
-      if (lines.length > 2000) lines[0].remove();
-    }
-
-    function escHtml(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
-
-    function setStatus(text, cls) {
-      statusEl.className = 'badge ' + (cls || '');
-      statusEl.innerHTML = '<span class="dot"></span> ' + text;
-    }
-
-    function connect() {
-      if (es) es.close();
-      const type = document.getElementById('logType').value;
-      const lines = document.getElementById('lineCount').value;
-      es = new EventSource('/health/hevin/logs/stream?type=' + type + '&lines=' + lines);
-      setStatus('Connecting…', '');
-      es.onopen = () => setStatus('Live', '');
-      es.onmessage = (e) => {
-        const d = JSON.parse(e.data);
-        addLine(d.line, d.err);
-      };
-      es.onerror = () => {
-        setStatus('Disconnected — retrying…', 'disconnected');
-        setTimeout(connect, 3000);
-      };
-    }
-
-    function reconnect() { lineCount = 0; byteCount = 0; wrap.querySelectorAll('.line').forEach(e=>e.remove()); empty.style.display=''; connect(); }
-    function clearLogs() { wrap.querySelectorAll('.line').forEach(e=>e.remove()); lineCount=0; byteCount=0; empty.style.display=''; lineCounter.textContent='0 lines'; byteCounter.textContent='0 bytes'; }
-    function toggleScroll() { autoScroll=!autoScroll; document.getElementById('scrollBtn').className='btn'+(autoScroll?' active':''); }
-    function togglePause() { paused=!paused; document.getElementById('pauseBtn').textContent=paused?'Resume':'Pause'; document.getElementById('pauseBtn').className='btn danger'+(paused?' active':''); }
-
-    connect();
-  </script>
-</body>
-</html>`;
-  return new Response(html, {
-    status: 200,
-    headers: { "Content-Type": "text/html", "X-Frame-Options": "DENY", "Cache-Control": "no-store" },
-  });
-}
 
 startPotServer();
 
@@ -345,40 +127,6 @@ try {
     async fetch(req) {
       const url = new URL(req.url);
 
-      // ── Auth: login page ──────────────────────────────────
-      if (url.pathname === "/auth/login") {
-        if (req.method === "GET") return loginPage();
-        if (req.method === "POST") {
-          const body = await req.text();
-          const params = new URLSearchParams(body);
-          const email = (params.get("email") || "").toLowerCase().trim();
-          if (!ALLOWED_EMAILS.has(email)) {
-            return loginPage("Access denied. This email is not authorized.");
-          }
-          const token = generateToken();
-          sessions.set(token, email);
-          return new Response(null, {
-            status: 302,
-            headers: {
-              Location: "/health/hevin",
-              "Set-Cookie": `worker_session=${token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=86400`,
-              "Cache-Control": "no-store",
-            },
-          });
-        }
-      }
-
-      // ── Auth: logout ──────────────────────────────────────
-      if (url.pathname === "/auth/logout") {
-        const cookie = req.headers.get("cookie") || "";
-        const match = cookie.match(/worker_session=([^;]+)/);
-        if (match) sessions.delete(match[1]);
-        return new Response(null, {
-          status: 302,
-          headers: { Location: "/auth/login", "Set-Cookie": "worker_session=; Path=/; Max-Age=0" },
-        });
-      }
-
       // ── PUBLIC: basic health ──────────────────────────────
       if (url.pathname === "/health" || url.pathname === "/") {
         const redisHealth = await checkRedisHealth();
@@ -418,9 +166,6 @@ try {
       // ── PROTECTED: queue stats ────────────────────────────
       if (url.pathname === "/health/detailed") {
         if (!isAuthorized(req)) {
-          // Browser: redirect to login. API client: return 401
-          const accept = req.headers.get("accept") || "";
-          if (accept.includes("text/html")) return new Response(null, { status: 302, headers: { Location: "/auth/login" } });
           return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
         }
         const redisHealth = await checkRedisHealth();
@@ -448,8 +193,6 @@ try {
       // ── PROTECTED: full debug dashboard ──────────────────
       if (url.pathname === "/health/hevin") {
         if (!isAuthorized(req)) {
-          const accept = req.headers.get("accept") || "";
-          if (accept.includes("text/html")) return new Response(null, { status: 302, headers: { Location: "/auth/login" } });
           return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
         }
         const redisHealth = await checkRedisHealth();
@@ -480,11 +223,9 @@ try {
         const totalMem = os.totalmem();
         const freeMem = os.freemem();
         const loadAvg = os.loadavg();
-        const sessionEmail = getSessionEmail(req);
         return new Response(JSON.stringify({
           timestamp: new Date().toISOString(),
           uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
-          authenticated_as: sessionEmail,
           git: await getGitInfo(),
           workers: {
             videoWorker: { running: videoWorker.isRunning(), concurrency: VIDEO_WORKER_CONCURRENCY },
@@ -628,175 +369,6 @@ try {
           pot: { status: potStatus, url: bgutilBaseUrl || null },
           ytdlp: { version: ytdlpVersion },
         }), { headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
-      }
-
-      // ── PROTECTED: YouTube cookie tester ─────────────────
-      if (url.pathname === "/health/hevin/youtube-test") {
-        if (!isAuthorized(req)) {
-          const accept = req.headers.get("accept") || "";
-          if (accept.includes("text/html")) return new Response(null, { status: 302, headers: { Location: "/auth/login" } });
-          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
-        }
-
-        // POST: test a YouTube URL
-        if (req.method === "POST") {
-          const body = await req.text();
-          const params = new URLSearchParams(body);
-          const testUrl = params.get("url") || "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-          const start = Date.now();
-          try {
-            const { YouTubeService } = await import("./services/youtube.service");
-            const videoInfo = await YouTubeService.getVideoInfo(testUrl);
-            const elapsed = Date.now() - start;
-            return new Response(JSON.stringify({ ok: true, elapsed_ms: elapsed, videoInfo }), {
-              headers: { "Content-Type": "application/json" },
-            });
-          } catch (err: any) {
-            const elapsed = Date.now() - start;
-            return new Response(JSON.stringify({ ok: false, elapsed_ms: elapsed, error: err?.message || "Unknown error" }), {
-              headers: { "Content-Type": "application/json" },
-            });
-          }
-        }
-
-        // GET: render the tester page
-        const cookiesPath = process.env.YOUTUBE_COOKIES_PATH || "/opt/scalereach/config/youtube_cookies.txt";
-        let cookieStatus = "unknown";
-        let cookieExpiry = "unknown";
-        try {
-          const fs = await import("fs");
-          if (fs.existsSync(cookiesPath)) {
-            const content = fs.readFileSync(cookiesPath, "utf8");
-            const lines = content.split("\n").filter(l => l && !l.startsWith("#"));
-            // Find the earliest expiry among auth cookies
-            const authCookies = ["SID", "SSID", "HSID", "SAPISID", "__Secure-1PSID", "__Secure-3PSID"];
-            let minExpiry = Infinity;
-            for (const line of lines) {
-              const parts = line.split("\t");
-              if (parts.length >= 6 && authCookies.includes(parts[5])) {
-                const exp = parseInt(parts[4], 10);
-                if (exp > 0 && exp < minExpiry) minExpiry = exp;
-              }
-            }
-            if (minExpiry !== Infinity) {
-              const expiryDate = new Date(minExpiry * 1000);
-              const daysLeft = Math.floor((expiryDate.getTime() - Date.now()) / 86400000);
-              cookieExpiry = `${expiryDate.toDateString()} (${daysLeft > 0 ? daysLeft + " days left" : "EXPIRED"})`;
-              cookieStatus = daysLeft > 0 ? "present" : "expired";
-            } else {
-              cookieStatus = "present";
-              cookieExpiry = "No expiry found";
-            }
-          } else {
-            cookieStatus = "missing";
-            cookieExpiry = "File not found";
-          }
-        } catch { cookieStatus = "error"; }
-
-        const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ScaleReach — YouTube Cookie Tester</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f0f0f;color:#e5e5e5;padding:32px;max-width:720px;margin:0 auto}
-    a.back{font-size:13px;color:#555;text-decoration:none;display:inline-block;margin-bottom:24px}
-    a.back:hover{color:#aaa}
-    h1{font-size:20px;font-weight:600;margin-bottom:6px}
-    .sub{font-size:13px;color:#666;margin-bottom:32px}
-    .card{background:#1a1a1a;border:1px solid #2a2a2a;border-radius:12px;padding:24px;margin-bottom:20px}
-    .card h2{font-size:13px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:16px}
-    .row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #222;font-size:14px}
-    .row:last-child{border-bottom:none}
-    .label{color:#888}
-    .val{color:#e5e5e5;font-family:monospace;font-size:13px}
-    .badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:500}
-    .badge.ok{background:#1a2a1a;color:#4ade80;border:1px solid #2a4a2a}
-    .badge.warn{background:#2a2a1a;color:#facc15;border:1px solid #4a4a1a}
-    .badge.err{background:#2a1a1a;color:#f87171;border:1px solid #4a2a2a}
-    input[type=text]{width:100%;padding:10px 14px;background:#111;border:1px solid #333;border-radius:8px;color:#e5e5e5;font-size:14px;outline:none;margin-bottom:12px}
-    input[type=text]:focus{border-color:#555}
-    button{padding:10px 20px;background:#e5e5e5;color:#0f0f0f;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
-    button:hover{background:#fff}
-    button:disabled{opacity:.5;cursor:not-allowed}
-    #result{margin-top:20px;padding:16px;background:#111;border:1px solid #222;border-radius:8px;font-family:monospace;font-size:13px;white-space:pre-wrap;display:none}
-    #result.ok{border-color:#2a4a2a;color:#4ade80}
-    #result.err{border-color:#4a2a2a;color:#f87171}
-    .spinner{display:inline-block;width:14px;height:14px;border:2px solid #333;border-top-color:#aaa;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:6px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-  </style>
-</head>
-<body>
-  <a class="back" href="/health/hevin">← Dashboard</a>
-  <h1>YouTube Cookie Tester</h1>
-  <p class="sub">Check if the current YouTube cookies are valid and working.</p>
-
-  <div class="card">
-    <h2>Cookie Status</h2>
-    <div class="row"><span class="label">File path</span><span class="val">${cookiesPath}</span></div>
-    <div class="row"><span class="label">Status</span><span class="badge ${cookieStatus === "present" ? "ok" : cookieStatus === "expired" ? "warn" : "err"}">${cookieStatus}</span></div>
-    <div class="row"><span class="label">Expiry</span><span class="val">${cookieExpiry}</span></div>
-  </div>
-
-  <div class="card">
-    <h2>Test YouTube URL</h2>
-    <input type="text" id="urlInput" value="https://www.youtube.com/watch?v=dQw4w9WgXcQ" placeholder="https://www.youtube.com/watch?v=...">
-    <button id="testBtn" onclick="runTest()">Test Cookie</button>
-    <div id="result"></div>
-  </div>
-
-  <script>
-    async function runTest() {
-      const btn = document.getElementById('testBtn');
-      const result = document.getElementById('result');
-      const url = document.getElementById('urlInput').value.trim();
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span>Testing…';
-      result.style.display = 'none';
-      result.className = '';
-
-      try {
-        const res = await fetch('/health/hevin/youtube-test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'url=' + encodeURIComponent(url),
-        });
-        const data = await res.json();
-        result.style.display = 'block';
-        if (data.ok) {
-          result.className = 'ok';
-          result.textContent = '✅ Cookie working! (' + data.elapsed_ms + 'ms)\\n\\n' + JSON.stringify(data.videoInfo, null, 2);
-        } else {
-          result.className = 'err';
-          result.textContent = '❌ Cookie failed! (' + data.elapsed_ms + 'ms)\\n\\n' + data.error;
-        }
-      } catch(e) {
-        result.style.display = 'block';
-        result.className = 'err';
-        result.textContent = '❌ Request failed: ' + e.message;
-      }
-      btn.disabled = false;
-      btn.textContent = 'Test Cookie';
-    }
-  </script>
-</body>
-</html>`;
-        return new Response(html, {
-          status: 200,
-          headers: { "Content-Type": "text/html", "X-Frame-Options": "DENY", "Cache-Control": "no-store" },
-        });
-      }
-
-      // ── PROTECTED: live log viewer ────────────────────────
-      if (url.pathname === "/health/hevin/logs") {
-        if (!isAuthorized(req)) {
-          const accept = req.headers.get("accept") || "";
-          if (accept.includes("text/html")) return new Response(null, { status: 302, headers: { Location: "/auth/login" } });
-          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
-        }
-        return logViewerPage();
       }
 
       // ── PROTECTED: live log SSE stream ────────────────────

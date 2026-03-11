@@ -57,6 +57,10 @@ adminRouter.get("/system-health", AdminController.getSystemHealth);
 adminRouter.get("/youtube-health", AdminController.getYouTubeHealth);
 adminRouter.post("/youtube-health", AdminController.getYouTubeHealth);
 
+// Worker dashboard & logs (proxied from worker)
+adminRouter.get("/worker-status", AdminController.getWorkerStatus);
+adminRouter.get("/worker-logs/stream", AdminController.getWorkerLogStream);
+
 // Credit analytics
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);
 
