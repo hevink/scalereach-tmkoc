@@ -619,6 +619,7 @@ async function processUploadedVideo(
           videoId,
           amount: minutesToDeduct,
           type: "upload",
+          description: videoRecord[0]?.title ? `Uploaded video "${videoRecord[0].title}"` : "Uploaded video",
         });
         minutesDeducted = minutesToDeduct;
         console.log(`[VIDEO WORKER] Deducted ${minutesToDeduct} minutes for uploaded video ${videoId} (timeframe: ${timeframeStart}s-${timeframeEnd}s of ${videoMetadata.duration}s total)`);

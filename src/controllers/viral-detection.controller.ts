@@ -137,6 +137,7 @@ export class ViralDetectionController {
           videoId,
           amount: minutesToDeduct,
           type: "regenerate",
+          description: video.title ? `Regenerated clips for "${video.title}"` : "Regenerated clips",
         });
         await MinutesModel.incrementRegenerationCount(videoId);
         console.log(`[VIRAL DETECTION CONTROLLER] Deducted ${minutesToDeduct} minutes for re-analysis of video ${videoId}`);

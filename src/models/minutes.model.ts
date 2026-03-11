@@ -157,6 +157,7 @@ export class MinutesModel {
     videoId?: string;
     amount: number;
     type: "upload" | "regenerate" | "dubbing";
+    description?: string;
   }) {
     this.logOperation("DEDUCT_MINUTES", {
       workspaceId: params.workspaceId,
@@ -207,7 +208,7 @@ export class MinutesModel {
           minutesAmount: -params.amount,
           minutesBefore,
           minutesAfter,
-          description: `${params.type} video`,
+          description: params.description || `${params.type} video`,
         });
       });
 
@@ -410,8 +411,22 @@ export class MinutesModel {
       }
 
       const result = await db
-        .select()
+        .select({
+          id: minuteTransaction.id,
+          workspaceId: minuteTransaction.workspaceId,
+          userId: minuteTransaction.userId,
+          videoId: minuteTransaction.videoId,
+          type: minuteTransaction.type,
+          minutesAmount: minuteTransaction.minutesAmount,
+          minutesBefore: minuteTransaction.minutesBefore,
+          minutesAfter: minuteTransaction.minutesAfter,
+          description: minuteTransaction.description,
+          metadata: minuteTransaction.metadata,
+          createdAt: minuteTransaction.createdAt,
+          videoTitle: video.title,
+        })
         .from(minuteTransaction)
+        .leftJoin(video, eq(minuteTransaction.videoId, video.id))
         .where(and(...conditions))
         .orderBy(desc(minuteTransaction.createdAt))
         .limit(params.limit || 50)

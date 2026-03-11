@@ -176,6 +176,7 @@ export class VideoController {
         videoId,
         amount: minutesToDeduct,
         type: "upload",
+        description: `Uploaded video "${videoInfo.title}"`,
       });
       console.log(`[VIDEO CONTROLLER] Deducted ${minutesToDeduct} minutes for YouTube video ${videoId} (timeframe: ${timeframeStart}s-${timeframeEnd}s of ${videoInfo.duration}s total)`);
 
