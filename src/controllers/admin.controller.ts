@@ -559,6 +559,9 @@ export class AdminController {
         return c.json({ error: "WORKER_URL not configured" }, 500);
       }
       const workerSecret = process.env.WORKER_SECRET;
+      if (!workerSecret) {
+        return c.json({ error: "WORKER_SECRET not configured" }, 500);
+      }
       const method = c.req.method;
       const fetchOptions: RequestInit = {
         method,
@@ -574,6 +577,11 @@ export class AdminController {
       }
       const res = await fetch(`${workerUrl}/health/youtube-status`, fetchOptions);
       const data = await res.json();
+      // Don't pass through worker auth errors as 401 — that confuses the frontend
+      // into thinking the admin session is invalid
+      if (res.status === 401 || res.status === 403) {
+        return c.json({ error: "Worker rejected request — check WORKER_SECRET env var on API server" }, 502);
+      }
       return c.json(data, res.status as any);
     } catch (error) {
       console.error("[ADMIN] Failed to get YouTube health:", error instanceof Error ? error.message : error);
