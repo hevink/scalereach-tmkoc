@@ -704,9 +704,39 @@ export class WorkspaceController {
 
       const { logo } = validation.data;
 
-      const updatedWorkspace = await WorkspaceModel.update(workspace.id, { logo });
+      // Parse base64 data URI and upload to R2
+      const dataUriMatch = logo.match(/^data:image\/([\w+]+);base64,(.+)$/);
+      if (!dataUriMatch) {
+        return c.json({ error: "Invalid image format. Expected a base64 data URI." }, 400);
+      }
 
-      console.log(`[WORKSPACE CONTROLLER] UPLOAD_LOGO success - workspace: ${slug}`);
+      const mimeSubtype = dataUriMatch[1].replace("+", ""); // e.g. "png", "jpeg", "svg"
+      const base64Data = dataUriMatch[2];
+      const buffer = Buffer.from(base64Data, "base64");
+
+      // Limit logo size to 2MB
+      if (buffer.length > 2 * 1024 * 1024) {
+        return c.json({ error: "Logo must be under 2MB" }, 400);
+      }
+
+      const ext = mimeSubtype === "jpeg" ? "jpg" : mimeSubtype;
+      const key = `workspaces/${workspace.id}/logo.${ext}`;
+      const contentType = `image/${mimeSubtype}`;
+
+      // Delete old logo from R2 if it exists and is an R2 URL
+      if (workspace.logo && !workspace.logo.startsWith("data:")) {
+        try {
+          const oldKey = workspace.logo.replace(/^https?:\/\/[^/]+\//, "");
+          if (oldKey) await R2Service.deleteFile(oldKey);
+        } catch (e) {
+          console.warn(`[WORKSPACE CONTROLLER] UPLOAD_LOGO - failed to delete old logo:`, e);
+        }
+      }
+
+      const { url } = await R2Service.uploadFile(key, buffer, contentType);
+      const updatedWorkspace = await WorkspaceModel.update(workspace.id, { logo: url });
+
+      console.log(`[WORKSPACE CONTROLLER] UPLOAD_LOGO success - workspace: ${slug}, url: ${url}`);
       return c.json({ success: true, logo: updatedWorkspace?.logo });
     } catch (error) {
       console.error(`[WORKSPACE CONTROLLER] UPLOAD_LOGO error:`, error);
@@ -736,6 +766,16 @@ export class WorkspaceController {
       if (!member || !["owner", "admin"].includes(member.role)) {
         console.log(`[WORKSPACE CONTROLLER] DELETE_LOGO - user ${user.id} doesn't have permission for workspace: ${slug}`);
         return c.json({ error: "You don't have permission to update this workspace" }, 403);
+      }
+
+      // Delete logo file from R2 if it's an R2 URL
+      if (workspace.logo && !workspace.logo.startsWith("data:")) {
+        try {
+          const oldKey = workspace.logo.replace(/^https?:\/\/[^/]+\//, "");
+          if (oldKey) await R2Service.deleteFile(oldKey);
+        } catch (e) {
+          console.warn(`[WORKSPACE CONTROLLER] DELETE_LOGO - failed to delete from R2:`, e);
+        }
       }
 
       await WorkspaceModel.update(workspace.id, { logo: "" });
