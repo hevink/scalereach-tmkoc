@@ -1,6 +1,6 @@
 /**
  * Storage Cleanup Job
- * Runs daily — finds videos past their expiresAt date, deletes R2 files, then removes DB records.
+ * Runs daily - finds videos past their expiresAt date, deletes R2 files, then removes DB records.
  * Respects the same deletion logic as VideoController.deleteVideo.
  */
 
@@ -71,7 +71,7 @@ async function deleteExpiredVideos(): Promise<void> {
         ...clipAudioRows.map(a => a.audioKey).filter(Boolean) as string[],
       ];
 
-      // Delete R2 files (best-effort — don't fail if some are already gone)
+      // Delete R2 files (best-effort - don't fail if some are already gone)
       await Promise.allSettled(r2Keys.map(key => R2Service.deleteFile(key)));
 
       // Delete DB record (cascades to clips, exports, etc.)
@@ -80,7 +80,7 @@ async function deleteExpiredVideos(): Promise<void> {
       console.log(`[STORAGE CLEANUP] Deleted video ${v.id} (${r2Keys.length} R2 files removed)`);
     } catch (err) {
       console.error(`[STORAGE CLEANUP] Failed to delete video ${v.id}:`, err);
-      // Continue with next video — don't abort the whole batch
+      // Continue with next video - don't abort the whole batch
     }
   }
 
@@ -108,5 +108,5 @@ export function startStorageCleanupJob(): void {
     );
   }, INTERVAL_MS);
 
-  console.log("[STORAGE CLEANUP] Job scheduled — runs every 24h.");
+  console.log("[STORAGE CLEANUP] Job scheduled - runs every 24h.");
 }

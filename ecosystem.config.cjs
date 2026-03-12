@@ -1,4 +1,4 @@
-// PM2 config — EC2 worker only
+// PM2 config - EC2 worker only
 // API runs on Render, worker runs here
 module.exports = {
   apps: [

@@ -1,5 +1,5 @@
 # Render Blueprint - https://render.com/docs/blueprint-spec
-# API only — worker runs on EC2
+# API only - worker runs on EC2
 services:
   - type: web
     name: scalereach-api

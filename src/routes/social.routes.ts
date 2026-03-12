@@ -22,7 +22,7 @@ protected_.get("/posts", SocialPostController.listPosts);
 protected_.patch("/posts/:id", SocialPostController.updatePost);
 protected_.delete("/posts/:id", SocialPostController.cancelPost);
 
-// Presigned upload URL for custom social media posts — also creates a media library record
+// Presigned upload URL for custom social media posts - also creates a media library record
 protected_.post("/media/upload-url", async (c) => {
   try {
     const user = c.get("user") as { id: string };
@@ -101,7 +101,7 @@ protected_.delete("/media/:id", async (c) => {
   }
 });
 
-// Workspace clips for the scheduler modal — only ready clips with a storageUrl
+// Workspace clips for the scheduler modal - only ready clips with a storageUrl
 protected_.get("/clips", async (c) => {
   const workspaceId = c.req.query("workspaceId");
   if (!workspaceId) return c.json({ error: "workspaceId required" }, 400);
@@ -131,13 +131,13 @@ protected_.get("/clips", async (c) => {
   return c.json(rows);
 });
 
-// Public routes — must be registered BEFORE mounting the protected sub-router
+// Public routes - must be registered BEFORE mounting the protected sub-router
 // OAuth callback: Meta redirects here without auth cookies
 socialRouter.get("/accounts/:platform/callback", SocialAccountController.handleOAuthCallback);
 // Also handle trailing-slash variant so Instagram redirects don't lose query params via 301
 socialRouter.get("/accounts/:platform/callback/", SocialAccountController.handleOAuthCallback);
 
-// Webhook verification (GET) and events (POST) — must be public
+// Webhook verification (GET) and events (POST) - must be public
 socialRouter.get("/webhook", (c) => {
   const mode = c.req.query("hub.mode");
   const token = c.req.query("hub.verify_token");
@@ -148,7 +148,7 @@ socialRouter.get("/webhook", (c) => {
     return c.text(challenge ?? "", 200);
   }
 
-  console.warn("[WEBHOOK] Verification failed — token mismatch");
+  console.warn("[WEBHOOK] Verification failed - token mismatch");
   return c.json({ error: "Forbidden" }, 403);
 });
 

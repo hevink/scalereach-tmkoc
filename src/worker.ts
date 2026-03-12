@@ -1,4 +1,4 @@
-// Worker v1.4.0 — dashboard & logs moved to admin panel
+// Worker v1.4.0 - dashboard & logs moved to admin panel
 // Initialize Sentry first (must be at the very top)
 import "./lib/sentry";
 
@@ -402,7 +402,7 @@ try {
               filesToTail.push({ path: PM2_ERR_FILE, isErr: true });
             }
 
-            // Send last N lines as history — individual data messages so onmessage fires reliably
+            // Send last N lines as history - individual data messages so onmessage fires reliably
             for (const { path, isErr } of filesToTail) {
               try {
                 const out = execSyncNode(`tail -${tailLines} "${path}"`, { encoding: "utf8", maxBuffer: 1024 * 1024 });
@@ -419,7 +419,7 @@ try {
             for (const { path } of filesToTail) tailArgs.push(path);
 
             if (filesToTail.length === 0) {
-              send("[No log files found yet — waiting for worker activity]", false);
+              send("[No log files found yet - waiting for worker activity]", false);
               return;
             }
 

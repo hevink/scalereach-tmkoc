@@ -120,7 +120,7 @@ export class SocialAccountController {
     const { code, state, error: oauthError } = query;
     SocialAccountController.logRequest(c, "HANDLE_OAUTH_CALLBACK", { platform });
 
-    // Meta webhook verification sometimes hits the callback URL — handle it here too
+    // Meta webhook verification sometimes hits the callback URL - handle it here too
     if (query["hub.mode"] === "subscribe") {
       const token = query["hub.verify_token"];
       const challenge = query["hub.challenge"];
@@ -171,7 +171,7 @@ export class SocialAccountController {
       } else if (platform === "facebook") {
         tokens = await FacebookService.exchangeCode(code, redirectUri);
 
-        // Facebook returns multiple pages — upsert each one as a separate social account
+        // Facebook returns multiple pages - upsert each one as a separate social account
         const fbTokens = tokens as typeof tokens & { pages?: Array<{ pageId: string; pageName: string; pageToken: string; avatarUrl: string }> };
         if (fbTokens.pages && fbTokens.pages.length > 0) {
           for (const page of fbTokens.pages) {
@@ -188,7 +188,7 @@ export class SocialAccountController {
           }
           console.log(`[OAUTH CALLBACK] Facebook: upserted ${fbTokens.pages.length} page accounts`);
 
-          // Redirect — skip the single upsert below
+          // Redirect - skip the single upsert below
           const ws = await WorkspaceModel.getById(workspaceId);
           const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
           const slug = ws?.slug || workspaceId;

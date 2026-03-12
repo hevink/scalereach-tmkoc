@@ -10,6 +10,6 @@ dist/
 seed-background-video/
 temp/
 
-# YouTube cookies — managed per-environment, not committed
+# YouTube cookies - managed per-environment, not committed
 config/youtube_cookies.txt
 config/youtube_cookies_local.txt

@@ -138,7 +138,7 @@ async function processYouTubeVideo(
 
     if (existingTranscript && existingTranscriptWords && existingTranscriptLanguage) {
       // ── RESUME: transcript already done, skip to AI ──────
-      console.log(`[VIDEO WORKER] Resuming from AI step — transcript already in DB`);
+      console.log(`[VIDEO WORKER] Resuming from AI step - transcript already in DB`);
       await updateVideoStatus(videoId, "analyzing");
       await job.updateProgress(70);
 
@@ -162,7 +162,7 @@ async function processYouTubeVideo(
         throw new Error("Audio file missing from R2, retrying with fresh download");
       }
 
-      console.log(`[VIDEO WORKER] Resuming from transcription step — audio verified in R2`);
+      console.log(`[VIDEO WORKER] Resuming from transcription step - audio verified in R2`);
       storageKey = existingStorageKey;
       await updateVideoStatus(videoId, "transcribing");
       await job.updateProgress(60);

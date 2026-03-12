@@ -28,7 +28,7 @@ const PUBLIC_URL = process.env.R2_PUBLIC_URL!;
 async function videoToGif(
   videoUrl: string,
   outputKey?: string,
-  duration = 15,   // seconds to use (landing page GIF — keep it short)
+  duration = 15,   // seconds to use (landing page GIF - keep it short)
   width = 480,     // output width (height auto, keeps aspect ratio)
   fps = 20         // frames per second
 ) {

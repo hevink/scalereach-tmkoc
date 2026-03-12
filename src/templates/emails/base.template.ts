@@ -180,7 +180,7 @@ export function emailIcon(icon: string): string {
 
 /**
  * ScaleReach logo as a hosted <img> tag.
- * Inline SVGs are stripped by Gmail and most email clients — use a remote PNG/SVG URL instead.
+ * Inline SVGs are stripped by Gmail and most email clients - use a remote PNG/SVG URL instead.
  */
 export const LOGO_SVG = `<img src="https://app.scalereach.ai/favicon.svg" alt="ScaleReach" width="36" height="36" style="display:block;border:0;outline:none;text-decoration:none;" />`;
 

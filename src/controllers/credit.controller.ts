@@ -6,7 +6,7 @@ import { DodoService, DodoWebhookPayload } from "../services/dodo.service";
 
 const isLiveMode = process.env.DODO_ENVIRONMENT === "live_mode";
 
-// Map product IDs to plan names — switches between test and live based on DODO_ENVIRONMENT
+// Map product IDs to plan names - switches between test and live based on DODO_ENVIRONMENT
 const PRODUCT_TO_PLAN: Record<string, string> = isLiveMode
   ? {
       // Live mode product IDs

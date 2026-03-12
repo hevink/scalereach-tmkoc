@@ -66,7 +66,7 @@ async function main() {
   const result = JSON.parse(coordsRaw);
 
   if (result.mode === "skip") {
-    console.log("[SKIP] No face detected — keeping original 16:9, no reframe");
+    console.log("[SKIP] No face detected - keeping original 16:9, no reframe");
     await fs.copyFile(trimmedVideo, outputVideo);
   } else if (result.mode === "split") {
     // Screen recording + PiP → split screen

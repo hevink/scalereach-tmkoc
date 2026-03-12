@@ -39,7 +39,7 @@ export interface VideoConfigInput {
   enableSmartCrop?: boolean;
 }
 
-/** Parse the stored splitScreenBgVideoId value — may be a JSON array or a plain ID */
+/** Parse the stored splitScreenBgVideoId value - may be a JSON array or a plain ID */
 export function parseSplitScreenBgVideoIds(raw: string | null | undefined): string[] {
   if (!raw) return [];
   if (raw.startsWith("[")) {

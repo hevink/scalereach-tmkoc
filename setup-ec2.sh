@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# EC2 First-Time Setup — ScaleReach Worker
+# EC2 First-Time Setup - ScaleReach Worker
 # API runs on Render. This script sets up the worker only.
 # Run once on a fresh Ubuntu EC2 instance.
 # Usage: bash setup-ec2.sh
@@ -93,7 +93,7 @@ if [ -f "$APP_DIR/.env" ]; then
   pm2 start "$APP_DIR/ecosystem.config.cjs"
   pm2 save
 else
-  echo "⏭️  Skipping worker start — upload .env first, then run:"
+  echo "⏭️  Skipping worker start - upload .env first, then run:"
   echo "  cd $APP_DIR && pm2 start ecosystem.config.cjs && pm2 save"
 fi
 

@@ -1,12 +1,12 @@
 /**
- * Lambda function — publishes BullMQ queue depth to CloudWatch every 60s.
+ * Lambda function - publishes BullMQ queue depth to CloudWatch every 60s.
  * Deploy as a scheduled Lambda (EventBridge rule: rate(1 minute)).
  *
  * Required env vars (set in Lambda config):
- *   REDIS_HOST     — Redis host (e.g. 13.204.63.21)
- *   REDIS_PORT     — Redis port (default 6379)
- *   REDIS_PASSWORD — Redis password
- *   AWS_REGION     — AWS region (injected automatically by Lambda)
+ *   REDIS_HOST     - Redis host (e.g. 13.204.63.21)
+ *   REDIS_PORT     - Redis port (default 6379)
+ *   REDIS_PASSWORD - Redis password
+ *   AWS_REGION     - AWS region (injected automatically by Lambda)
  */
 
 import { CloudWatchClient, PutMetricDataCommand } from "@aws-sdk/client-cloudwatch";
@@ -57,7 +57,7 @@ export const handler = async () => {
       console.log(`[METRIC] ${queue}: waiting=${waiting} active=${active} delayed=${delayed} total=${pending}`);
     }
 
-    // Total pending across all queues — this is the primary scaling metric
+    // Total pending across all queues - this is the primary scaling metric
     const totalPending = metrics.reduce((sum, m) => sum + m.value, 0);
     metrics.push({ name: "TotalPending", value: totalPending });
 

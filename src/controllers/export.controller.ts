@@ -309,7 +309,7 @@ export class ExportController {
 
       const batchId = nanoid();
 
-      // Batch fetch all clips and videos upfront — avoids N+1 queries in the loop
+      // Batch fetch all clips and videos upfront - avoids N+1 queries in the loop
       const clips = await ClipModel.getByIds(clipIds);
       const clipMap = new Map(clips.map(c => [c.id, c]));
 

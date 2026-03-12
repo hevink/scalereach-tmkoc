@@ -99,8 +99,8 @@ export const FacebookService = {
       };
     }
 
-    // No pages found — store user token but warn
-    console.warn(`[FACEBOOK] No pages found during OAuth. Storing user token — video posting will fail without a page.`);
+    // No pages found - store user token but warn
+    console.warn(`[FACEBOOK] No pages found during OAuth. Storing user token - video posting will fail without a page.`);
     return {
       accessToken: longLivedUserToken,
       expiresAt: llData.expires_in ? new Date(Date.now() + llData.expires_in * 1000) : undefined,
@@ -115,14 +115,14 @@ export const FacebookService = {
     const me = await meRes.json() as any;
 
     if (me.category) {
-      // It's a page token — these don't expire, just return as-is
+      // It's a page token - these don't expire, just return as-is
       return {
         accessToken: token,
         expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       };
     }
 
-    // It's a user token — exchange for new long-lived token
+    // It's a user token - exchange for new long-lived token
     const res = await fetch(
       `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${token}`
     );
@@ -135,7 +135,7 @@ export const FacebookService = {
   },
 
   async getUserInfo(accessToken: string): Promise<PlatformAccountInfo> {
-    // First try: the token might be a page token (new flow) — check /me which returns page identity
+    // First try: the token might be a page token (new flow) - check /me which returns page identity
     const meRes = await fetch(
       `https://graph.facebook.com/v19.0/me?fields=id,name,category&access_token=${accessToken}`
     );
@@ -152,7 +152,7 @@ export const FacebookService = {
       };
     }
 
-    // It's a user token — try to get pages
+    // It's a user token - try to get pages
     const pagesRes = await fetch(
       `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
     );
@@ -198,11 +198,11 @@ export const FacebookService = {
     let pageToken: string;
 
     if (me.category) {
-      // It's a page token — use directly
+      // It's a page token - use directly
       pageId = me.id;
       pageToken = accessToken;
     } else {
-      // It's a user token (legacy accounts) — fetch page token
+      // It's a user token (legacy accounts) - fetch page token
       const pagesRes = await fetch(
         `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
       );

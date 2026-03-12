@@ -22,7 +22,7 @@ async function processPost(job: Job<SocialPostingJobData>) {
   // Mark as posting
   await ScheduledPostModel.updateStatus(postId, "posting");
 
-  // Get the video/media URL — either from job data or fall back to DB lookup
+  // Get the video/media URL - either from job data or fall back to DB lookup
   let storageUrl: string;
 
   if (mediaUrl) {

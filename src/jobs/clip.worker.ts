@@ -241,7 +241,7 @@ async function processClipGenerationJob(
 
     await job.updateProgress(85);
 
-    // Upload thumbnail — use the buffer already extracted locally during clip generation
+    // Upload thumbnail - use the buffer already extracted locally during clip generation
     // (avoids re-downloading the clip from R2 just to extract a frame)
     const thumbnailStart = Date.now();
     console.log(`[CLIP WORKER] Uploading thumbnail...`);
@@ -257,7 +257,7 @@ async function processClipGenerationJob(
         console.log(`[CLIP WORKER] Thumbnail uploaded: ${thumbnailKey} (${generatedClip.thumbnailBuffer.length} bytes)`);
       } else {
         // Fallback: extract from R2 (slower, but handles edge cases)
-        console.warn(`[CLIP WORKER] No local thumbnail buffer — falling back to R2 extraction`);
+        console.warn(`[CLIP WORKER] No local thumbnail buffer - falling back to R2 extraction`);
         const thumbnail = await ClipGeneratorService.generateThumbnail(
           generatedClip.storageKey,
           aspectRatio,
@@ -296,7 +296,7 @@ async function processClipGenerationJob(
     }
 
     // Update clip with storage info and set status to ready (Requirement 7.6)
-    // Only include thumbnailKey/thumbnailUrl if generation succeeded — don't overwrite existing with undefined
+    // Only include thumbnailKey/thumbnailUrl if generation succeeded - don't overwrite existing with undefined
     await updateClipStatus(clipId, "ready", {
       storageKey: generatedClip.storageKey,
       storageUrl: generatedClip.storageUrl,
@@ -330,7 +330,7 @@ async function processClipGenerationJob(
       captureException(error, { clipId, videoId, aspectRatio, quality });
     }
 
-    // Only mark as failed on the last attempt — BullMQ retries before reaching here
+    // Only mark as failed on the last attempt - BullMQ retries before reaching here
     const isLastAttempt = job.attemptsMade >= (job.opts.attempts ?? 1) - 1;
     if (isLastAttempt) {
       await updateClipStatus(clipId, "failed", { errorMessage });

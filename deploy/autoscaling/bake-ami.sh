@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bake a base AMI from your existing EC2 worker instance.
 # This AMI has bun, ffmpeg, yt-dlp, python3, smart_crop deps pre-installed.
-# New ASG instances boot from this AMI — no slow apt installs on startup.
+# New ASG instances boot from this AMI - no slow apt installs on startup.
 #
 # Run from your local machine.
 # Usage: ./bake-ami.sh
@@ -39,7 +39,7 @@ echo "[2/3] Creating AMI (this takes 3-5 minutes)..."
 AMI_ID=$(aws ec2 create-image \
   --instance-id "$SOURCE_INSTANCE_ID" \
   --name "$AMI_NAME" \
-  --description "ScaleReach worker — bun, ffmpeg, yt-dlp, python3, smart_crop" \
+  --description "ScaleReach worker - bun, ffmpeg, yt-dlp, python3, smart_crop" \
   --no-reboot \
   --region "$AWS_REGION" \
   --query "ImageId" \

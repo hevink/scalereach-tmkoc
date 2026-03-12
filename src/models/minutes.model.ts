@@ -57,7 +57,7 @@ export class MinutesModel {
           }
           
           if (!isFirstWorkspace) {
-            // Not the first workspace — initialize with 0 minutes
+            // Not the first workspace - initialize with 0 minutes
             return this.initializeBalance(workspaceId, "free", 0);
           }
         }
@@ -169,9 +169,9 @@ export class MinutesModel {
     try {
       const current = await this.getBalance(params.workspaceId);
 
-      // Agency plan: minutesRemaining = -1 means unlimited — skip deduction entirely
+      // Agency plan: minutesRemaining = -1 means unlimited - skip deduction entirely
       if (current.minutesRemaining === -1) {
-        console.log(`[MINUTES MODEL] DEDUCT_MINUTES skipped — unlimited plan (agency)`);
+        console.log(`[MINUTES MODEL] DEDUCT_MINUTES skipped - unlimited plan (agency)`);
         return { minutesRemaining: -1 };
       }
 
@@ -182,7 +182,7 @@ export class MinutesModel {
       const minutesBefore = current.minutesRemaining;
       const minutesAfter = minutesBefore - params.amount;
 
-      // Wrap all three writes in a transaction — balance + video + log must be atomic
+      // Wrap all three writes in a transaction - balance + video + log must be atomic
       await db.transaction(async (tx) => {
         await tx
           .update(workspaceMinutes)
@@ -298,7 +298,7 @@ export class MinutesModel {
       const planConfig = getPlanConfig(plan);
       const nextResetDate = this.getNextMonthDate();
 
-      // Agency plan: unlimited minutes — just update reset date, don't touch balance
+      // Agency plan: unlimited minutes - just update reset date, don't touch balance
       if (planConfig.minutes.total === -1) {
         const result = await db
           .update(workspaceMinutes)
@@ -459,7 +459,7 @@ export class MinutesModel {
       let resetDate: Date | null = null;
       
       if (planConfig.minutes.total === -1) {
-        // Agency plan: unlimited — store -1 as sentinel, no reset needed
+        // Agency plan: unlimited - store -1 as sentinel, no reset needed
         newMinutesTotal = -1;
         resetDate = null;
       } else if (billingCycle === "annual") {
@@ -498,7 +498,7 @@ export class MinutesModel {
       }
       
       // Add new minutes to existing remaining minutes (don't replace)
-      // Agency plan: -1 means unlimited — store as-is, don't add to existing
+      // Agency plan: -1 means unlimited - store as-is, don't add to existing
       const newMinutesRemaining = newMinutesTotal === -1 ? -1 : current.minutesRemaining + newMinutesTotal;
       const newMinutesUsed = current.minutesUsed; // Keep existing usage
 

@@ -95,7 +95,7 @@ export interface ClipGenerationOptions {
     endTime: number;
     animation?: "none" | "fade-in" | "slide-up" | "typewriter";
   }>;
-  // Smart AI Reframing — run face detection + crop before caption burn
+  // Smart AI Reframing - run face detection + crop before caption burn
   smartCropEnabled?: boolean;
 }
 
@@ -124,18 +124,18 @@ function getOutputDimensions(
   const qualityMap: Record<VideoQuality, number> = {
     "720p": 720,
     "1080p": 1080,
-    "2k": 1440,   // actual encode — shown as "4K" in UI
+    "2k": 1440,   // actual encode - shown as "4K" in UI
     "4k": 2160,
   };
 
   const baseSize = qualityMap[quality];
 
   switch (aspectRatio) {
-    case "9:16": // Vertical (TikTok, Reels, Shorts) — baseSize is the WIDTH (e.g. 1080→1080×1920)
+    case "9:16": // Vertical (TikTok, Reels, Shorts) - baseSize is the WIDTH (e.g. 1080→1080×1920)
       return { width: baseSize, height: Math.round(baseSize * (16 / 9)) };
     case "1:1": // Square (Instagram feed)
       return { width: baseSize, height: baseSize };
-    case "16:9": // Horizontal (YouTube) — baseSize is the HEIGHT (e.g. 1080→1920×1080)
+    case "16:9": // Horizontal (YouTube) - baseSize is the HEIGHT (e.g. 1080→1920×1080)
       return { width: Math.round(baseSize * (16 / 9)), height: baseSize };
     default:
       return { width: 1920, height: 1080 };
@@ -336,7 +336,7 @@ export class ClipGeneratorService {
           options.watermark, options.quality
         );
       } else if (options.smartCropEnabled) {
-        // Smart crop enabled — skip aspect ratio conversion here.
+        // Smart crop enabled - skip aspect ratio conversion here.
         // Smart crop (step 3b) will run on the original source and produce the 9:16 output directly.
         this.logOperation("SKIP_ASPECT_RATIO_CONVERT", { reason: "smartCropEnabled, will reframe from source" });
       } else {
@@ -412,7 +412,7 @@ export class ClipGeneratorService {
                   "-y", reframedPath,
                 ];
               } else if (result.mode === "letterbox") {
-                // Group shot (4+ faces) — letterbox full frame into 9:16
+                // Group shot (4+ faces) - letterbox full frame into 9:16
                 args = [
                   "-i", rawSourcePath,
                   "-vf", `scale=${width}:-2:flags=lanczos,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p`,
@@ -421,7 +421,7 @@ export class ClipGeneratorService {
                   "-y", reframedPath,
                 ];
               } else if (result.mode === "mixed" && result.segments) {
-                // Mixed segments — face-tracked + no-face sections
+                // Mixed segments - face-tracked + no-face sections
                 // Extract coords from all segments; for letterbox segments without coords,
                 // generate center-crop coords so the whole clip is covered.
                 const allCoords: Array<{ t: number; x: number; y: number; w: number; h: number }> = [];
@@ -432,7 +432,7 @@ export class ClipGeneratorService {
                   if (seg.coords && seg.coords.length > 0) {
                     allCoords.push(...seg.coords);
                   } else {
-                    // No coords for this segment — use center crop as fallback
+                    // No coords for this segment - use center crop as fallback
                     // (Python script should always provide coords now, but just in case)
                     this.logOperation("SMART_CROP_MIXED_CENTER_FALLBACK", {
                       clipId: options.clipId,
@@ -486,7 +486,7 @@ export class ClipGeneratorService {
                   "-y", reframedPath,
                 ];
               } else {
-                // Unknown mode or missing data — skip reframe
+                // Unknown mode or missing data - skip reframe
                 this.logOperation("SMART_CROP_UNKNOWN_MODE_FALLBACK", { clipId: options.clipId, mode: result.mode });
                 reject(new Error("__FALLBACK__"));
                 return;
@@ -508,7 +508,7 @@ export class ClipGeneratorService {
             clipWithoutCaptionsBuffer = reframedBuf;
             this.logOperation("SMART_CROP_DONE", { clipId: options.clipId, size: reframedBuf.length });
           } else {
-            // No faces detected — fall back to standard aspect ratio conversion
+            // No faces detected - fall back to standard aspect ratio conversion
             this.logOperation("SMART_CROP_SKIP_FALLBACK", { clipId: options.clipId, reason: "no face detected, falling back to standard conversion" });
             await this.convertAspectRatioFile(
               rawSourcePath, rawOutputPath, width, height,
@@ -532,7 +532,7 @@ export class ClipGeneratorService {
             );
             clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
           } else {
-            // Smart crop was explicitly enabled — fail the job so the user knows
+            // Smart crop was explicitly enabled - fail the job so the user knows
             console.error(`[CLIP GENERATOR] Smart crop FAILED for clip ${options.clipId}:`, scErr);
             throw new Error(`Smart AI Reframing failed: ${scErr instanceof Error ? scErr.message : scErr}`);
           }
@@ -542,7 +542,7 @@ export class ClipGeneratorService {
       // ── STEP 4: Generate CAPTIONED clip ──
       onProgress?.(55);
       if (!hasCaptions) {
-        // No captions needed — reuse the raw buffer (zero extra encoding)
+        // No captions needed - reuse the raw buffer (zero extra encoding)
         clipWithCaptionsBuffer = clipWithoutCaptionsBuffer;
       } else {
         // Prepare ASS subtitles
@@ -693,7 +693,7 @@ export class ClipGeneratorService {
       const { url: rawStorageUrl } = await R2Service.uploadFile(rawStorageKey, clipWithoutCaptionsBuffer, "video/mp4");
 
       // ── STEP 6: Generate thumbnail from local captioned file (before cleanup) ──
-      // Use the local file — much faster than re-downloading from R2
+      // Use the local file - much faster than re-downloading from R2
       const thumbSourcePath = hasCaptions ? captionedOutputPath : rawOutputPath;
       const thumbOffset = Math.min(1, duration * 0.1); // 1s or 10% of duration, whichever is smaller
       let thumbnailBuffer: Buffer | undefined;
@@ -864,7 +864,7 @@ export class ClipGeneratorService {
     // In ASS, \bord is the outline thickness, \shad is drop shadow.
     // Frontend has no drop shadow, so \shad=0 always.
     // Use outlineWidth from style if set, otherwise: outline=true uses 3px, shadow=true uses 2px
-    // NOTE: Don't scale outline by full scaleFactor — ASS \bord renders thicker than CSS stroke.
+    // NOTE: Don't scale outline by full scaleFactor - ASS \bord renders thicker than CSS stroke.
     // Use a dampened scale to keep it visually close to the frontend preview.
     let rawOutline = 0;
     if (style?.outline) rawOutline = style?.outlineWidth ?? 3;
@@ -872,12 +872,12 @@ export class ClipGeneratorService {
     const outline = Math.round(rawOutline * Math.sqrt(scaleFactor));
     const shadow = 0; // Frontend has no drop shadow
 
-    // Enhanced style options — match frontend exactly
+    // Enhanced style options - match frontend exactly
     // Frontend defaults to 110%: (style.highlightScale ?? 110) / 100
     const highlightScale = style?.highlightScale ?? 110;
     const maxWordsPerLine = style?.wordsPerLine ?? 5;
 
-    // Helper — apply textTransform from style (matching frontend)
+    // Helper - apply textTransform from style (matching frontend)
     // Also wraps non-Latin words with \fn override for correct font rendering
     const transformWord = (word: string) => {
       const transformed = style?.textTransform === "uppercase" ? word.toUpperCase() : word;
@@ -912,29 +912,29 @@ export class ClipGeneratorService {
       // Vertical positioning: ASS alignment numpad
       // 7 8 9 = top row, 4 5 6 = middle row, 1 2 3 = bottom row
       if (yPct <= 33) {
-        // Top zone — alignment 7/8/9, marginV = distance from top
+        // Top zone - alignment 7/8/9, marginV = distance from top
         alignment = 6 + hAlign;
         marginV = Math.round((yPct / 100) * height);
       } else if (yPct >= 66) {
-        // Bottom zone — alignment 1/2/3, marginV = distance from bottom
+        // Bottom zone - alignment 1/2/3, marginV = distance from bottom
         alignment = hAlign;
         marginV = Math.round(((100 - yPct) / 100) * height);
       } else {
-        // Center zone — alignment 4/5/6, marginV = offset from center
+        // Center zone - alignment 4/5/6, marginV = offset from center
         alignment = 3 + hAlign;
         // ASS center alignment: marginV shifts text away from exact center
         const offsetFromCenter = yPct - 50; // positive = below center
         marginV = Math.round(Math.abs(offsetFromCenter) / 100 * height);
-        // If below center, we need to push down — ASS MarginV for center alignment
+        // If below center, we need to push down - ASS MarginV for center alignment
         // pushes toward bottom when positive, which matches our need
         if (offsetFromCenter < 0) {
-          // Above center — flip to top alignment
+          // Above center - flip to top alignment
           alignment = 6 + hAlign;
           marginV = Math.round((yPct / 100) * height);
         }
       }
     } else {
-      // Fallback to legacy position preset — scale margins proportionally with height
+      // Fallback to legacy position preset - scale margins proportionally with height
       const textAlign = style?.alignment || "center";
       const hAlign = textAlign === "left" ? 1 : textAlign === "right" ? 3 : 2;
       alignment = style?.position === "top" ? (6 + hAlign) : style?.position === "center" ? (3 + hAlign) : hAlign;
@@ -1226,8 +1226,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     //   }
     // }
 
-    // Add text overlays — each gets its own named style so BorderStyle (box bg) works correctly
-    // NOTE: overlays with emoji are skipped here — they are rendered as PNG and composited via FFmpeg overlay
+    // Add text overlays - each gets its own named style so BorderStyle (box bg) works correctly
+    // NOTE: overlays with emoji are skipped here - they are rendered as PNG and composited via FFmpeg overlay
     if (textOverlays && textOverlays.length > 0) {
       const DESIGN_HEIGHT = 700;
       const overlayScaleFactor = height / DESIGN_HEIGHT;
@@ -1238,7 +1238,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
       for (let oi = 0; oi < textOverlays.length; oi++) {
         const overlay = textOverlays[oi];
-        // Skip emoji overlays — they are rendered as PNG and composited via FFmpeg overlay
+        // Skip emoji overlays - they are rendered as PNG and composited via FFmpeg overlay
         if (ClipGeneratorService.hasEmoji(overlay.text)) continue;
         const oFontSize = Math.round((overlay.fontSize || 32) * overlayScaleFactor);
         const oColor = this.hexToASSColor(overlay.color || "#FFFFFF");
@@ -1272,7 +1272,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Now add dialogue lines for each overlay
       for (let oi = 0; oi < textOverlays.length; oi++) {
         const overlay = textOverlays[oi];
-        // Skip emoji overlays — handled via FFmpeg PNG overlay
+        // Skip emoji overlays - handled via FFmpeg PNG overlay
         if (ClipGeneratorService.hasEmoji(overlay.text)) continue;
         const oX = Math.round((overlay.x / 100) * width);
         const oY = Math.round((overlay.y / 100) * height);
@@ -1360,7 +1360,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
     // Scale font size from design space (700px) to actual video height
     const scaledFontSize = Math.round(fontSize * (videoHeight / 700));
-    // Apple Color Emoji only supports specific bitmap sizes — snap to nearest valid size
+    // Apple Color Emoji only supports specific bitmap sizes - snap to nearest valid size
     const EMOJI_VALID_SIZES = [20, 26, 32, 40, 48, 52, 64, 96, 160];
     const clampedFontSize = EMOJI_VALID_SIZES.reduce((prev, curr) =>
       Math.abs(curr - scaledFontSize) < Math.abs(prev - scaledFontSize) ? curr : prev
@@ -1649,7 +1649,7 @@ print(f"OK:{total_w}x{total_h}")
       // Step 4: Read the output file
       const clipBuffer = await fs.promises.readFile(tempOutputPath);
 
-      // Validate output — an MP4 with only headers (~1-2KB) means no frames were encoded
+      // Validate output - an MP4 with only headers (~1-2KB) means no frames were encoded
       if (clipBuffer.length < 10000) {
         throw new Error(`FFmpeg produced an empty or corrupt clip (${clipBuffer.length} bytes). The segment may be outside the video's duration.`);
       }
@@ -1702,7 +1702,7 @@ print(f"OK:{total_w}x{total_h}")
                                   lastError.message.includes("yt-dlp failed with code 1");
 
         if (isRetryableError && attempt < maxRetries) {
-          // code 222 is caused by --force-keyframes-at-cuts on certain streams — disable it on retry
+          // code 222 is caused by --force-keyframes-at-cuts on certain streams - disable it on retry
           if (isCode222) forceKeyframes = false;
 
           // Bot-blocked needs a longer cooldown so YouTube unblocks the IP
@@ -2010,7 +2010,7 @@ print(f"OK:{total_w}x{total_h}")
 
           const buffer = Buffer.concat(chunks);
 
-          // Validate output — an MP4 with only headers (~1-2KB) means no frames were encoded
+          // Validate output - an MP4 with only headers (~1-2KB) means no frames were encoded
           if (buffer.length < 10000) {
             reject(new Error(`FFmpeg produced an empty or corrupt clip (${buffer.length} bytes). The segment may be outside the video's duration.`));
             return;
@@ -2046,7 +2046,7 @@ print(f"OK:{total_w}x{total_h}")
         "-ss", startTime.toString(),
         "-i", videoUrl,
         "-t", duration.toString(),
-        "-c", "copy", // Stream copy — no re-encoding, just extract the segment
+        "-c", "copy", // Stream copy - no re-encoding, just extract the segment
         "-y",
         outputPath,
       ];
@@ -2149,7 +2149,7 @@ print(f"OK:{total_w}x{total_h}")
         prevLabel = nextLabel;
       }
     } else {
-      // No emoji overlays — rename base_out to outv
+      // No emoji overlays - rename base_out to outv
       filterComplex = filterComplex.replace("[base_out]", "[outv]");
     }
 
@@ -2314,7 +2314,7 @@ print(f"OK:{total_w}x{total_h}")
             prevLabel = nextLabel;
           }
         } else {
-          // No emoji overlays — rename base_out to outv
+          // No emoji overlays - rename base_out to outv
           filterComplex = filterComplex.replace("[base_out]", "[outv]");
         }
 
@@ -2700,7 +2700,7 @@ print(f"OK:{total_w}x{total_h}")
 
   /**
    * Extract a single JPEG frame from a local video file at the given offset.
-   * Much faster than downloading from R2 — used right after clip generation.
+   * Much faster than downloading from R2 - used right after clip generation.
    */
   private static async extractThumbnailFromFile(
     videoPath: string,

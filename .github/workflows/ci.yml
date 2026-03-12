@@ -72,19 +72,19 @@ jobs:
             echo "🏥 Health check (waiting 15s)..."
             sleep 15
             if curl -sf http://localhost:3002/health | grep -q '"status".*"healthy"'; then
-              echo "✅ Deploy successful — $NEW_COMMIT"
+              echo "✅ Deploy successful - $NEW_COMMIT"
               pm2 status
             else
-              echo "❌ Health check failed — rolling back to $PREV_COMMIT"
+              echo "❌ Health check failed - rolling back to $PREV_COMMIT"
               git checkout main
               git reset --hard $PREV_COMMIT
               bun install
               pm2 reload ecosystem.config.cjs --update-env || pm2 start ecosystem.config.cjs
               sleep 5
               if curl -sf http://localhost:3002/health | grep -q '"status".*"healthy"'; then
-                echo "✅ Rollback successful — running $PREV_COMMIT"
+                echo "✅ Rollback successful - running $PREV_COMMIT"
               else
-                echo "🚨 Rollback also failed — manual intervention required"
+                echo "🚨 Rollback also failed - manual intervention required"
               fi
               exit 1
             fi

@@ -50,7 +50,7 @@ redisConnection.on("error", (err) => {
   console.error("[REDIS] Connection error:", err.message);
 });
 
-// Queue prefix — set QUEUE_PREFIX=local in .env.local to isolate local jobs from prod
+// Queue prefix - set QUEUE_PREFIX=local in .env.local to isolate local jobs from prod
 const QUEUE_PREFIX = process.env.QUEUE_PREFIX ? `${process.env.QUEUE_PREFIX}-` : "";
 
 export const QUEUE_NAMES = {
@@ -123,7 +123,7 @@ export interface ClipGenerationJobData {
   backgroundStyle?: "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom";
   // Video scale factor (100 = 1.0x fit, 125 = 1.25x default, 200 = 2.0x max zoom)
   videoScale?: number;
-  // Smart AI Reframing — run face detection + crop before caption burn
+  // Smart AI Reframing - run face detection + crop before caption burn
   smartCropEnabled?: boolean;
   // Split-screen background video data
   splitScreen?: {
@@ -240,7 +240,7 @@ export async function removeVideoJob(videoId: string) {
       await job.remove();
       console.log(`[QUEUE] Removed video processing job for: ${videoId}`);
     } catch (err: any) {
-      // Job is locked (actively being processed by a worker) — ignore, the worker
+      // Job is locked (actively being processed by a worker) - ignore, the worker
       // will finish or fail on its own. DB/R2 deletion proceeds regardless.
       if (err?.message?.includes("locked by another worker")) {
         console.warn(`[QUEUE] Job video-${videoId} is locked by a worker, skipping removal`);
@@ -295,7 +295,7 @@ export function createWorker<T>(
   const worker = new Worker<T>(queueName, processor, {
     connection: createRedisConnection(),
     concurrency,
-    // FFmpeg jobs can take 2-5 minutes — increase stall thresholds so a
+    // FFmpeg jobs can take 2-5 minutes - increase stall thresholds so a
     // slow encode doesn't get incorrectly marked as stalled and retried.
     stalledInterval: 5 * 60 * 1000,  // check for stalled jobs every 5 min (default: 30s)
     maxStalledCount: 3,               // allow 3 stall recoveries before failing (default: 1)

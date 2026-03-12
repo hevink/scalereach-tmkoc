@@ -95,7 +95,7 @@ export class ShareController {
         return c.json({ error: "Not Found", message: "Video not found" }, 404);
       }
 
-      // Validate ownership — video.workspaceId can be null
+      // Validate ownership - video.workspaceId can be null
       let videoWorkspaceId = video.workspaceId;
       if (!videoWorkspaceId && video.projectId) {
         const projectData = await db.query.project.findFirst({

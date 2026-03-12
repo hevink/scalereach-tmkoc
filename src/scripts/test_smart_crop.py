@@ -85,7 +85,7 @@ hf_token = os.environ.get("HF_TOKEN")
 diarization_segments = []
 
 if not hf_token:
-    log("WARNING: HF_TOKEN not set — skipping diarization, will track all faces")
+    log("WARNING: HF_TOKEN not set - skipping diarization, will track all faces")
 else:
     try:
         log("Running speaker diarization (this takes ~30s)...")
@@ -104,7 +104,7 @@ else:
         log(f"Diarization done: {len(diarization_segments)} segments, "
             f"{len(set(s['speaker'] for s in diarization_segments))} speakers")
     except Exception as e:
-        log(f"WARNING: Diarization failed ({e}) — falling back to face tracking only")
+        log(f"WARNING: Diarization failed ({e}) - falling back to face tracking only")
         diarization_segments = []
 
 def get_speaker_at(t):
@@ -193,7 +193,7 @@ def get_crop_x(faces, t):
             target_face = sorted_faces[0] if side == "left" else sorted_faces[-1]
             target_cx = target_face["cx"]
         else:
-            # No diarization info — pick face closest to center
+            # No diarization info - pick face closest to center
             target_cx = min(faces, key=lambda f: abs(f["cx"] - src_w // 2))["cx"]
 
     # Center crop window on target face
@@ -215,7 +215,7 @@ for fd in frame_data:
 # ── Step 8: Smooth with EMA + dead zone ──────────────────────────────────────
 
 ALPHA = 0.3       # smoothing factor (lower = smoother but slower)
-DEAD_ZONE = 50    # pixels — don't move if drift < this
+DEAD_ZONE = 50    # pixels - don't move if drift < this
 
 smoothed_coords = []
 smoothed_x = float(raw_coords[0]["x"])

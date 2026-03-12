@@ -76,7 +76,7 @@ export class VideoController {
         return c.json({ error: "Invalid YouTube URL" }, 400);
       }
 
-      // Get video info — proxy to worker if available (yt-dlp only on EC2), fallback to HTTP API
+      // Get video info - proxy to worker if available (yt-dlp only on EC2), fallback to HTTP API
       let videoInfo;
       try {
         const workerUrl = process.env.WORKER_URL;
@@ -449,7 +449,7 @@ export class VideoController {
 
   /**
    * POST /api/videos/:id/regenerate
-   * Full video regeneration — resets status, deletes existing clips, re-queues for processing
+   * Full video regeneration - resets status, deletes existing clips, re-queues for processing
    */
   static async regenerateVideo(c: Context) {
     const videoId = c.req.param("id");
@@ -520,7 +520,7 @@ export class VideoController {
         return c.json({ valid: false, error: "Invalid YouTube URL format" });
       }
 
-      // Proxy to worker (has yt-dlp installed) — API (Render) does not have yt-dlp
+      // Proxy to worker (has yt-dlp installed) - API (Render) does not have yt-dlp
       const workerUrl = process.env.WORKER_URL;
       if (workerUrl) {
         try {

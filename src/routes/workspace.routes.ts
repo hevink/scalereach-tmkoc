@@ -12,7 +12,7 @@ workspaceRouter.use("/*", authMiddleware);
 workspaceRouter.get("/", WorkspaceController.getAllWorkspaces);
 workspaceRouter.post("/", WorkspaceController.createWorkspace);
 
-// Slug-based routes — must be before /:id to avoid wildcard conflict
+// Slug-based routes - must be before /:id to avoid wildcard conflict
 workspaceRouter.get("/slug/:slug", WorkspaceController.getWorkspaceBySlug);
 workspaceRouter.get("/slug/:slug/check", WorkspaceController.checkSlugAvailability);
 workspaceRouter.put("/slug/:slug", WorkspaceController.updateWorkspaceBySlug);
@@ -20,7 +20,7 @@ workspaceRouter.delete("/slug/:slug", WorkspaceController.deleteWorkspaceBySlug)
 workspaceRouter.post("/slug/:slug/logo", WorkspaceController.uploadLogo);
 workspaceRouter.delete("/slug/:slug/logo", WorkspaceController.deleteLogo);
 
-// ID-based routes — after slug routes
+// ID-based routes - after slug routes
 workspaceRouter.get("/:id", WorkspaceController.getWorkspaceById);
 workspaceRouter.put("/:id", WorkspaceController.updateWorkspace);
 workspaceRouter.delete("/:id", WorkspaceController.deleteWorkspace);
@@ -38,7 +38,7 @@ workspaceRouter.delete("/:id/invitations/:invitationId", InvitationController.ca
 workspaceRouter.post("/:id/invitations/:invitationId/resend", InvitationController.resendInvitation);
 workspaceRouter.get("/:id/invitations/:invitationId/link", InvitationController.getInvitationLink);
 
-// Workspace clips — single query for all clips across all videos
+// Workspace clips - single query for all clips across all videos
 workspaceRouter.get("/:id/clips", ViralDetectionController.getWorkspaceClips);
 
 export default workspaceRouter;

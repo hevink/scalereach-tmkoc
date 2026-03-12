@@ -13,7 +13,7 @@ Frontend (app.scalereach.ai)
         R2 / Deepgram / Anthropic / ElevenLabs
 ```
 
-The API and worker communicate **only through Redis queues** — they do not call each other over HTTP.
+The API and worker communicate **only through Redis queues** - they do not call each other over HTTP.
 The worker URL (`worker.scalereach.ai`) is for monitoring only, nothing in the app calls it.
 
 The worker runs `src/worker.ts` via PM2. The API runs separately on Render.
@@ -29,7 +29,7 @@ The worker runs `src/worker.ts` via PM2. The API runs separately on Render.
 | Domain | `https://worker.scalereach.ai` |
 | Region | `us-east-1` (N. Virginia) |
 | AMI | Ubuntu 24.04 LTS |
-| Type | `t3.micro` — upgrade to `t3.large` for real video processing load |
+| Type | `t3.micro` - upgrade to `t3.large` for real video processing load |
 | Storage | 28GB |
 | Key pair | `~/.ssh/scalereach-worker.pem` |
 | Deploy path | `/opt/scalereach` |
@@ -39,11 +39,11 @@ The worker runs `src/worker.ts` via PM2. The API runs separately on Render.
 
 ---
 
-## Part 1 — Launch EC2 Instance
+## Part 1 - Launch EC2 Instance
 
 1. AWS Console → EC2 → Launch Instance
 2. AMI: **Ubuntu 24.04 LTS**
-3. Instance type: `t3.large` (2 vCPU, 8GB RAM — needed for ffmpeg/video processing)
+3. Instance type: `t3.large` (2 vCPU, 8GB RAM - needed for ffmpeg/video processing)
 4. Storage: **30GB+** (ffmpeg creates large temp files)
 5. Key pair: Create new → download `.pem` file
 6. Security group: allow SSH (port 22) from your IP only for now
@@ -56,7 +56,7 @@ chmod 400 ~/.ssh/scalereach-worker.pem
 
 ---
 
-## Part 2 — Security Group (Open Ports)
+## Part 2 - Security Group (Open Ports)
 
 EC2 → Security Groups → your instance's group → Inbound rules → Edit inbound rules
 
@@ -72,13 +72,13 @@ Direct link: `https://us-east-1.console.aws.amazon.com/ec2/home?region=us-east-1
 
 ---
 
-## Part 3 — DNS Record
+## Part 3 - DNS Record
 
 In Cloudflare for `scalereach.ai`:
 
 | Type | Name   | Value         | Proxy        |
 |------|--------|---------------|--------------|
-| A    | worker | 98.81.246.231 | OFF (grey cloud — must be off for certbot) |
+| A    | worker | 98.81.246.231 | OFF (grey cloud - must be off for certbot) |
 
 Wait for DNS to propagate before running certbot. Verify with:
 ```bash
@@ -87,7 +87,7 @@ host worker.scalereach.ai  # should return 98.81.246.231
 
 ---
 
-## Part 4 — Server Setup
+## Part 4 - Server Setup
 
 SSH in:
 ```bash
@@ -112,7 +112,7 @@ sudo apt-get install -y nodejs
 node --version  # should print v22.x.x
 ```
 
-### Install Bun — pin to exact same version as local
+### Install Bun - pin to exact same version as local
 ```bash
 curl -fsSL https://bun.sh/install | bash -s "bun-v1.2.19"
 source ~/.bashrc
@@ -126,7 +126,7 @@ bun add -g pm2
 
 ---
 
-## Part 5 — Deploy Code
+## Part 5 - Deploy Code
 
 ### Create deploy directory
 ```bash
@@ -155,7 +155,7 @@ mkdir -p logs
 
 ---
 
-## Part 6 — Start Worker with PM2
+## Part 6 - Start Worker with PM2
 
 ```bash
 # Configure PM2 to auto-start on reboot
@@ -192,7 +192,7 @@ Expected:
 
 ---
 
-## Part 7 — Nginx + SSL
+## Part 7 - Nginx + SSL
 
 ### Install nginx and certbot
 ```bash
@@ -238,11 +238,11 @@ sudo certbot --nginx -d worker.scalereach.ai --non-interactive --agree-tos -m he
 curl https://worker.scalereach.ai/health
 ```
 
-SSL cert auto-renews every 90 days via certbot's systemd timer — no manual action needed.
+SSL cert auto-renews every 90 days via certbot's systemd timer - no manual action needed.
 
 ---
 
-## Part 8 — GitHub CI/CD
+## Part 8 - GitHub CI/CD
 
 Every push to `feature/split-screen-clips` or `main` automatically:
 1. Builds `src/index.ts` and `src/worker.ts`
@@ -268,11 +268,11 @@ To get the SSH key: `cat ~/.ssh/scalereach-worker.pem`
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /health` | Basic status — all workers + Redis |
+| `GET /health` | Basic status - all workers + Redis |
 | `GET /health/detailed` | Adds queue stats (waiting/active/completed/failed per queue) |
-| `GET /health/live` | Liveness probe — just returns `alive` |
-| `GET /health/ready` | Readiness probe — checks all workers + Redis |
-| `GET /health/hevin` | Full debug dashboard — Redis INFO, all BullMQ keys, system CPU/RAM/load, env vars |
+| `GET /health/live` | Liveness probe - just returns `alive` |
+| `GET /health/ready` | Readiness probe - checks all workers + Redis |
+| `GET /health/hevin` | Full debug dashboard - Redis INFO, all BullMQ keys, system CPU/RAM/load, env vars |
 
 ---
 
@@ -337,4 +337,4 @@ export PATH="/home/ubuntu/.bun/bin:$PATH"
 **Upgrade instance type** (when you need more CPU/RAM for video processing)
 - Stop instance in AWS Console
 - Actions → Instance Settings → Change Instance Type → `t3.large` or `t3.xlarge`
-- Start instance — public IP stays the same if you have an Elastic IP, otherwise update DNS
+- Start instance - public IP stays the same if you have an Elastic IP, otherwise update DNS

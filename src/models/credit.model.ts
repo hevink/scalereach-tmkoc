@@ -23,7 +23,7 @@ export class CreditModel {
   /**
    * Compute the non-expired balance by summing transactions where
    * expires_at IS NULL (usage/refund rows) or expires_at > NOW().
-   * This is the source of truth — workspace_credits.balance is a
+   * This is the source of truth - workspace_credits.balance is a
    * cached snapshot updated on every add/use operation.
    */
   static async getEffectiveBalance(workspaceId: string): Promise<number> {
@@ -105,7 +105,7 @@ export class CreditModel {
     }
   }
 
-  // Add credits — always sets a 60-day expiry for purchase/bonus credits
+  // Add credits - always sets a 60-day expiry for purchase/bonus credits
   static async addCredits(params: {
     workspaceId: string;
     userId?: string;
@@ -160,7 +160,7 @@ export class CreditModel {
     }
   }
 
-  // Use credits — checks effective (non-expired) balance
+  // Use credits - checks effective (non-expired) balance
   static async useCredits(params: {
     workspaceId: string;
     userId?: string;
@@ -221,7 +221,7 @@ export class CreditModel {
   }
 
   /**
-   * Expire stale credits — call from a daily cleanup job.
+   * Expire stale credits - call from a daily cleanup job.
    * Sets workspace balance to effective balance for any workspace
    * that has transactions expiring today.
    */

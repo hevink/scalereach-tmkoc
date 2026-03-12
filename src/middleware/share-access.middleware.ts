@@ -22,7 +22,7 @@ export async function requireProPlan(c: Context, next: Next) {
 
   let workspaceId = c.req.param("workspaceId") || c.get("workspaceId");
   
-  // Try to resolve workspaceId from videoId — also cache the video in context
+  // Try to resolve workspaceId from videoId - also cache the video in context
   if (!workspaceId) {
     const videoId = c.req.param("videoId");
     if (videoId) {

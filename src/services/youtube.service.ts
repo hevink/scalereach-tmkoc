@@ -10,7 +10,7 @@ export interface YouTubeVideoInfo {
   thumbnail: string;
   channelName: string;
   description: string;
-  /** Best available video height (e.g. 720, 1080, 2160) — only set via yt-dlp */
+  /** Best available video height (e.g. 720, 1080, 2160) - only set via yt-dlp */
   videoHeight?: number;
   /** BCP-47 language code of the video's audio (e.g. "hi", "en") */
   language?: string;
@@ -144,7 +144,7 @@ export class YouTubeService {
   }
 
   /**
-   * Get video info — uses HTTP API if YOUTUBE_API_KEY is set (for API server),
+   * Get video info - uses HTTP API if YOUTUBE_API_KEY is set (for API server),
    * falls back to yt-dlp (for worker or local dev).
    */
   static async getVideoInfo(url: string): Promise<YouTubeVideoInfo> {
@@ -219,7 +219,7 @@ export class YouTubeService {
     console.log(`[YOUTUBE SERVICE] Getting video info via yt-dlp for: ${url}`);
 
     return new Promise((resolve, reject) => {
-      // Add cookies if available — check env var first, then fallback to config files
+      // Add cookies if available - check env var first, then fallback to config files
       const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
         || (existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
         || (existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
@@ -352,7 +352,7 @@ export class YouTubeService {
 
     const videoInfo = await this.getVideoInfo(url);
 
-    // Add cookies if available — check env var first, then fallback to config files
+    // Add cookies if available - check env var first, then fallback to config files
     const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
       || (existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
       || (existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);

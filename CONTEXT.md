@@ -1,4 +1,4 @@
-# ScaleReach — Full Project Context
+# ScaleReach - Full Project Context
 
 ## Repos & Branches
 
@@ -43,7 +43,7 @@
 
 ---
 
-## EC2 Worker — Key Details
+## EC2 Worker - Key Details
 
 - Runs via PM2: `pm2 reload ecosystem.config.cjs --update-env`
 - Bun installed at `/home/ubuntu/.bun/bin/bun`
@@ -114,8 +114,8 @@ File: `scalereach-tmkoc/.github/workflows/ci.yml`
 | `GET /health/hevin/logs` | bearer/session | Live log viewer UI (SSE) |
 | `GET /health/hevin/logs/stream` | bearer/session | Raw SSE log stream |
 | `GET /validate-youtube?url=` | public | Validate YouTube URL via yt-dlp |
-| `POST /auth/login` | — | Email-based login for dashboard |
-| `POST /auth/logout` | — | Logout |
+| `POST /auth/login` | - | Email-based login for dashboard |
+| `POST /auth/logout` | - | Logout |
 
 Auth: Bearer token via `Authorization: Bearer <WORKER_SECRET>` or `X-Worker-Token: <WORKER_SECRET>` or session cookie after login.
 
@@ -127,12 +127,12 @@ Allowed emails for dashboard login: `hevinkalathiya123@gmail.com`, `hevinatwork@
 
 - EC2 IP is blocked by YouTube (datacenter IP)
 - Fix: cookies + bgutil POT server (generates Proof of Origin Tokens)
-- Cookies expire every 2-4 weeks — must be manually refreshed
+- Cookies expire every 2-4 weeks - must be manually refreshed
 - Cookie file format: Netscape HTTP Cookie File (header: `# This is a generated file! Do not edit.`)
 - Cookie file local: `scalereach-tmkoc/config/youtube_cookies.txt`
 - After updating cookies locally: `scp` to EC2 + `pm2 restart`
 - Long-term fix options:
-  - YouTube Data API v3 key (free, 10k req/day) — code already has `getVideoInfoHttp()`, just needs `YOUTUBE_API_KEY` env var
+  - YouTube Data API v3 key (free, 10k req/day) - code already has `getVideoInfoHttp()`, just needs `YOUTUBE_API_KEY` env var
   - Residential proxy via `YOUTUBE_PROXY` env var (already supported in `youtube.service.ts`)
 
 ### Validate YouTube (test)
@@ -168,7 +168,7 @@ curl -s -X POST "https://ais.scalereach.ai/v1/messages" \
 
 | File | Purpose |
 |------|---------|
-| `worker.ts` | Main worker entry — health server, SSE log viewer, validate-youtube endpoint |
+| `worker.ts` | Main worker entry - health server, SSE log viewer, validate-youtube endpoint |
 | `services/youtube.service.ts` | yt-dlp wrapper, YouTube Data API fallback, audio streaming |
 | `services/ai.service.ts` | Anthropic AI wrapper via `@ai-sdk/anthropic` |
 | `services/r2.service.ts` | Cloudflare R2 storage |
@@ -192,7 +192,7 @@ curl -s -X POST "https://ais.scalereach.ai/v1/messages" \
 
 | File | Purpose |
 |------|---------|
-| `scalereach-tmkoc/ecosystem.config.cjs` | PM2 config — log paths, env, app name |
+| `scalereach-tmkoc/ecosystem.config.cjs` | PM2 config - log paths, env, app name |
 | `scalereach-tmkoc/.github/workflows/ci.yml` | CI/CD pipeline |
 | `scalereach-tmkoc/config/youtube_cookies.txt` | YouTube auth cookies (refresh every 2-4 weeks) |
 | `scalereach-tmkoc/.env.production` | Production env vars (gitignored) |
@@ -202,39 +202,39 @@ curl -s -X POST "https://ais.scalereach.ai/v1/messages" \
 
 ## Completed Tasks
 
-### TASK 1 — Split Screen Random Background Video Fallback
+### TASK 1 - Split Screen Random Background Video Fallback
 - `scalereach-tmkoc/src/models/background-video.model.ts`
 - `scalereach-tmkoc/src/jobs/video.worker.ts`
 
-### TASK 2 — Edit Scheduled Post Feature
+### TASK 2 - Edit Scheduled Post Feature
 - `scalereach-tmkoc/src/models/scheduled-post.model.ts`
 - `scalereach-tmkoc/src/controllers/social-post.controller.ts`
 - `scalereach-f1/src/components/social/calendar/edit-post-modal.tsx`
 
-### TASK 3 — AWS EC2 Worker Deployment + CI/CD
+### TASK 3 - AWS EC2 Worker Deployment + CI/CD
 - EC2 instance `i-005f32f27449be306`, IP `3.93.175.142`
 - Domain `https://worker.scalereach.ai`
 - PM2 with `ecosystem.config.cjs`
 - CI deploys on push with health check + rollback
 
-### TASK 4 — Anthropic baseURL Fix
+### TASK 4 - Anthropic baseURL Fix
 - Was hardcoding `baseURL: "http://localhost:8000/v1"` and fake key
 - Fixed to read from env: `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY`
 - Must be `https://ais.scalereach.ai/v1` (SDK appends `/messages`)
 
-### TASK 5 — YouTube yt-dlp (EC2 IP blocked)
+### TASK 5 - YouTube yt-dlp (EC2 IP blocked)
 - Cookies + bgutil POT server is current working solution
 - Cookies must be refreshed every 2-4 weeks
 - Long-term: YouTube Data API v3 or residential proxy
 
-### TASK 6 — Live Log Viewer
+### TASK 6 - Live Log Viewer
 - `https://worker.scalereach.ai/health/hevin/logs`
 - SSE stream at `/health/hevin/logs/stream?type=out|err|both&lines=100`
 - Protected by same email allowlist auth as `/health/hevin`
 
 ---
 
-### TASK 7 — Smart AI Reframing (Face Detection + Smart Crop)
+### TASK 7 - Smart AI Reframing (Face Detection + Smart Crop)
 - Python sidecar: `scalereach-tmkoc/src/scripts/smart_crop.py`
 - Auto-detects video type: podcast (face tracking), screen+PiP (split screen), no face (center crop)
 - Face tracking: MediaPipe blaze_face_short_range, EMA smoothing, per-frame interpolation, snap zone
@@ -249,6 +249,6 @@ curl -s -X POST "https://ais.scalereach.ai/v1/messages" \
 - DB migrations: `drizzle/0025_smart_crop.sql` (viral_clip columns), `drizzle/0026_smart_crop_config.sql` (video_config column)
 - pyannote diarization: optional, requires HF_TOKEN + model terms accepted at huggingface.co/pyannote/speaker-diarization-3.1
 
-- YouTube cookies expire every 2-4 weeks — need YouTube Data API v3 key or residential proxy for permanent fix
-- `YOUTUBE_API_KEY` not set — if added to Render env vars, validation bypasses yt-dlp entirely on the API server
+- YouTube cookies expire every 2-4 weeks - need YouTube Data API v3 key or residential proxy for permanent fix
+- `YOUTUBE_API_KEY` not set - if added to Render env vars, validation bypasses yt-dlp entirely on the API server
 - `YOUTUBE_PROXY` env var supported in `youtube.service.ts` but not configured

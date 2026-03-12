@@ -14,7 +14,7 @@ Frontend → Render API (src/index.ts) → Redis → EC2 Worker (src/worker.ts)
 
 ---
 
-## Part 1 — Redis (do this first)
+## Part 1 - Redis (do this first)
 
 Both Render and EC2 need to share the same Redis instance.
 
@@ -25,21 +25,21 @@ Use **Upstash** (free tier, works from anywhere):
 
 ---
 
-## Part 2 — Deploy API on Render
+## Part 2 - Deploy API on Render
 
-### Step 1 — Connect repo
+### Step 1 - Connect repo
 1. Go to https://render.com → New → Web Service
 2. Connect your GitHub repo
 3. Select the `scalereach-tmkoc` directory (or root if it's the repo root)
 
-### Step 2 — Configure service
+### Step 2 - Configure service
 - **Runtime**: Docker
 - **Dockerfile path**: `./Dockerfile`
 - **Branch**: `main`
 - **Region**: Oregon (or closest to your users)
 - **Plan**: Starter ($7/mo) or higher
 
-### Step 3 — Set environment variables
+### Step 3 - Set environment variables
 Add these in Render dashboard → Environment:
 
 ```
@@ -66,39 +66,39 @@ POLAR_ACCESS_TOKEN=<key>
 DODO_PAYMENTS_API_KEY=<key>
 ```
 
-### Step 4 — Get deploy hook URL
+### Step 4 - Get deploy hook URL
 Render dashboard → your service → Settings → Deploy Hook → copy the URL
 You'll add this as `RENDER_DEPLOY_HOOK_URL` in GitHub secrets.
 
-### Step 5 — Deploy
-Click "Deploy" — Render builds the Docker image and starts the service.
+### Step 5 - Deploy
+Click "Deploy" - Render builds the Docker image and starts the service.
 Health check runs at `/health`.
 
 ---
 
-## Part 3 — Deploy Worker on AWS EC2
+## Part 3 - Deploy Worker on AWS EC2
 
-### Step 1 — Launch EC2 instance
+### Step 1 - Launch EC2 instance
 1. AWS Console → EC2 → Launch Instance
 2. **AMI**: Ubuntu 24.04 LTS
-3. **Instance type**: `t3.medium` (2 vCPU, 4GB) minimum — `t3.large` recommended for video processing
+3. **Instance type**: `t3.medium` (2 vCPU, 4GB) minimum - `t3.large` recommended for video processing
 4. **Storage**: 30GB+ (ffmpeg temp files can be large)
 5. **Security group**: allow inbound SSH (port 22) from your IP only
 6. Download the `.pem` key file
 
-### Step 2 — SSH into the instance
+### Step 2 - SSH into the instance
 ```bash
 chmod 400 your-key.pem
 ssh -i your-key.pem ubuntu@YOUR_EC2_IP
 ```
 
-### Step 3 — Upload your .env file
+### Step 3 - Upload your .env file
 From your local machine (new terminal tab):
 ```bash
 scp -i your-key.pem .env ubuntu@YOUR_EC2_IP:/tmp/.env
 ```
 
-### Step 4 — Run setup script
+### Step 4 - Run setup script
 Back in the EC2 SSH session:
 ```bash
 # Download setup script from your repo
@@ -149,7 +149,7 @@ pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
-### Step 5 — Verify worker is running
+### Step 5 - Verify worker is running
 ```bash
 pm2 status
 curl http://localhost:3002/health
@@ -157,7 +157,7 @@ curl http://localhost:3002/health
 
 ---
 
-## Part 4 — GitHub CI/CD Setup
+## Part 4 - GitHub CI/CD Setup
 
 ### Add secrets to GitHub repo
 Go to: GitHub repo → Settings → Secrets and variables → Actions → New repository secret

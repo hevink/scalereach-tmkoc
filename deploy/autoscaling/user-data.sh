@@ -1,5 +1,5 @@
 #!/bin/bash
-# EC2 User Data — bootstraps a new worker instance from the ASG.
+# EC2 User Data - bootstraps a new worker instance from the ASG.
 # This runs as root on first boot of each new instance.
 # Assumes base AMI already has: bun, ffmpeg, yt-dlp, git, python3, pm2 installed.
 # See deploy/autoscaling/README.md for how to bake the base AMI.

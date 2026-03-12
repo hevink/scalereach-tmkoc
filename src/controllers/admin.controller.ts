@@ -422,7 +422,7 @@ export class AdminController {
       // Reset clip status to detected so it can be re-queued
       await ClipModel.update(clipId, { status: "detected", errorMessage: undefined });
 
-      return c.json({ success: true, message: "Clip reset to detected — re-queue via video regeneration" });
+      return c.json({ success: true, message: "Clip reset to detected - re-queue via video regeneration" });
     } catch (error) {
       console.error("[ADMIN] Failed to retry clip:", error);
       return c.json({ error: "Failed to retry clip" }, 500);
@@ -577,10 +577,10 @@ export class AdminController {
       }
       const res = await fetch(`${workerUrl}/health/youtube-status`, fetchOptions);
       const data = await res.json();
-      // Don't pass through worker auth errors as 401 — that confuses the frontend
+      // Don't pass through worker auth errors as 401 - that confuses the frontend
       // into thinking the admin session is invalid
       if (res.status === 401 || res.status === 403) {
-        return c.json({ error: "Worker rejected request — check WORKER_SECRET env var on API server" }, 502);
+        return c.json({ error: "Worker rejected request - check WORKER_SECRET env var on API server" }, 502);
       }
       return c.json(data, res.status as any);
     } catch (error) {
@@ -607,7 +607,7 @@ export class AdminController {
       });
       const data = await res.json();
       if (res.status === 401 || res.status === 403) {
-        return c.json({ error: "Worker rejected request — check WORKER_SECRET" }, 502);
+        return c.json({ error: "Worker rejected request - check WORKER_SECRET" }, 502);
       }
       return c.json(data, res.status as any);
     } catch (error) {
@@ -639,7 +639,7 @@ export class AdminController {
       );
 
       if (res.status === 401 || res.status === 403) {
-        return c.json({ error: "Worker rejected request — check WORKER_SECRET" }, 502);
+        return c.json({ error: "Worker rejected request - check WORKER_SECRET" }, 502);
       }
 
       if (!res.body) {

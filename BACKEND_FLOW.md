@@ -1,4 +1,4 @@
-# ScaleReach Backend — Complete Flow Documentation
+# ScaleReach Backend - Complete Flow Documentation
 
 > For any new developer joining the team. This doc explains every backend flow,
 > every conditional branch, and which worker handles what.
@@ -23,7 +23,7 @@
 
 ---
 
-## 🗺️ Big Picture — All Queues & Workers
+## 🗺️ Big Picture - All Queues & Workers
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -65,7 +65,7 @@ User submits video
 
 ---
 
-### 🎬 Flow A — YouTube Video
+### 🎬 Flow A - YouTube Video
 
 ```
 [START] User submits YouTube URL
@@ -127,7 +127,7 @@ User submits video
 
 ---
 
-### 📤 Flow B — Uploaded Video
+### 📤 Flow B - Uploaded Video
 
 ```
 [START] User uploads video file (already in R2)
@@ -174,12 +174,12 @@ User submits video
 | `language`                      | Forces Deepgram to use specific language instead of auto-detect |
 | `clipDurationMin / Max`         | Tells Gemini min/max clip length                                |
 | `genre`                         | Genre hint to Gemini for better clip detection                  |
-| `clipType`                      | `"viral-clips"` or `"highlights"` — changes Gemini prompt       |
+| `clipType`                      | `"viral-clips"` or `"highlights"` - changes Gemini prompt       |
 | `customPrompt`                  | Extra instructions injected into Gemini prompt                  |
 | `enableCaptions`                | If false, clips queued without caption data                     |
 | `enableIntroTitle`              | If false, no intro title overlay on clips                       |
 | `enableSplitScreen`             | Triggers split-screen background video selection                |
-| `splitScreenBgVideoId`          | Specific background video(s) — or random if empty               |
+| `splitScreenBgVideoId`          | Specific background video(s) - or random if empty               |
 | `splitRatio`                    | Top/bottom split percentage (default 50)                        |
 | `captionTemplateId`             | Which caption style template to use                             |
 | `aspectRatio`                   | `"9:16"` / `"16:9"` / `"1:1"`                                   |
@@ -265,7 +265,7 @@ Each clip detected by Gemini gets its own job here. This is the **heaviest FFmpe
 
 ---
 
-### ClipGeneratorService.generateClip() — Internal Steps
+### ClipGeneratorService.generateClip() - Internal Steps
 
 ```
 [STEP 1] Download source segment ONCE to temp file
@@ -291,12 +291,12 @@ Each clip detected by Gemini gets its own job here. This is the **heaviest FFmpe
 [STEP 3] Generate RAW clip (no captions, no intro title)
         │
         ├── WITH split-screen
-        │   └── convertWithSplitScreen() — single FFmpeg pass:
+        │   └── convertWithSplitScreen() - single FFmpeg pass:
         │       main video top + background video bottom
         │       → vstack → output file
         │
         └── WITHOUT split-screen
-            └── convertAspectRatioFile() — single FFmpeg pass:
+            └── convertAspectRatioFile() - single FFmpeg pass:
                 applies backgroundStyle filter
                 → output file
         │
@@ -565,7 +565,7 @@ Handles posting clips to TikTok, Instagram, YouTube Shorts etc.
 
 ---
 
-## 🔗 Full End-to-End Flow (Happy Path — YouTube, All Features ON)
+## 🔗 Full End-to-End Flow (Happy Path - YouTube, All Features ON)
 
 ```
 1.  User submits YouTube URL + config
@@ -684,28 +684,28 @@ src/
 
 ## ⚠️ Known Gotchas for New Devs
 
-1. **yt-dlp exit code 222** — caused by `--force-keyframes-at-cuts` on certain streams.
+1. **yt-dlp exit code 222** - caused by `--force-keyframes-at-cuts` on certain streams.
    The retry logic automatically disables it. Do NOT remove the retry logic.
 
-2. **Clip worker concurrency > 2** — can cause exit code 202 errors when multiple
+2. **Clip worker concurrency > 2** - can cause exit code 202 errors when multiple
    yt-dlp processes compete. Currently capped at 2. Retry handles it but bump carefully.
 
-3. **Smart crop inline vs queued** — smart crop can run inside the clip worker (inline)
+3. **Smart crop inline vs queued** - smart crop can run inside the clip worker (inline)
    OR as a separate queue job. Both paths exist. Don't add it twice.
 
-4. **Raw clip = no captions** — `rawStorageKey` is intentionally caption-free.
+4. **Raw clip = no captions** - `rawStorageKey` is intentionally caption-free.
    It's used when the user edits captions in the UI and triggers a re-render.
    The re-render job takes the raw clip and burns new captions.
 
-5. **Minutes deducted at video level, not clip level** — `creditCost: 0` on clip jobs
+5. **Minutes deducted at video level, not clip level** - `creditCost: 0` on clip jobs
    is intentional. Minutes already deducted when video was submitted.
 
-6. **Resume logic only exists in video worker** — the clip worker always starts fresh.
+6. **Resume logic only exists in video worker** - the clip worker always starts fresh.
    If a clip job fails partway, it re-encodes from scratch.
 
-7. **Signed URLs expire in 1 hour** — all `getSignedDownloadUrl()` calls use `3600s`.
+7. **Signed URLs expire in 1 hour** - all `getSignedDownloadUrl()` calls use `3600s`.
    If a job takes longer (large video + slow encode), the URL can expire mid-job.
    FFmpeg will fail silently with a 403. Use `removeOnFail` logs to catch this.
 
-8. **`QUEUE_PREFIX` env var** — set `QUEUE_PREFIX=local` in `.env.local` to prevent
+8. **`QUEUE_PREFIX` env var** - set `QUEUE_PREFIX=local` in `.env.local` to prevent
    your local worker from picking up production jobs from the same Redis.

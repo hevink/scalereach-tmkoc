@@ -24,7 +24,7 @@ export async function maybeRefreshToken(account: AccountTokens): Promise<{
 }> {
   const plainAccess = decryptToken(account.accessToken);
 
-  // Not expired — return as-is
+  // Not expired - return as-is
   if (!account.tokenExpiresAt || account.tokenExpiresAt > new Date(Date.now() + 60_000)) {
     return { accessToken: plainAccess };
   }

@@ -96,13 +96,13 @@ const CLIP_TYPE_PROMPTS: Record<string, string> = {
   "viral-clips": "Focus on finding high-impact, shareable moments that would go viral on social media. Look for strong hooks, emotional peaks, surprising reveals, and quotable soundbites.",
   "memorable-phrases": "Focus on finding the most quotable, shareable phrases and soundbites. Look for memorable one-liners, powerful statements, witty remarks, and phrases people would want to share or use as captions.",
   "topic-clips": "Focus on extracting clips that cover distinct main topics or key points discussed in the video. Each clip should be a self-contained explanation of a specific topic.",
-  "trailer": "Create a summarized highlight reel featuring the most catchy, intriguing, and representative moments from the video. Think of it as a movie trailer — tease the best parts to make viewers want to watch the full video.",
+  "trailer": "Create a summarized highlight reel featuring the most catchy, intriguing, and representative moments from the video. Think of it as a movie trailer - tease the best parts to make viewers want to watch the full video.",
   "product-ads": "Focus on moments that showcase products or services in the best light. Look for demonstrations, benefits being explained, before/after comparisons, and compelling calls to action.",
-  "testimonial": "Focus on finding genuine testimonial moments — real reactions, endorsements, success stories, and authentic praise for a product, service, or experience.",
+  "testimonial": "Focus on finding genuine testimonial moments - real reactions, endorsements, success stories, and authentic praise for a product, service, or experience.",
   "instructions": "Focus on extracting clear, concise tutorial or how-to segments. Look for step-by-step instructions, tips, tricks, and practical demonstrations that can stand alone as quick tutorials.",
   "product-features": "Focus on moments that highlight specific product features, capabilities, and unique selling points. Each clip should showcase a distinct feature or benefit.",
-  "positive-highlights": "Focus exclusively on positive moments — praise, success stories, exciting announcements, achievements, and uplifting content about the main topic.",
-  "negative-highlights": "Focus on critical moments — criticisms, problems identified, negative reviews, warnings, and cautionary content about the main topic.",
+  "positive-highlights": "Focus exclusively on positive moments - praise, success stories, exciting announcements, achievements, and uplifting content about the main topic.",
+  "negative-highlights": "Focus on critical moments - criticisms, problems identified, negative reviews, warnings, and cautionary content about the main topic.",
   "showcase": "Focus on practical use cases and demonstrations that show real-world value. Look for moments where the product/service is being used effectively, solving problems, or delivering results.",
   "multi-product-recap": "Focus on segments that cover different products or items being reviewed/compared. Each clip should highlight a distinct product with its key features and verdict.",
   "speakers-insights": "Focus on the speaker's most insightful, thought-provoking, or relatable opinions and observations. Look for unique perspectives, expert knowledge, and moments of wisdom.",
@@ -124,7 +124,7 @@ export class ViralDetectionService {
       maxDuration,
     } = options;
 
-    // Auto mode — no duration constraints, skip validation
+    // Auto mode - no duration constraints, skip validation
     if (minDuration === undefined && maxDuration === undefined) {
       return { valid: true };
     }
@@ -185,7 +185,7 @@ export class ViralDetectionService {
 
     const isNonEnglish = language !== "en";
     const languageNote = isNonEnglish
-      ? `\nTRANSCRIPT LANGUAGE: The transcript is in "${language}" (non-English). Analyze it as-is — do NOT translate. Return titles and virality reasons in English, but keep transcript/transcriptWithEmojis fields in the original language.\n`
+      ? `\nTRANSCRIPT LANGUAGE: The transcript is in "${language}" (non-English). Analyze it as-is - do NOT translate. Return titles and virality reasons in English, but keep transcript/transcriptWithEmojis fields in the original language.\n`
       : "";
 
     const isAutoMode = options.minDuration === undefined && options.maxDuration === undefined;
@@ -228,9 +228,9 @@ EMOJI ENHANCEMENT REQUIREMENTS:
 
     const systemPrompt = `You are an expert viral clip extractor for short-form video (TikTok, Reels, Shorts).
 
-Extract clips from video transcripts that work as STANDALONE short videos. Each clip must be a complete mini-story — watchable and enjoyable with zero context from the full video.
+Extract clips from video transcripts that work as STANDALONE short videos. Each clip must be a complete mini-story - watchable and enjoyable with zero context from the full video.
 
-CLIP STRUCTURE — every clip MUST have all three:
+CLIP STRUCTURE - every clip MUST have all three:
 1. HOOK (first 3 seconds): A bold statement, surprising fact, clean question, or compelling setup. The viewer must instantly know what this clip is about.
 2. DEVELOPMENT (middle): Builds tension, adds detail, or advances the story.
 3. PAYOFF (ending): Delivers a punchline, insight, resolution, or emotional peak. Must be a COMPLETE thought.
@@ -238,19 +238,19 @@ CLIP STRUCTURE — every clip MUST have all three:
 OPENING RULES:
 - First sentence must establish the clip's topic with zero warm-up.
 - NEVER start mid-answer. If the clip contains an answer, include the question that prompted it.
-- NEVER open with filler ("So...", "Yeah...", "I mean...", "Like...") — find the clean entry point seconds earlier.
+- NEVER open with filler ("So...", "Yeah...", "I mean...", "Like...") - find the clean entry point seconds earlier.
 - NEVER open with a response to something outside the clip ("That's a great point", "As I was saying...").
 - When in doubt, move startTime earlier to capture the natural lead-in.
 
 ENDING RULES:
-- Last sentence must be a COMPLETE, resolved thought — never cut mid-sentence.
-- If the speaker says "so basically..." or "the point is..." — include what follows.
+- Last sentence must be a COMPLETE, resolved thought - never cut mid-sentence.
+- If the speaker says "so basically..." or "the point is..." - include what follows.
 - NEVER end on filler ("you know?", "right?", "anyway...") or topic transitions.
 - When in doubt, extend endTime to capture the natural conclusion.
 
 CLIP BOUNDARIES:
 - Start at the beginning of a topic/story/example. End when it's fully resolved.
-- No overlapping clips — each clip must cover a distinct moment.
+- No overlapping clips - each clip must cover a distinct moment.
 - Clips must not share more than 5 seconds of content with any other clip.
 
 QUALITY:
@@ -276,12 +276,12 @@ PLATFORM FIT (recommend for every clip):
 
     const userPrompt = `Video: "${videoTitle}"
 
-Extract standalone viral clips from this transcript. Each clip must be self-contained — a viewer with no context should understand and enjoy it.
+Extract standalone viral clips from this transcript. Each clip must be self-contained - a viewer with no context should understand and enjoy it.
 
 CHECKLIST (verify for each clip before including):
 - [ ] Opens with a clean hook, not mid-conversation or filler
 - [ ] If it contains an answer, the question is included
-- [ ] Ends on a complete, satisfying thought — not mid-sentence or filler
+- [ ] Ends on a complete, satisfying thought - not mid-sentence or filler
 - [ ] Has clear setup → development → payoff arc
 - [ ] No overlap with other clips (max 5s shared content)
 - [ ] Virality score >= 60

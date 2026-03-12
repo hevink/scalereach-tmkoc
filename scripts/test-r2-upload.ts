@@ -47,7 +47,7 @@ async function run() {
     console.log("✅ OK");
     passed++;
   } catch (e: any) {
-    console.log(`❌ FAILED — ${e.name}: ${e.message} (status: ${e.$metadata?.httpStatusCode})`);
+    console.log(`❌ FAILED - ${e.name}: ${e.message} (status: ${e.$metadata?.httpStatusCode})`);
     failed++;
     console.log("\nCannot continue without bucket access.");
     process.exit(1);
@@ -65,7 +65,7 @@ async function run() {
     console.log("✅ OK");
     passed++;
   } catch (e: any) {
-    console.log(`❌ FAILED — ${e.name}: ${e.message}`);
+    console.log(`❌ FAILED - ${e.name}: ${e.message}`);
     failed++;
   }
 
@@ -81,7 +81,7 @@ async function run() {
     console.log(`   ${url.slice(0, 80)}...`);
     passed++;
   } catch (e: any) {
-    console.log(`❌ FAILED — ${e.name}: ${e.message}`);
+    console.log(`❌ FAILED - ${e.name}: ${e.message}`);
     failed++;
   }
 
@@ -98,10 +98,10 @@ async function run() {
         console.log(`   ${publicUrl}`);
         passed++;
       } else {
-        console.log(`⚠️  HTTP ${res.status} — bucket may not be public`);
+        console.log(`⚠️  HTTP ${res.status} - bucket may not be public`);
       }
     } catch (e: any) {
-      console.log(`⚠️  Skipped — ${e.message}`);
+      console.log(`⚠️  Skipped - ${e.message}`);
     }
   }
 
@@ -128,7 +128,7 @@ async function run() {
     // cleanup stream test file
     await client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET_NAME, Key: streamKey }));
   } catch (e: any) {
-    console.log(`❌ FAILED — ${e.name}: ${e.message}`);
+    console.log(`❌ FAILED - ${e.name}: ${e.message}`);
     failed++;
   }
 
@@ -139,7 +139,7 @@ async function run() {
     console.log("✅ OK");
     passed++;
   } catch (e: any) {
-    console.log(`❌ FAILED — ${e.name}: ${e.message}`);
+    console.log(`❌ FAILED - ${e.name}: ${e.message}`);
     failed++;
   }
 
@@ -149,7 +149,7 @@ async function run() {
   if (failed === 0) {
     console.log("✅ R2 is working correctly");
   } else {
-    console.log("❌ Some tests failed — check credentials and bucket config");
+    console.log("❌ Some tests failed - check credentials and bucket config");
     process.exit(1);
   }
 }

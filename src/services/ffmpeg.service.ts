@@ -344,7 +344,7 @@ export class FFmpegService {
         ].join(","),
         "-c:v", "libx264",
         "-preset", "medium",     // better quality than "fast"
-        "-crf", "18",            // higher quality — social platforms re-encode anyway
+        "-crf", "18",            // higher quality - social platforms re-encode anyway
         "-profile:v", "high",
         "-level", "4.1",
         "-pix_fmt", "yuv420p",   // max compatibility on mobile

@@ -1,4 +1,4 @@
-# ScaleReach Worker — Horizontal Autoscaling
+# ScaleReach Worker - Horizontal Autoscaling
 
 ## How it works
 
@@ -29,7 +29,7 @@ User-data: pulls .env from SSM → git pull → pm2 start
 
 ## Setup (one-time)
 
-### Step 1 — Bake the base AMI
+### Step 1 - Bake the base AMI
 
 Your existing EC2 (`i-005f32f27449be306`) already has everything installed. Snapshot it:
 
@@ -42,7 +42,7 @@ chmod +x deploy/autoscaling/bake-ami.sh
 # → outputs: AMI ID: ami-xxxxxxxxxxxxxxxxx
 ```
 
-### Step 2 — Store secrets in SSM
+### Step 2 - Store secrets in SSM
 
 New instances pull their config from SSM on boot (no secrets in AMI or git):
 
@@ -69,7 +69,7 @@ aws ssm put-parameter \
   --region us-east-1
 ```
 
-### Step 3 — Run the setup script
+### Step 3 - Run the setup script
 
 ```bash
 export AWS_REGION=us-east-1
@@ -161,7 +161,7 @@ If jobs are queuing too long, lower it to 3.
 
 ## Important notes
 
-- **Redis is self-hosted** at `13.204.63.21` — make sure the ASG security group allows outbound to port 6379
-- **YouTube cookies** are shared across all instances (pulled from SSM) — all instances use the same cookies file
-- **BullMQ** handles job deduplication — multiple workers processing the same queue is safe, each job is claimed by one worker
-- The **existing EC2** (`i-005f32f27449be306`) can stay running as the baseline `min=1` instance — it doesn't need to be replaced
+- **Redis is self-hosted** at `13.204.63.21` - make sure the ASG security group allows outbound to port 6379
+- **YouTube cookies** are shared across all instances (pulled from SSM) - all instances use the same cookies file
+- **BullMQ** handles job deduplication - multiple workers processing the same queue is safe, each job is claimed by one worker
+- The **existing EC2** (`i-005f32f27449be306`) can stay running as the baseline `min=1` instance - it doesn't need to be replaced

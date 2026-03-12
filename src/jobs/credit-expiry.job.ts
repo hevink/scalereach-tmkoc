@@ -11,7 +11,7 @@ export function startCreditExpiryJob() {
     console.log("[CREDIT EXPIRY JOB] Running...");
     try {
       const result = await CreditModel.expireStaleCredits();
-      console.log(`[CREDIT EXPIRY JOB] Done — workspaces updated: ${result.workspacesUpdated}, credits expired: ${result.creditsExpired}`);
+      console.log(`[CREDIT EXPIRY JOB] Done - workspaces updated: ${result.workspacesUpdated}, credits expired: ${result.creditsExpired}`);
     } catch (err) {
       console.error("[CREDIT EXPIRY JOB] Failed:", err);
     }

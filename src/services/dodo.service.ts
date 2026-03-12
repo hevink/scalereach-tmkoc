@@ -189,7 +189,7 @@ export class DodoService {
       // Standard Webhooks: signed message = webhook-id + "." + webhook-timestamp + "." + body
       const signedContent = `${webhookId}.${webhookTimestamp}.${payload}`;
 
-      // Dodo webhook secret is base64-encoded — decode it first
+      // Dodo webhook secret is base64-encoded - decode it first
       const secretBytes = Buffer.from(webhookSecret.replace(/^whsec_/, ""), "base64");
 
       const expectedSignature = crypto
@@ -204,7 +204,7 @@ export class DodoService {
         return sigValue === expectedSignature;
       });
 
-      console.log(`[DODO SERVICE] Signature check — expected: v1,${expectedSignature}, received: ${signature}, valid: ${isValid}`);
+      console.log(`[DODO SERVICE] Signature check - expected: v1,${expectedSignature}, received: ${signature}, valid: ${isValid}`);
       return isValid;
     } catch (error) {
       console.error(`[DODO SERVICE] Webhook signature verification failed:`, error);

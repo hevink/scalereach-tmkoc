@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Smart Crop Sidecar — Production Script (Improved)
+Smart Crop Sidecar - Production Script (Improved)
 Called by Node.js worker via child_process.spawn
 
 Usage: python3 smart_crop.py <videoUrl> <clipId> <tmpDir>
@@ -13,8 +13,8 @@ Output: {tmpDir}/{clipId}_coords.json
 Exit 0 on success, non-zero on failure.
 
 Environment:
-  HF_TOKEN   — HuggingFace token for pyannote.audio (optional)
-  MODEL_PATH — Path to blaze_face_short_range.tflite (default: /tmp/blaze_face_short_range.tflite)
+  HF_TOKEN   - HuggingFace token for pyannote.audio (optional)
+  MODEL_PATH - Path to blaze_face_short_range.tflite (default: /tmp/blaze_face_short_range.tflite)
 
 Video type detection (auto):
   - podcast/talking-head  → face tracking crop (9:16)
@@ -129,7 +129,7 @@ crop_h = src_h - (src_h % 2)    # ensure even for libx264
 
 aspect_ratio = src_w / src_h if src_h > 0 else 1.0
 if aspect_ratio <= 0.65:
-    log(f"Video is already portrait ({src_w}x{src_h}, ratio={aspect_ratio:.2f}) — skipping reframe")
+    log(f"Video is already portrait ({src_w}x{src_h}, ratio={aspect_ratio:.2f}) - skipping reframe")
     with open(coords_path, "w") as f:
         json.dump({"mode": "skip"}, f)
     sys.exit(0)
@@ -150,7 +150,7 @@ detector_opts = mp_vision.FaceDetectorOptions(base_options=base_options, min_det
 face_detector = mp_vision.FaceDetector.create_from_options(detector_opts)
 
 # ── Speed optimization: downscale large frames for face detection ─────────────
-# MediaPipe doesn't need full resolution — 480p is plenty for face detection.
+# MediaPipe doesn't need full resolution - 480p is plenty for face detection.
 # This gives ~4-6x speedup on 1080p and ~16x on 4K.
 DETECT_MAX_H = 480
 
@@ -180,7 +180,7 @@ def detect_faces_in_frame(frame, proxy_scale=1.0):
             w = int(bb.width * total_scale)
             h = int(bb.height * total_scale)
             orig_full_w = int(orig_w / proxy_scale) if proxy_scale != 1.0 else orig_w
-            # Use nose+eye blend as face center — more accurate than bbox center
+            # Use nose+eye blend as face center - more accurate than bbox center
             kps = det.keypoints
             if len(kps) >= 3:
                 eye_cx  = int((kps[0].x + kps[1].x) / 2 * orig_full_w)
@@ -215,11 +215,11 @@ def match_faces_across_frames(prev_faces, curr_faces):
             matched.append(cf)
     return matched
 
-# ── IMPROVEMENT 2: Head room — vertical crop positioning ──────────────────────
+# ── IMPROVEMENT 2: Head room - vertical crop positioning ──────────────────────
 
 def get_crop_y(faces, src_h, crop_h):
     if not faces:
-        # No face — center crop vertically (better for B-roll / text screens)
+        # No face - center crop vertically (better for B-roll / text screens)
         return max(0, (src_h - crop_h) // 2)
     top_face_y = min(f["y"] for f in faces)
     target_y = top_face_y - int(crop_h * 0.20)
@@ -281,7 +281,7 @@ for t in sample_times:
         elif is_centered:
             full_detections += 1
         else:
-            # Large face that's off-center — still a normal speaker, not PiP
+            # Large face that's off-center - still a normal speaker, not PiP
             full_detections += 1
 
     centered_faces = [f for f in faces if src_w * 0.25 < f["cx"] < src_w * 0.75
@@ -318,24 +318,24 @@ log(f"Video type: {video_type} (pip={pip_detections}, full={full_detections}, no
 # ── Step 5: Handle each video type ───────────────────────────────────────────
 
 if video_type == "no_face":
-    log("No faces detected — skipping reframe, keeping original 16:9")
+    log("No faces detected - skipping reframe, keeping original 16:9")
     with open(coords_path, "w") as f:
         json.dump({"mode": "skip"}, f)
-    log("Done (skip — no face).")
+    log("Done (skip - no face).")
     sys.exit(0)
 
 if video_type == "group":
-    log(f"Group shot detected (4+ faces) — letterboxing full frame into 9:16")
+    log(f"Group shot detected (4+ faces) - letterboxing full frame into 9:16")
     with open(coords_path, "w") as f:
         json.dump({"mode": "letterbox", "src_w": src_w, "src_h": src_h}, f)
     for p in [local_video]:
         try: os.unlink(p)
         except: pass
-    log("Done (letterbox — group shot).")
+    log("Done (letterbox - group shot).")
     sys.exit(0)
 
 if video_type == "screen_pip":
-    log("Screen recording with PiP face cam — using split screen mode")
+    log("Screen recording with PiP face cam - using split screen mode")
 
     pip_region = {"x": src_w - src_w // 4, "y": src_h - src_h // 4, "w": src_w // 4, "h": src_h // 4}
     for faces in sample_faces:
@@ -398,7 +398,7 @@ if video_type == "screen_pip":
 
 # ── 5c: Podcast / talking head → face tracking crop ──────────────────────────
 
-log("Podcast/talking-head — running face tracking...")
+log("Podcast/talking-head - running face tracking...")
 
 hf_token = os.environ.get("HF_TOKEN")
 has_audio = False
@@ -414,7 +414,7 @@ if hf_token:
     )
     has_audio = audio_result.returncode == 0
     if not has_audio:
-        log("WARNING: No audio track found — skipping diarization")
+        log("WARNING: No audio track found - skipping diarization")
 
     if has_audio:
         try:
@@ -427,9 +427,9 @@ if hf_token:
             speakers = set(s["speaker"] for s in diarization_segments)
             log(f"Diarization done: {len(diarization_segments)} segments, {len(speakers)} speakers")
         except Exception as e:
-            log(f"WARNING: Diarization failed ({e}) — face-only tracking")
+            log(f"WARNING: Diarization failed ({e}) - face-only tracking")
 else:
-    log("No HF_TOKEN — skipping audio extraction & diarization")
+    log("No HF_TOKEN - skipping audio extraction & diarization")
 
 def get_speaker_at(t):
     for seg in diarization_segments:
@@ -483,11 +483,11 @@ for fd in frame_data:
     sorted_faces = sorted(fd["faces"], key=lambda f: f["cx"])
 
     if spk in speaker_pos:
-        # Already have a position estimate — pick the closest face
+        # Already have a position estimate - pick the closest face
         best_face = min(sorted_faces, key=lambda f: abs(f["cx"] - speaker_pos[spk]))
         speaker_face_samples.setdefault(spk, []).append(best_face["cx"])
     else:
-        # First time seeing this speaker — pick the face NOT claimed by other speakers
+        # First time seeing this speaker - pick the face NOT claimed by other speakers
         claimed_positions = set(speaker_pos.keys())
         unclaimed_faces = sorted_faces[:]
 
@@ -501,7 +501,7 @@ for fd in frame_data:
             # Assign the first unclaimed face (leftmost remaining)
             best_face = unclaimed_faces[0]
         else:
-            # All faces claimed — just pick the closest to center as fallback
+            # All faces claimed - just pick the closest to center as fallback
             best_face = min(sorted_faces, key=lambda f: abs(f["cx"] - src_w // 2))
 
         speaker_face_samples.setdefault(spk, []).append(best_face["cx"])
@@ -538,7 +538,7 @@ def get_crop_x(faces, t, last_crop_cx=None):
             # Pick the face closest to this speaker's known position
             primary_cx = min(faces, key=lambda f: abs(f["cx"] - speaker_pos[spk]))["cx"]
         elif last_crop_cx is not None:
-            # No speaker info — pick face closest to current tracking position
+            # No speaker info - pick face closest to current tracking position
             edge_margin = crop_w
             interior = [f for f in faces if edge_margin < f["cx"] < src_w - edge_margin]
             candidates = interior if interior else faces
@@ -562,7 +562,7 @@ def get_crop_x(faces, t, last_crop_cx=None):
             if group_span + face_padding * 2 <= crop_w:
                 target_cx = (left_cx + right_cx) // 2
             else:
-                # Group too wide — stick with primary speaker
+                # Group too wide - stick with primary speaker
                 target_cx = primary_cx
         else:
             target_cx = primary_cx
@@ -582,7 +582,7 @@ for fd in frame_data:
     has_face = bool(fd["faces"])
 
     if x is None:
-        # No face detected — smoothly transition toward center crop
+        # No face detected - smoothly transition toward center crop
         # instead of blindly holding the last face position.
         # This handles B-roll, text screens, etc. much better.
         center_x = (src_w - crop_w) // 2
@@ -602,12 +602,12 @@ for fd in frame_data:
 # DEAD_ZONE: ignore movements smaller than this (prevents micro-jitter from face detection noise)
 # MOVE_ZONE: start slow panning only above this threshold (prevents wobble from natural head sway)
 # SNAP_ZONE: instant jump for speaker switches / scene cuts
-DEAD_ZONE = 30     # px — ignore tiny face bbox fluctuations
-MOVE_ZONE = 80     # px — start slow pan for intentional movement
-SNAP_ZONE = 200    # px — instant snap for speaker switch
+DEAD_ZONE = 30     # px - ignore tiny face bbox fluctuations
+MOVE_ZONE = 80     # px - start slow pan for intentional movement
+SNAP_ZONE = 200    # px - instant snap for speaker switch
 
 if not raw_coords:
-    log("WARNING: No raw coordinates — skipping reframe")
+    log("WARNING: No raw coordinates - skipping reframe")
     with open(coords_path, "w") as f:
         json.dump({"mode": "skip"}, f)
     for p in [audio_path, local_video]:
@@ -623,31 +623,31 @@ prev_had_face = raw_coords[0]["face"]
 coords        = []
 
 # Y-axis dead zones (vertical jitter is less noticeable, so tighter thresholds)
-Y_DEAD_ZONE = 15    # px — ignore tiny vertical fluctuations
-Y_MOVE_ZONE = 40    # px — slow vertical pan
-Y_SNAP_ZONE = 120   # px — instant vertical snap (e.g. person stands up)
+Y_DEAD_ZONE = 15    # px - ignore tiny vertical fluctuations
+Y_MOVE_ZONE = 40    # px - slow vertical pan
+Y_SNAP_ZONE = 120   # px - instant vertical snap (e.g. person stands up)
 
 for rc in raw_coords:
     raw_x = float(rc["x"])
     delta = abs(raw_x - smoothed_x)
 
     if rc["face"] and not prev_had_face:
-        # Face reappeared — snap to it
+        # Face reappeared - snap to it
         smoothed_x = raw_x
     elif delta > SNAP_ZONE:
-        # Big jump (speaker switch) — snap instantly
+        # Big jump (speaker switch) - snap instantly
         smoothed_x = raw_x
     elif delta > MOVE_ZONE:
-        # Intentional movement — smooth pan with moderate alpha
+        # Intentional movement - smooth pan with moderate alpha
         ALPHA = min(0.15, 0.05 + delta / 1000.0)
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
     elif delta > DEAD_ZONE:
-        # Small drift — very slow correction to avoid visible wobble
+        # Small drift - very slow correction to avoid visible wobble
         ALPHA = 0.03
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
-    # else: delta <= DEAD_ZONE — do nothing, hold position
+    # else: delta <= DEAD_ZONE - do nothing, hold position
 
-    # Y-axis smoothing — same 3-tier approach to prevent vertical jitter
+    # Y-axis smoothing - same 3-tier approach to prevent vertical jitter
     frame_faces = fd_map.get(f"{rc['t']:.2f}", {}).get("faces", [])
     raw_y       = float(get_crop_y(frame_faces, src_h, crop_h))
     delta_y     = abs(raw_y - smoothed_y)
@@ -662,7 +662,7 @@ for rc in raw_coords:
     elif delta_y > Y_DEAD_ZONE:
         ALPHA_Y = 0.025
         smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
-    # else: delta_y <= Y_DEAD_ZONE — hold vertical position
+    # else: delta_y <= Y_DEAD_ZONE - hold vertical position
 
     coords.append({
         "t":    rc["t"],
@@ -715,7 +715,7 @@ log(f"Interpolated to {len(frame_coords)} per-frame coords ({fps}fps)")
 
 # Guard: if no coords were generated, skip
 if not frame_coords:
-    log("WARNING: No frame coordinates generated — skipping reframe")
+    log("WARNING: No frame coordinates generated - skipping reframe")
     with open(coords_path, "w") as f:
         json.dump({"mode": "skip"}, f)
     for p in [audio_path, local_video]:

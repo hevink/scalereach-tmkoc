@@ -18,14 +18,14 @@
 [DUBBING WORKER] Dubbing worker started
 [WORKER] Starting social posting worker...
 [WORKER] Starting storage cleanup job...
-[STORAGE CLEANUP] Job scheduled — runs every 24h.
+[STORAGE CLEANUP] Job scheduled - runs every 24h.
 [WORKER] Starting credit expiry job...
 [CREDIT EXPIRY JOB] Running...
 [CREDIT MODEL] EXPIRE_STALE_CREDITS 
 [WORKER] Health check server running on http://localhost:3002
 [WORKER] Workers are running and waiting for jobs...
 [REDIS] Connected to Redis
-[CREDIT EXPIRY JOB] Done — workspaces updated: 0, credits expired: 0
+[CREDIT EXPIRY JOB] Done - workspaces updated: 0, credits expired: 0
 [POT] Started POT server (v1.3.1) on on address [::]:4416
 [CLIP WORKER] Processing clip generation job: LutTW2MZsGfibpZ5eY1rD
 [CLIP WORKER] Source type: youtube, Aspect ratio: 9:16
@@ -95,10 +95,10 @@
 [SMART CROP PY]   face: cx=3058, cy=1270, w=625, h=625, w_ratio=0.163, area=390625
 [SMART CROP PY]   face: cx=568, cy=1741, w=666, h=666, w_ratio=0.173, area=443556
 [SMART CROP PY] [SMART CROP PY] Video type: podcast (pip=0, full=49, no_face=0, small_corner=0, group_frames=1/15)
-[SMART CROP PY] Podcast/talking-head — running face tracking...
+[SMART CROP PY] Podcast/talking-head - running face tracking...
 [SMART CROP PY] [SMART CROP PY] Extracting audio for diarization...
 [SMART CROP PY] [SMART CROP PY] Running speaker diarization...
-[SMART CROP PY] [SMART CROP PY] WARNING: Diarization failed (No module named 'pyannote') — face-only tracking
+[SMART CROP PY] [SMART CROP PY] WARNING: Diarization failed (No module named 'pyannote') - face-only tracking
 [SMART CROP PY] [SMART CROP PY] Face tracking interval: 0.2s (245 samples)
 [SMART CROP PY] [SMART CROP PY] Face detection done: 245/245 frames have faces
 [SMART CROP PY] [SMART CROP PY] No speaker-face mapping established
@@ -334,7 +334,7 @@
 }
 [WORKSPACE MODEL] GET_WORKSPACE_BY_ID {"id":"znrje9lkcidmmaiziti"}
 [WORKSPACE MODEL] GET_WORKSPACE_BY_ID completed in 307.44ms, found: true
-[VIDEO WORKER] Resuming from AI step — transcript already in DB
+[VIDEO WORKER] Resuming from AI step - transcript already in DB
 [VIDEO WORKER] Detecting viral clips...
 [VIDEO WORKER] Processing timeframe: 0s - 9999s
 [VIRAL DETECTION] Analyzing transcript for viral clips...
@@ -434,10 +434,10 @@
 [SMART CROP PY]   face: cx=1359, cy=452, w=814, h=814, w_ratio=0.212, area=662596
 [SMART CROP PY]   face: cx=3156, cy=562, w=1071, h=1071, w_ratio=0.279, area=1147041
 [SMART CROP PY] [SMART CROP PY] Video type: podcast (pip=0, full=38, no_face=3, small_corner=0, group_frames=1/15)
-[SMART CROP PY] Podcast/talking-head — running face tracking...
+[SMART CROP PY] Podcast/talking-head - running face tracking...
 [SMART CROP PY] [SMART CROP PY] Extracting audio for diarization...
 [SMART CROP PY] [SMART CROP PY] Running speaker diarization...
-[SMART CROP PY] [SMART CROP PY] WARNING: Diarization failed (No module named 'pyannote') — face-only tracking
+[SMART CROP PY] [SMART CROP PY] WARNING: Diarization failed (No module named 'pyannote') - face-only tracking
 [SMART CROP PY] [SMART CROP PY] Face tracking interval: 0.2s (585 samples)
 [SMART CROP PY] [SMART CROP PY] Face detection done: 498/585 frames have faces
 [SMART CROP PY] [SMART CROP PY] No speaker-face mapping established

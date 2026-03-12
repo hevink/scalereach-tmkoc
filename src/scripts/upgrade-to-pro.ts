@@ -24,7 +24,7 @@ async function upgradeToPro() {
     process.exit(1);
   }
 
-  console.log(`Found workspace: ${ws.name} (${ws.id}) — current plan: ${ws.plan}`);
+  console.log(`Found workspace: ${ws.name} (${ws.id}) - current plan: ${ws.plan}`);
 
   // Update workspace plan to pro
   await db
@@ -81,7 +81,7 @@ async function upgradeToPro() {
     minutesAmount: PRO_MINUTES,
     minutesBefore: existing?.minutesRemaining ?? 0,
     minutesAfter: mins.minutesRemaining,
-    description: "Pro plan manual upgrade — admin script",
+    description: "Pro plan manual upgrade - admin script",
   });
 
   console.log(`✓ Logged minute transaction`);
