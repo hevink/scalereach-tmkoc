@@ -19,6 +19,7 @@ import { getPlanConfig, calculateMinuteConsumption } from "../config/plan-config
 import { canUploadVideo } from "../services/minutes-validation.service";
 import { BackgroundVideoModel } from "../models/background-video.model";
 import { captureException } from "../lib/sentry";
+import { TelegramService } from "../services/telegram.service";
 import {
   createWorker,
   QUEUE_NAMES,
@@ -515,6 +516,13 @@ async function processYouTubeVideo(
       await updateVideoStatus(videoId, "failed", { errorMessage });
     }
 
+    await TelegramService.notifyVideoFailed({
+      videoId,
+      errorMessage: `[Attempt ${job.attemptsMade + 1}/${job.opts.attempts ?? 1}] ${errorMessage}`,
+      sourceType: "youtube",
+      sourceUrl,
+    });
+
     throw error;
   }
 }
@@ -944,6 +952,12 @@ async function processUploadedVideo(
     if (isLastAttempt) {
       await updateVideoStatus(videoId, "failed", { errorMessage });
     }
+
+    await TelegramService.notifyVideoFailed({
+      videoId,
+      errorMessage: `[Attempt ${job.attemptsMade + 1}/${job.opts.attempts ?? 1}] ${errorMessage}`,
+      sourceType: "upload",
+    });
 
     throw error;
   }

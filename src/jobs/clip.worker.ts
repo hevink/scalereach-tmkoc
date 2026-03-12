@@ -18,6 +18,7 @@ import { ClipGeneratorService } from "../services/clip-generator.service";
 import { R2Service } from "../services/r2.service";
 import { emailService } from "../services/email.service";
 import { captureException } from "../lib/sentry";
+import { TelegramService } from "../services/telegram.service";
 import {
   createWorker,
   QUEUE_NAMES,
@@ -334,6 +335,13 @@ async function processClipGenerationJob(
     if (isLastAttempt) {
       await updateClipStatus(clipId, "failed", { errorMessage });
     }
+
+    // Notify on every failure attempt so we catch issues early
+    await TelegramService.notifyClipFailed({
+      clipId,
+      videoId,
+      errorMessage: `[Attempt ${job.attemptsMade + 1}/${job.opts.attempts ?? 1}] ${errorMessage}`,
+    });
 
     throw error; // Re-throw to trigger BullMQ retry logic
   }
