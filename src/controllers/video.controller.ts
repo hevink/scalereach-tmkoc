@@ -447,6 +447,65 @@ export class VideoController {
     }
   }
 
+  /**
+   * POST /api/videos/:id/regenerate
+   * Full video regeneration — resets status, deletes existing clips, re-queues for processing
+   */
+  static async regenerateVideo(c: Context) {
+    const videoId = c.req.param("id");
+    VideoController.logRequest(c, "REGENERATE_VIDEO", { videoId });
+
+    try {
+      const video = await VideoModel.getById(videoId);
+      if (!video) {
+        return c.json({ error: "Video not found" }, 404);
+      }
+
+      // Only allow regeneration for completed or failed videos
+      if (!["completed", "failed"].includes(video.status)) {
+        return c.json({ error: "Video is currently being processed" }, 400);
+      }
+
+      if (!video.sourceUrl && !video.storageKey) {
+        return c.json({ error: "Video has no source to reprocess" }, 400);
+      }
+
+      // Delete existing clips for this video
+      await ClipModel.deleteByVideoId(videoId);
+
+      // Reset video status to downloading
+      await VideoModel.update(videoId, {
+        status: "downloading",
+        errorMessage: undefined as any,
+        transcript: undefined as any,
+        transcriptWords: undefined as any,
+      });
+
+      // Re-queue for full processing
+      const { WorkspaceModel } = await import("../models/workspace.model");
+      const ws = video.workspaceId ? await WorkspaceModel.getById(video.workspaceId) : null;
+
+      await addVideoProcessingJob({
+        videoId,
+        projectId: video.projectId || null,
+        userId: video.userId,
+        sourceType: video.sourceType as "youtube" | "upload",
+        sourceUrl: video.sourceUrl || "",
+      }, getPlanPriority(ws?.plan));
+
+      console.log(`[VIDEO CONTROLLER] REGENERATE_VIDEO success - video ${videoId} re-queued for processing`);
+
+      return c.json({
+        message: "Video regeneration started",
+        videoId,
+      });
+    } catch (error) {
+      console.error(`[VIDEO CONTROLLER] REGENERATE_VIDEO error:`, error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to regenerate video: ${errorMessage}` }, 500);
+    }
+  }
+
   static async validateYouTubeUrl(c: Context) {
     const url = c.req.query("url");
     VideoController.logRequest(c, "VALIDATE_YOUTUBE_URL", { url });

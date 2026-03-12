@@ -18,6 +18,7 @@ videoRouter.get("/project/:projectId", VideoController.getVideosByProject);
 videoRouter.get("/:id", VideoController.getVideoById);
 videoRouter.get("/:id/status", VideoController.getVideoStatus);
 videoRouter.delete("/:id", VideoController.deleteVideo);
+videoRouter.post("/:id/regenerate", VideoController.regenerateVideo);
 
 // Transcript editing endpoints
 // Validates: Requirements 4.1, 4.2, 4.3, 4.4

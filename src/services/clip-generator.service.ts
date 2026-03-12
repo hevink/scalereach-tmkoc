@@ -1053,7 +1053,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Scale up + fade in from top, then fade out
       // {\fad(400,500)} = 400ms fade in, 500ms fade out
       // {\fscx80\fscy80\t(0,300,\fscx100\fscy100)} = start at 80% scale, animate to 100% in 300ms
-      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\b800\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
+      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\b600\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
     }
 
     // Group words into lines based on wordsPerLine setting
@@ -1393,8 +1393,12 @@ emoji_font_paths = [
     "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
 ]
 text_font_paths = [
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
     "/System/Library/Fonts/Supplemental/Arial.ttf",
     "/System/Library/Fonts/Helvetica.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
 ]
