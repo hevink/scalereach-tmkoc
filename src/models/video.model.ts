@@ -127,8 +127,8 @@ export class VideoModel {
    * Get videos by workspace ID with only essential fields for grid display
    * Supports optional status filtering
    */
-  static async getByWorkspaceId(workspaceId: string, statusFilter?: string) {
-    this.logOperation("GET_VIDEOS_BY_WORKSPACE", { workspaceId, statusFilter });
+  static async getByWorkspaceId(workspaceId: string, statusFilter?: string, sourceType?: string) {
+    this.logOperation("GET_VIDEOS_BY_WORKSPACE", { workspaceId, statusFilter, sourceType });
     const startTime = performance.now();
 
     try {
@@ -153,7 +153,6 @@ export class VideoModel {
 
       // Apply status filter if provided
       if (statusFilter) {
-        // "processing" filter includes all non-terminal states
         if (statusFilter === "processing") {
           result = result.filter(v => 
             v.status !== "completed" && v.status !== "failed"
@@ -161,6 +160,11 @@ export class VideoModel {
         } else if (statusFilter === "completed" || statusFilter === "failed") {
           result = result.filter(v => v.status === statusFilter);
         }
+      }
+
+      // Apply source type filter
+      if (sourceType === "youtube" || sourceType === "upload") {
+        result = result.filter(v => v.sourceType === sourceType);
       }
 
       const duration = performance.now() - startTime;

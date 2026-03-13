@@ -327,7 +327,8 @@ export class VideoController {
     const user = c.get("user") as { id: string };
     const workspaceId = c.req.query("workspaceId");
     const statusFilter = c.req.query("filter");
-    VideoController.logRequest(c, "GET_MY_VIDEOS", { userId: user.id, workspaceId, statusFilter });
+    const sourceType = c.req.query("sourceType");
+    VideoController.logRequest(c, "GET_MY_VIDEOS", { userId: user.id, workspaceId, statusFilter, sourceType });
 
     try {
       if (!workspaceId) {
@@ -343,7 +344,7 @@ export class VideoController {
       }
 
       // Get videos for this workspace with optional status filter
-      const videos = await VideoModel.getByWorkspaceId(workspaceId, statusFilter);
+      const videos = await VideoModel.getByWorkspaceId(workspaceId, statusFilter, sourceType);
       return c.json(videos);
     } catch (error) {
       console.error(`[VIDEO CONTROLLER] GET_MY_VIDEOS error:`, error);
