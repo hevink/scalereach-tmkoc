@@ -328,7 +328,7 @@ export const clipGenerationQueue = new Queue<ClipGenerationJobData>(
   {
     connection: createRedisConnection(),
     defaultJobOptions: {
-      attempts: 5, // Retry up to 5 times (Requirement 7.7)
+      attempts: 3, // Retry up to 3 times (Requirement 7.7)
       backoff: {
         type: "exponential",
         delay: 5000,

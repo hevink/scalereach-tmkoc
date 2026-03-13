@@ -135,6 +135,8 @@ async function check() {
       await startBurst(total);
     } else if (total === 0 && Date.now() - lastActiveTime > SCALE_DOWN_IDLE_MS) {
       await stopBurst();
+      // Reset so we don't keep firing stop every check cycle
+      lastActiveTime = Date.now();
     } else if (total > 0) {
       // Queue has jobs but below threshold — keep tracking activity
       lastActiveTime = Date.now();
