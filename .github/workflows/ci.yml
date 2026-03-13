@@ -25,10 +25,11 @@ jobs:
       - run: bun install
       - run: bun build src/index.ts --outdir ./dist --target bun
       - run: bun build src/worker.ts --outdir ./dist --target bun
+      - run: bun build src/worker-burst.ts --outdir ./dist --target bun
 
-  # ── Deploy Worker → EC2 ─────────────────────────────────────
+  # ── Deploy Worker → Base EC2 ────────────────────────────────
   deploy-worker:
-    name: Deploy Worker to EC2
+    name: Deploy Worker to EC2 (Base)
     runs-on: ubuntu-latest
     needs: [build-check]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -87,4 +88,50 @@ jobs:
                 echo "🚨 Rollback also failed - manual intervention required"
               fi
               exit 1
+            fi
+
+  # ── Deploy → Burst EC2 (if running) ────────────────────────
+  deploy-burst:
+    name: Deploy to Burst EC2 (if running)
+    runs-on: ubuntu-latest
+    needs: [build-check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: true
+    steps:
+      - name: Deploy burst worker via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.BURST_EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          command_timeout: 60s
+          script: |
+            set -e
+            export PATH="/home/ubuntu/.bun/bin:/usr/bin:/usr/local/bin:$PATH"
+            cd /opt/scalereach
+
+            # Preserve untracked config files
+            [ -f config/youtube_cookies.txt ] && cp config/youtube_cookies.txt /tmp/youtube_cookies_backup.txt
+
+            echo "📦 Pulling latest code..."
+            git fetch origin
+            git checkout main
+            git reset --hard origin/main
+
+            # Restore preserved config files
+            [ -f /tmp/youtube_cookies_backup.txt ] && cp /tmp/youtube_cookies_backup.txt config/youtube_cookies.txt && echo "🍪 Restored youtube_cookies.txt"
+
+            echo "📦 Installing dependencies..."
+            bun install
+
+            echo "🔄 Reloading burst worker..."
+            pm2 reload ecosystem.burst.config.cjs --update-env || pm2 start ecosystem.burst.config.cjs
+            pm2 save
+
+            echo "🏥 Health check (waiting 10s)..."
+            sleep 10
+            if curl -sf http://localhost:3003/health | grep -q '"status".*"healthy"'; then
+              echo "✅ Burst deploy successful"
+            else
+              echo "⚠️ Burst health check failed (non-fatal)"
             fi

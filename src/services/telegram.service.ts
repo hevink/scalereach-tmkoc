@@ -37,6 +37,11 @@ async function sendMessage(text: string) {
 }
 
 export const TelegramService = {
+  /** Generic notification — used by autoscaler and other services */
+  notify: async (text: string) => {
+    await sendMessage(text);
+  },
+
   notifyVideoFailed: async (opts: {
     videoId: string;
     title?: string;

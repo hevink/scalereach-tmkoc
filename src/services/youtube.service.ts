@@ -226,11 +226,14 @@ export class YouTubeService {
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
       
+      // When cookies are present, use only 'web' client — android clients skip cookies
+      const playerClient = cookiesPath ? "web" : "android_vr,web,android";
+      
       const args = [
         "--dump-json",
         "--no-download",
         "--no-check-certificates",
-        "--extractor-args", "youtube:player_client=android_vr,web,android",
+        "--extractor-args", `youtube:player_client=${playerClient}`,
         "--extractor-retries", "3",
         url,
       ];
@@ -359,6 +362,9 @@ export class YouTubeService {
     const proxy = process.env.YOUTUBE_PROXY;
     const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
     
+    // When cookies are present, use only 'web' client — android clients skip cookies
+    const playerClient = cookiesPath ? "web" : "android_vr,web,android";
+    
     const args = [
       "-f", "bestaudio[ext=m4a]/bestaudio/best",
       "-o", "-",
@@ -366,7 +372,7 @@ export class YouTubeService {
       "--no-warnings",
       "--no-check-certificates",
       "--prefer-free-formats",
-      "--extractor-args", "youtube:player_client=android_vr,web,android",
+      "--extractor-args", `youtube:player_client=${playerClient}`,
       "--extractor-retries", "3",
       "--fragment-retries", "5",
       "--retry-sleep", "2",
