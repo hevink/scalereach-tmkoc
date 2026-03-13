@@ -31,7 +31,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
     limits: {
       videoLength: 1800, // 30 minutes
       uploadSize: 2 * 1024 * 1024 * 1024, // 2GB
-      storageDuration: 14 * 24 * 60 * 60, // 14 days
+      storageDuration: 15 * 24 * 60 * 60, // 15 days
       regenerations: 2,
       editing: 5,
       watermark: true,
@@ -48,7 +48,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
     limits: {
       videoLength: 7200, // 2 hours
       uploadSize: 4 * 1024 * 1024 * 1024, // 4GB
-      storageDuration: 90 * 24 * 60 * 60, // 3 months
+      storageDuration: 180 * 24 * 60 * 60, // 6 months
       regenerations: 5,
       editing: -1, // unlimited
       watermark: false,

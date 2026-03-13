@@ -143,6 +143,7 @@ export class VideoModel {
           sourceType: video.sourceType,
           sourceUrl: video.sourceUrl,
           createdAt: video.createdAt,
+          expiresAt: video.expiresAt,
         })
         .from(video)
         .where(eq(video.workspaceId, workspaceId))
@@ -227,7 +228,7 @@ export class VideoModel {
       fileSize: number;
       mimeType: string;
       metadata: any;
-      status: "pending" | "pending_config" | "downloading" | "uploading" | "transcribing" | "analyzing" | "completed" | "failed";
+      status: "pending" | "pending_config" | "downloading" | "uploading" | "transcribing" | "analyzing" | "completed" | "failed" | "expired";
       errorMessage: string;
       transcript: string;
       transcriptWords: any[];

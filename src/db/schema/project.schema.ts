@@ -111,7 +111,7 @@ export const video = pgTable(
     creditsUsed: integer("credits_used").default(0).notNull(),
     regenerationCount: integer("regeneration_count").default(0).notNull(),
     minutesConsumed: integer("minutes_consumed").default(0).notNull(),
-    status: text("status").default("pending").notNull(), // 'pending' | 'downloading' | 'uploading' | 'transcribing' | 'analyzing' | 'completed' | 'failed'
+    status: text("status").default("pending").notNull(), // 'pending' | 'downloading' | 'uploading' | 'transcribing' | 'analyzing' | 'completed' | 'failed' | 'expired'
     errorMessage: text("error_message"),
     expiresAt: timestamp("expires_at"), // null = never expires (set based on plan at creation)
     createdAt: timestamp("created_at").defaultNow().notNull(),
