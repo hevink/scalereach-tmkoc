@@ -60,6 +60,7 @@ const ec2 = new EC2Client({ region: AWS_REGION });
 // ── State ───────────────────────────────────────────────────
 let lastActiveTime = Date.now();
 let lastKnownState: string = "unknown";
+let stopAlreadySent = false;
 
 // ── Telegram helper ─────────────────────────────────────────
 async function notify(text: string) {
@@ -101,16 +102,23 @@ async function startBurst(queueDepth: number) {
     console.log(`[SCALER] Burst already ${state}, skipping start`);
     return;
   }
+  stopAlreadySent = false;
   await notify(`🚀 Starting burst instance\n<b>Queue depth:</b> ${queueDepth}\n<b>Instance:</b> <code>${BURST_INSTANCE_ID}</code>`);
   await ec2.send(new StartInstancesCommand({ InstanceIds: [BURST_INSTANCE_ID!] }));
 }
 
 async function stopBurst() {
+  if (stopAlreadySent) {
+    console.log(`[SCALER] Stop already sent, skipping`);
+    return;
+  }
   const state = await getBurstState();
   if (state === "stopped" || state === "stopping") {
     console.log(`[SCALER] Burst already ${state}, skipping stop`);
+    stopAlreadySent = true;
     return;
   }
+  stopAlreadySent = true;
   await notify(`💤 Stopping burst instance — queue empty for ${Math.round(SCALE_DOWN_IDLE_MS / 60000)}min\n<b>Instance:</b> <code>${BURST_INSTANCE_ID}</code>`);
   await ec2.send(new StopInstancesCommand({ InstanceIds: [BURST_INSTANCE_ID!] }));
 }
