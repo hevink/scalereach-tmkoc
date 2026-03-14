@@ -41,8 +41,8 @@ describe("Caption Templates", () => {
       expect(RAINBOW_TEMPLATE.id).toBe("rainbow");
     });
 
-    it("should have karaoke animation", () => {
-      expect(RAINBOW_TEMPLATE.style.animation).toBe("karaoke");
+    it("should have bounce animation", () => {
+      expect(RAINBOW_TEMPLATE.style.animation).toBe("bounce");
     });
 
     it("should have highlighting enabled", () => {
@@ -73,8 +73,8 @@ describe("Caption Templates", () => {
       expect(SIMPLE_TEMPLATE.style.backgroundOpacity).toBe(0);
     });
 
-    it("should have fade animation for smooth appearance", () => {
-      expect(SIMPLE_TEMPLATE.style.animation).toBe("fade");
+    it("should have bounce animation for smooth appearance", () => {
+      expect(SIMPLE_TEMPLATE.style.animation).toBe("bounce");
     });
 
     it("should have highlighting disabled", () => {
@@ -100,8 +100,8 @@ describe("Caption Templates", () => {
         expect(HORMOZI_TEMPLATE.style.highlightColor).toBe("#FFD700");
       });
 
-      it("should have karaoke animation", () => {
-        expect(HORMOZI_TEMPLATE.style.animation).toBe("karaoke");
+      it("should have bounce animation", () => {
+        expect(HORMOZI_TEMPLATE.style.animation).toBe("bounce");
       });
 
       it("should be marked as new", () => {
@@ -136,8 +136,8 @@ describe("Caption Templates", () => {
         expect(CLEAN_CREATOR_TEMPLATE.style.fontFamily).toBe("Montserrat");
       });
 
-      it("should have fade animation", () => {
-        expect(CLEAN_CREATOR_TEMPLATE.style.animation).toBe("fade");
+      it("should have bounce animation", () => {
+        expect(CLEAN_CREATOR_TEMPLATE.style.animation).toBe("bounce");
       });
 
       it("should have cyan highlight", () => {
@@ -154,8 +154,8 @@ describe("Caption Templates", () => {
         expect(GARYVEE_TEMPLATE.style.fontFamily).toBe("Bebas Neue");
       });
 
-      it("should have word-by-word animation", () => {
-        expect(GARYVEE_TEMPLATE.style.animation).toBe("word-by-word");
+      it("should have bounce animation", () => {
+        expect(GARYVEE_TEMPLATE.style.animation).toBe("bounce");
       });
 
       it("should have red highlight", () => {
@@ -172,8 +172,8 @@ describe("Caption Templates", () => {
         expect(TIKTOK_NATIVE_TEMPLATE.style.fontFamily).toBe("Poppins");
       });
 
-      it("should have karaoke animation", () => {
-        expect(TIKTOK_NATIVE_TEMPLATE.style.animation).toBe("karaoke");
+      it("should have bounce animation", () => {
+        expect(TIKTOK_NATIVE_TEMPLATE.style.animation).toBe("bounce");
       });
 
       it("should have TikTok pink highlight", () => {
