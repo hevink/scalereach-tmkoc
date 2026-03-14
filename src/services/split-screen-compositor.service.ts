@@ -28,6 +28,13 @@ export class SplitScreenCompositorService {
     console.log(`[SPLIT SCREEN] ${op}`, details ? JSON.stringify(details) : "");
   }
 
+  // ── Background video file cache ────────────────────────────────────────────
+  // Keyed by R2 storageKey → local file path. Avoids re-downloading the same
+  // background video for every clip in a batch.
+  private static bgCache = new Map<string, string>();
+  // Dedup concurrent downloads for the same storageKey
+  private static bgPending = new Map<string, Promise<string>>();
+
   /**
    * Build FFmpeg filter_complex string for split-screen layout.
    * Background fills entire frame, main video overlaid on top portion.
@@ -76,9 +83,41 @@ export class SplitScreenCompositorService {
 
   /**
    * Download a background video from R2 to a local temp file.
+   * Results are cached by storageKey — subsequent calls for the same background
+   * return the existing file instantly. Concurrent calls are deduplicated.
    * Aborts if download exceeds 60 seconds.
    */
   static async downloadBackground(storageKey: string): Promise<string> {
+    // 1. Return from cache if file still exists on disk
+    const cached = this.bgCache.get(storageKey);
+    if (cached && fs.existsSync(cached)) {
+      this.log("DOWNLOAD_BG_CACHE_HIT", { storageKey, path: cached });
+      return cached;
+    }
+
+    // 2. Deduplicate concurrent downloads for the same key
+    const pending = this.bgPending.get(storageKey);
+    if (pending) {
+      this.log("DOWNLOAD_BG_DEDUP", { storageKey });
+      return pending;
+    }
+
+    // 3. Download and cache
+    const promise = this.downloadBackgroundUncached(storageKey).then((tempPath) => {
+      this.bgCache.set(storageKey, tempPath);
+      return tempPath;
+    }).finally(() => {
+      this.bgPending.delete(storageKey);
+    });
+
+    this.bgPending.set(storageKey, promise);
+    return promise;
+  }
+
+  /**
+   * Internal uncached download from R2.
+   */
+  private static async downloadBackgroundUncached(storageKey: string): Promise<string> {
     this.log("DOWNLOAD_BG", { storageKey });
 
     const tempPath = path.join(os.tmpdir(), `bg-${nanoid()}.mp4`);
@@ -89,7 +128,6 @@ export class SplitScreenCompositorService {
         reject(new Error("Background video download timed out (60s)"));
       }, 60000);
 
-      // Use FFmpeg to download (handles HTTP properly)
       const proc = spawn("ffmpeg", [
         "-i", signedUrl,
         "-c", "copy",
@@ -192,10 +230,16 @@ export class SplitScreenCompositorService {
 
   /**
    * Clean up temporary files.
+   * Skips files that are in the background video cache (they're reused across clips).
    */
   static async cleanup(paths: string[]): Promise<void> {
+    const cachedPaths = new Set(this.bgCache.values());
     for (const p of paths) {
       try {
+        if (cachedPaths.has(p)) {
+          this.log("CLEANUP_SKIP_CACHED", { path: p });
+          continue;
+        }
         if (fs.existsSync(p)) {
           await fs.promises.unlink(p);
         }
