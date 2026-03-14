@@ -341,6 +341,21 @@ async function processYouTubeVideo(
     if (viralClips.length > 0) {
       console.log(`[VIDEO WORKER] Saving ${viralClips.length} viral clips and queuing generation with captions...`);
 
+      // Clean up stale clips from a previous crashed run (e.g. worker killed mid-processing).
+      // Only delete clips that never finished generating — preserve any that are 'ready' or 'exported'.
+      const existingClips = await db.select({ id: viralClip.id, status: viralClip.status })
+        .from(viralClip)
+        .where(eq(viralClip.videoId, videoId));
+      const staleClipIds = existingClips
+        .filter(c => c.status === "detected" || c.status === "generating" || c.status === "failed")
+        .map(c => c.id);
+      if (staleClipIds.length > 0) {
+        console.log(`[VIDEO WORKER] Cleaning up ${staleClipIds.length} stale clips from previous run`);
+        for (const staleId of staleClipIds) {
+          await db.delete(viralClip).where(eq(viralClip.id, staleId));
+        }
+      }
+
       const clipRecords = viralClips.map((clip) => ({
         id: nanoid(),
         videoId: videoId,
@@ -840,6 +855,20 @@ async function processUploadedVideo(
     // Validates: Requirements 5.3, 5.4, 5.5, 5.8, 5.9
     if (viralClips.length > 0) {
       console.log(`[VIDEO WORKER] Saving ${viralClips.length} viral clips and queuing generation with captions...`);
+
+      // Clean up stale clips from a previous crashed run
+      const existingClips = await db.select({ id: viralClip.id, status: viralClip.status })
+        .from(viralClip)
+        .where(eq(viralClip.videoId, videoId));
+      const staleClipIds = existingClips
+        .filter(c => c.status === "detected" || c.status === "generating" || c.status === "failed")
+        .map(c => c.id);
+      if (staleClipIds.length > 0) {
+        console.log(`[VIDEO WORKER] Cleaning up ${staleClipIds.length} stale clips from previous run`);
+        for (const staleId of staleClipIds) {
+          await db.delete(viralClip).where(eq(viralClip.id, staleId));
+        }
+      }
 
       const clipRecords = viralClips.map((clip) => ({
         id: nanoid(),
