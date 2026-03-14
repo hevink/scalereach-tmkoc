@@ -704,21 +704,34 @@ export class ClipGeneratorService {
       });
 
       // ── STEP 5: Upload to R2 ──
-      // Skip redundant raw upload when captions are off (both buffers are identical)
+      // When both raw and captioned are different, upload in parallel (saves 10-30s for large files)
       onProgress?.(70);
-      this.logOperation("UPLOADING_CLIP_WITH_CAPTIONS", { storageKey, size: clipWithCaptionsBuffer.length });
-      const { url: storageUrl } = await R2Service.uploadFile(storageKey, clipWithCaptionsBuffer, "video/mp4");
 
+      let storageUrl: string;
       let rawStorageUrl: string;
+
       if (clipWithCaptionsBuffer === clipWithoutCaptionsBuffer) {
-        // No captions — raw is identical to captioned, skip duplicate upload
+        // No captions — raw is identical to captioned, single upload
+        this.logOperation("UPLOADING_CLIP_SINGLE", { storageKey, size: clipWithCaptionsBuffer.length });
+        ({ url: storageUrl } = await R2Service.uploadFile(storageKey, clipWithCaptionsBuffer, "video/mp4"));
         rawStorageUrl = storageUrl;
         this.logOperation("SKIP_RAW_UPLOAD", { reason: "identical to captioned (no captions)", savedBytes: clipWithoutCaptionsBuffer.length });
       } else {
-        onProgress?.(85);
-        this.logOperation("UPLOADING_RAW_CLIP", { rawStorageKey, size: clipWithoutCaptionsBuffer.length });
-        ({ url: rawStorageUrl } = await R2Service.uploadFile(rawStorageKey, clipWithoutCaptionsBuffer, "video/mp4"));
+        // Both versions needed — upload in parallel
+        this.logOperation("UPLOADING_CLIPS_PARALLEL", {
+          captionedKey: storageKey, captionedSize: clipWithCaptionsBuffer.length,
+          rawKey: rawStorageKey, rawSize: clipWithoutCaptionsBuffer.length,
+        });
+        const [captionedResult, rawResult] = await Promise.all([
+          R2Service.uploadFile(storageKey, clipWithCaptionsBuffer, "video/mp4"),
+          R2Service.uploadFile(rawStorageKey, clipWithoutCaptionsBuffer, "video/mp4"),
+        ]);
+        storageUrl = captionedResult.url;
+        rawStorageUrl = rawResult.url;
+        this.logOperation("UPLOADS_COMPLETE", { captionedUrl: storageUrl, rawUrl: rawStorageUrl });
       }
+
+      onProgress?.(85);
 
       // ── STEP 6: Generate thumbnail from local captioned file (before cleanup) ──
       // Use the local file - much faster than re-downloading from R2
