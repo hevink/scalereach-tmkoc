@@ -146,19 +146,27 @@ function getOutputDimensions(
 }
 
 /**
- * Get FFmpeg encoding params based on quality.
- * Pro plan (2k/4k) → medium preset + CRF 18 for high quality with reasonable CPU.
- * Free/Starter (720p/1080p) → ultrafast + CRF 22 to minimize CPU usage.
+ * Get FFmpeg encoding params based on quality and pass type.
  *
- * NOTE: Social media platforms (TikTok, YouTube, Instagram) re-encode all uploads
- * to ~5-8 Mbps, so CRF differences below ~23 are invisible to end viewers.
- * Using medium instead of slow is 3-4x faster with virtually identical visual quality.
+ * Two tiers:
+ * - "raw" pass (no captions, intermediate): prioritize SPEED with ultrafast/veryfast
+ * - "final" pass (captioned, user-facing): prioritize QUALITY with veryfast/medium
+ *
+ * Pro plan (2k/4k) uses medium for final, veryfast for raw.
+ * Free/Starter (720p/1080p) uses veryfast for final, ultrafast for raw.
+ *
+ * NOTE: Social media platforms re-encode all uploads to ~5-8 Mbps,
+ * so CRF differences below ~23 are invisible to end viewers.
  */
-function getEncodingParams(quality: VideoQuality): { preset: string; crf: string } {
+function getEncodingParams(quality: VideoQuality, pass: "raw" | "final" = "final"): { preset: string; crf: string } {
   if (quality === "2k" || quality === "4k") {
-    return { preset: "medium", crf: "20" };
+    return pass === "raw"
+      ? { preset: "veryfast", crf: "20" }
+      : { preset: "medium", crf: "20" };
   }
-  return { preset: "fast", crf: "22" };
+  return pass === "raw"
+    ? { preset: "ultrafast", crf: "22" }
+    : { preset: "veryfast", crf: "22" };
 }
 
 /**
