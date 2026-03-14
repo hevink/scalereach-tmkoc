@@ -292,7 +292,7 @@ export class YouTubeService {
         "--dump-json",
         "--no-download",
         "--no-check-certificates",
-        "--extractor-args", "youtube:player_client=web,android_vr,android",
+        "--extractor-args", `youtube:player_client=${cookiesPath ? "web" : "web,android_vr,android"}`,
         "--extractor-retries", "3",
         url,
       ];
@@ -428,7 +428,7 @@ export class YouTubeService {
       "--no-warnings",
       "--no-check-certificates",
       "--prefer-free-formats",
-      "--extractor-args", "youtube:player_client=web,android_vr,android",
+      "--extractor-args", `youtube:player_client=${cookiesPath ? "web" : "web,android_vr,android"}`,
       "--extractor-retries", "3",
       "--fragment-retries", "5",
       "--retry-sleep", "2",
