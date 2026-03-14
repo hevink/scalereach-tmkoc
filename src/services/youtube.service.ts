@@ -43,6 +43,19 @@ export function getQualityFromHeight(videoHeight?: number, maxQuality: "720p" | 
 }
 
 export class YouTubeService {
+  // ── Video info cache ──────────────────────────────────────────────
+  private static VIDEO_INFO_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+  private static VIDEO_INFO_CACHE_MAX_SIZE = 100;
+
+  /** Resolved results keyed by video ID */
+  private static videoInfoCache = new Map<
+    string,
+    { data: YouTubeVideoInfo; expiry: number }
+  >();
+
+  /** In-flight promises keyed by video ID — deduplicates concurrent calls */
+  private static videoInfoPending = new Map<string, Promise<YouTubeVideoInfo>>();
+
   /**
    * Validates video duration against the maximum allowed duration (4 hours)
    * @param duration Duration in seconds
@@ -146,8 +159,57 @@ export class YouTubeService {
   /**
    * Get video info - uses HTTP API if YOUTUBE_API_KEY is set (for API server),
    * falls back to yt-dlp (for worker or local dev).
+   *
+   * Results are cached in-memory for 15 minutes keyed by video ID.
+   * Concurrent calls for the same video are deduplicated (single in-flight request).
    */
   static async getVideoInfo(url: string): Promise<YouTubeVideoInfo> {
+    const videoId = this.extractVideoId(url);
+
+    // If we can extract a video ID, check cache / dedup
+    if (videoId) {
+      // 1. Return from cache if still fresh
+      const cached = this.videoInfoCache.get(videoId);
+      if (cached && Date.now() < cached.expiry) {
+        console.log(`[YOUTUBE SERVICE] Video info cache HIT for: ${videoId}`);
+        return cached.data;
+      }
+
+      // 2. If another call for the same ID is already in-flight, piggyback on it
+      const pending = this.videoInfoPending.get(videoId);
+      if (pending) {
+        console.log(`[YOUTUBE SERVICE] Video info dedup — waiting on in-flight request for: ${videoId}`);
+        return pending;
+      }
+
+      // 3. Fetch, cache, and return
+      const promise = this.fetchVideoInfoUncached(url).then((info) => {
+        // Evict oldest entry if cache is full
+        if (this.videoInfoCache.size >= this.VIDEO_INFO_CACHE_MAX_SIZE) {
+          const oldestKey = this.videoInfoCache.keys().next().value;
+          if (oldestKey) this.videoInfoCache.delete(oldestKey);
+        }
+        this.videoInfoCache.set(videoId, {
+          data: info,
+          expiry: Date.now() + this.VIDEO_INFO_CACHE_TTL_MS,
+        });
+        return info;
+      }).finally(() => {
+        this.videoInfoPending.delete(videoId);
+      });
+
+      this.videoInfoPending.set(videoId, promise);
+      return promise;
+    }
+
+    // No video ID extracted — skip cache, fetch directly
+    return this.fetchVideoInfoUncached(url);
+  }
+
+  /**
+   * Internal uncached fetch — HTTP API → yt-dlp → oEmbed fallback chain.
+   */
+  private static async fetchVideoInfoUncached(url: string): Promise<YouTubeVideoInfo> {
     // Prefer HTTP API when available (no yt-dlp dependency)
     if (process.env.YOUTUBE_API_KEY) {
       try {
