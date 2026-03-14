@@ -15,7 +15,7 @@ const ViralClipSchema = z.object({
   clips: z.array(
     z.object({
       title: z.string().describe("A catchy title for this viral clip"),
-      introTitle: z.string().optional().default("").describe("A short, punchy intro title (max 5-7 words) to display in the first 3 seconds of the video - should hook viewers immediately. Use empty string if not needed."),
+      introTitle: z.string().optional().default("").describe("A short, punchy intro title (max 4-5 words, under 30 characters) to display in the first 3 seconds of the video - MUST fit on 2 lines max when rendered in large text. Should hook viewers immediately. Use empty string if not needed."),
       startTime: z.number().describe("Start time in seconds"),
       endTime: z.number().describe("End time in seconds"),
       transcript: z.string().describe("The transcript text for this clip segment"),
@@ -203,11 +203,12 @@ export class ViralDetectionService {
     // Build dynamic prompt sections based on options
     const introTitleSection = enableIntroTitle ? `
 INTRO TITLE REQUIREMENTS:
-- Create a short, punchy intro title (5-7 words max) for each clip
+- Create a short, punchy intro title (4-5 words max, under 30 characters including emoji) for each clip
+- MUST fit on exactly 2 lines when rendered in large bold text - NEVER 3 or more lines
 - This will be displayed as text overlay in the first 3 seconds
 - Should immediately hook viewers and make them want to keep watching
-- Examples: "Wait for it... 🔥", "This changed everything", "Nobody talks about this"
-- Make it intriguing, provocative, or promise value
+- Examples: "Wait for it... 🔥", "This Changed Everything 🤯", "Nobody Says This 💀"
+- Keep it tight - shorter is always better. If in doubt, cut a word.
 ` : "";
 
     const emojiSection = enableEmojis ? `
