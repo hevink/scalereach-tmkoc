@@ -37,6 +37,9 @@ export interface ClipGenerationOptions {
   sourceType: "youtube" | "upload";
   sourceUrl?: string;
   storageKey?: string;
+  // Shared source: pre-downloaded spanning segment stored in R2 (avoids per-clip yt-dlp calls)
+  sharedSourceKey?: string;
+  sharedSourceSpanStart?: number; // Start time of the shared source segment (for offset calculation)
   startTime: number;
   endTime: number;
   aspectRatio: AspectRatio;
@@ -297,7 +300,24 @@ export class ClipGeneratorService {
     try {
       // ── STEP 1: Download/extract source segment ONCE ──
       onProgress?.(10);
-      if (options.sourceType === "youtube" && options.sourceUrl) {
+      if (options.sharedSourceKey) {
+        // Shared source: pre-downloaded spanning segment in R2 — slice locally with ffmpeg
+        // This avoids a per-clip yt-dlp round trip to YouTube
+        const offsetStart = options.startTime - (options.sharedSourceSpanStart ?? options.startTime);
+        const offsetEnd = options.endTime - (options.sharedSourceSpanStart ?? options.startTime);
+        this.logOperation("USING_SHARED_SOURCE", {
+          sharedSourceKey: options.sharedSourceKey,
+          spanStart: options.sharedSourceSpanStart,
+          clipStart: options.startTime,
+          clipEnd: options.endTime,
+          offsetStart,
+          offsetEnd,
+        });
+        await this.downloadUploadedSegmentToFile(
+          options.sharedSourceKey, offsetStart, offsetEnd, rawSourcePath
+        );
+      } else if (options.sourceType === "youtube" && options.sourceUrl) {
+        // Fallback: direct YouTube download (single-clip re-exports, editing, etc.)
         await this.downloadYouTubeSegmentToFile(
           options.sourceUrl, options.startTime, options.endTime, rawSourcePath, options.quality
         );
@@ -1666,6 +1686,20 @@ print(f"OK:{total_w}x{total_h}")
       await this.cleanupTempFile(tempOutputPath);
       await this.cleanupTempFile(tempSubsPath);
     }
+  }
+
+  /**
+   * Public wrapper for downloading a YouTube segment to a local file.
+   * Used by video.worker.ts to pre-download a shared spanning segment.
+   */
+  static async downloadYouTubeSegmentToLocalFile(
+    url: string,
+    startTime: number,
+    endTime: number,
+    outputPath: string,
+    quality: VideoQuality = "1080p"
+  ): Promise<void> {
+    return this.downloadYouTubeSegmentToFile(url, startTime, endTime, outputPath, quality);
   }
 
   /**

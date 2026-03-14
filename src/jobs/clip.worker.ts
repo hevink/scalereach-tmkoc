@@ -80,6 +80,15 @@ async function checkAndNotifyAllClipsReady(
 
     console.log(`[CLIP WORKER] All ${allClips.length} clips ready for video ${videoId}, sending notification...`);
 
+    // Clean up shared source from R2 (if it was used for batch generation)
+    // The shared source key follows the pattern: {userId}/{videoId}/shared-source.mp4
+    const sharedSourceKey = `${userId}/${videoId}/shared-source.mp4`;
+    R2Service.deleteFile(sharedSourceKey).then(() => {
+      console.log(`[CLIP WORKER] Cleaned up shared source: ${sharedSourceKey}`);
+    }).catch(() => {
+      // Ignore - file may not exist if shared source wasn't used or already cleaned up
+    });
+
     // Get user and video info for email
     const [user, video] = await Promise.all([
       UserModel.getById(userId),
@@ -148,6 +157,8 @@ async function processClipGenerationJob(
     backgroundStyle,
     smartCropEnabled,
     textOverlays,
+    sharedSourceKey,
+    sharedSourceSpanStart,
   } = job.data;
 
   const jobStartTime = Date.now();
@@ -161,6 +172,7 @@ async function processClipGenerationJob(
   console.log(`[CLIP WORKER] Target language: ${targetLanguage || 'original'}`);
   console.log(`[CLIP WORKER] Split-screen: ${splitScreen ? `ratio=${splitScreen.splitRatio}` : 'no'}`);
   console.log(`[CLIP WORKER] Smart crop: ${smartCropEnabled ? 'ENABLED' : 'disabled'}`);
+  console.log(`[CLIP WORKER] Shared source: ${sharedSourceKey ? `key=${sharedSourceKey}, spanStart=${sharedSourceSpanStart}s` : 'no (direct download)'}`);
 
   try {
     // Update status to generating (Requirement 7.5)
@@ -228,6 +240,9 @@ async function processClipGenerationJob(
       backgroundStyle,
       textOverlays,
       smartCropEnabled,
+      // Shared source: pre-downloaded spanning segment in R2 (avoids per-clip yt-dlp calls)
+      sharedSourceKey,
+      sharedSourceSpanStart,
       splitScreen: splitScreen ? {
         backgroundStorageKey: splitScreen.backgroundStorageKey,
         backgroundDuration: splitScreen.backgroundDuration,

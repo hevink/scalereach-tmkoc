@@ -105,6 +105,9 @@ export interface ClipGenerationJobData {
   sourceType: "youtube" | "upload";
   sourceUrl?: string;
   storageKey?: string;
+  // Shared source: pre-downloaded spanning segment stored in R2 (avoids per-clip yt-dlp calls)
+  sharedSourceKey?: string;
+  sharedSourceSpanStart?: number; // Start time of the shared source segment (for offset calculation)
   startTime: number;
   endTime: number;
   aspectRatio: "9:16" | "1:1" | "16:9";
