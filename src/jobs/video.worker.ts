@@ -475,9 +475,10 @@ async function processYouTubeVideo(
           ? await pickSplitScreenBg(splitScreenBgPool, videoConfig.splitRatio ?? 50)
           : undefined;
 
-        // When shared source is available: no stagger delay needed (no per-clip yt-dlp calls)
-        // When falling back to per-clip downloads: stagger by 10s to avoid YouTube bot detection
-        const delayMs = sharedSourceKey ? 0 : clipIdx * 10000;
+        // No artificial stagger delay — BullMQ concurrency (default: 2) naturally
+        // throttles parallel clip jobs. Shared source eliminates per-clip yt-dlp calls,
+        // and the fallback path is rare enough that concurrent downloads are acceptable.
+        const delayMs = 0;
 
         await addClipGenerationJob({
           clipId: clipRecord.id,
@@ -506,7 +507,7 @@ async function processYouTubeVideo(
           sharedSourceSpanStart,
         }, undefined, delayMs);
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}${sharedSourceKey ? ' (shared source)' : ` (delay: ${clipIdx * 10}s)`}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}${sharedSourceKey ? ' (shared source)' : ''}`);
       }
     }
 

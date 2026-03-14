@@ -723,7 +723,8 @@ export class ClipGeneratorService {
       // ── STEP 6: Generate thumbnail from local captioned file (before cleanup) ──
       // Use the local file - much faster than re-downloading from R2
       const thumbSourcePath = hasCaptions ? captionedOutputPath : rawOutputPath;
-      const thumbOffset = Math.min(1, duration * 0.1); // 1s or 10% of duration, whichever is smaller
+      // Thumbnail offset: past the 3s intro title, but not past the clip end
+      const thumbOffset = Math.min(Math.max(duration * 0.3, 4), duration - 0.5);
       let thumbnailBuffer: Buffer | undefined;
       try {
         thumbnailBuffer = await this.extractThumbnailFromFile(thumbSourcePath, width, height, thumbOffset);
@@ -1949,6 +1950,7 @@ print(f"OK:{total_w}x{total_h}")
             "-c:v", "libx264",
             "-preset", preset,
             "-crf", crf,
+            "-g", "48",
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -2213,6 +2215,7 @@ print(f"OK:{total_w}x{total_h}")
       "-c:v", "libx264",
       "-preset", preset,
       "-crf", crf,
+      "-g", "48",
       "-profile:v", "high",
       "-level", "4.0",
       "-c:a", "aac",
@@ -2315,7 +2318,7 @@ print(f"OK:{total_w}x{total_h}")
           ...(wmConfig ? wmConfig.extraInputArgs : []),
           "-vf", vf,
           "-map", "0:v", "-map", "0:a?",
-          "-c:v", "libx264", "-preset", preset, "-crf", crf,
+          "-c:v", "libx264", "-preset", preset, "-crf", crf, "-g", "48",
           "-profile:v", "high", "-level", "4.0",
           "-c:a", "aac", "-b:a", "192k",
           "-movflags", "+faststart", "-y", outputPath,
@@ -2370,6 +2373,7 @@ print(f"OK:{total_w}x{total_h}")
           "-c:v", "libx264",
           "-preset", preset,
           "-crf", crf,
+          "-g", "48",
           "-profile:v", "high",
           "-level", "4.0",
           "-c:a", "aac",
@@ -2422,6 +2426,7 @@ print(f"OK:{total_w}x{total_h}")
             "-c:v", "libx264",
             "-preset", preset,
             "-crf", crf,
+            "-g", "48",
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
@@ -2438,6 +2443,7 @@ print(f"OK:{total_w}x{total_h}")
             "-c:v", "libx264",
             "-preset", preset,
             "-crf", crf,
+            "-g", "48",
             "-profile:v", "high",
             "-level", "4.0",
             "-c:a", "aac",
