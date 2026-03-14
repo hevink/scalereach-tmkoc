@@ -1825,6 +1825,7 @@ print(f"OK:{total_w}x{total_h}")
       const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
         || (fs.existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
         || (fs.existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
+      const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
       const args = [
@@ -1838,7 +1839,7 @@ print(f"OK:{total_w}x{total_h}")
         "--no-warnings",
         "--no-post-overwrites",
         "--js-runtimes", "deno",
-        "--extractor-args", "youtube:player_client=android_vr,web,android",
+        "--extractor-args", `youtube:player_client=${cookiesPath ? "web" : "web,android_vr,android"}`,
         "--extractor-retries", "3",
         "--fragment-retries", "5",
         "--retry-sleep", "2",
@@ -1851,6 +1852,12 @@ print(f"OK:{total_w}x{total_h}")
           "--extractor-args", `youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`
         );
         this.logOperation("YT_DLP_USING_POT", { baseUrl: bgutilBaseUrl });
+      }
+
+      // Add proxy if configured
+      if (proxy) {
+        args.unshift("--proxy", proxy);
+        this.logOperation("YT_DLP_USING_PROXY", { proxy });
       }
 
       if (cookiesPath) {
