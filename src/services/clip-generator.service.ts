@@ -156,9 +156,9 @@ function getOutputDimensions(
  */
 function getEncodingParams(quality: VideoQuality): { preset: string; crf: string } {
   if (quality === "2k" || quality === "4k") {
-    return { preset: "medium", crf: "18" };
+    return { preset: "medium", crf: "20" };
   }
-  return { preset: "ultrafast", crf: "22" };
+  return { preset: "fast", crf: "22" };
 }
 
 /**
