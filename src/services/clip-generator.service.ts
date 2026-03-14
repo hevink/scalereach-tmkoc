@@ -313,9 +313,25 @@ export class ClipGeneratorService {
           offsetStart,
           offsetEnd,
         });
-        await this.downloadUploadedSegmentToFile(
-          options.sharedSourceKey, offsetStart, offsetEnd, rawSourcePath
-        );
+        try {
+          await this.downloadUploadedSegmentToFile(
+            options.sharedSourceKey, offsetStart, offsetEnd, rawSourcePath
+          );
+        } catch (sharedErr) {
+          // Shared source may not exist in R2 (e.g. worker crashed mid-upload).
+          // Fall back to direct YouTube download.
+          this.logOperation("SHARED_SOURCE_FALLBACK", {
+            error: sharedErr instanceof Error ? sharedErr.message : String(sharedErr),
+            fallback: "direct YouTube download",
+          });
+          if (options.sourceType === "youtube" && options.sourceUrl) {
+            await this.downloadYouTubeSegmentToFile(
+              options.sourceUrl, options.startTime, options.endTime, rawSourcePath, options.quality
+            );
+          } else {
+            throw sharedErr; // No fallback available for uploaded videos
+          }
+        }
       } else if (options.sourceType === "youtube" && options.sourceUrl) {
         // Fallback: direct YouTube download (single-clip re-exports, editing, etc.)
         await this.downloadYouTubeSegmentToFile(
@@ -1810,7 +1826,7 @@ print(f"OK:{total_w}x{total_h}")
         "--merge-output-format", "mp4",
         "-o", outputPath,
         "--no-playlist",
-        "--quiet",
+        "--newline",
         "--no-warnings",
         "--no-post-overwrites",
         "--js-runtimes", "deno",
@@ -1844,16 +1860,53 @@ print(f"OK:{total_w}x{total_h}")
       const ytdlpProcess = spawn("yt-dlp", args);
 
       let stderr = "";
+      let lastActivity = Date.now();
+      const ACTIVITY_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes with no output = stuck
+
+      // Periodic file-size check so we know the download is progressing
+      let lastLoggedSize = 0;
+      const sizeCheckInterval = setInterval(() => {
+        try {
+          // Check for partial files (yt-dlp uses .part extension during download)
+          const partPath = `${outputPath}.part`;
+          const checkPath = fs.existsSync(partPath) ? partPath : (fs.existsSync(outputPath) ? outputPath : null);
+          if (checkPath) {
+            const size = fs.statSync(checkPath).size;
+            if (size !== lastLoggedSize) {
+              lastLoggedSize = size;
+              lastActivity = Date.now();
+              console.log(`[CLIP GENERATOR] YT_DLP_PROGRESS: ${(size / 1024 / 1024).toFixed(1)} MB downloaded`);
+            }
+          }
+          // Check for activity timeout
+          if (Date.now() - lastActivity > ACTIVITY_TIMEOUT_MS) {
+            console.error(`[CLIP GENERATOR] YT_DLP_TIMEOUT: No activity for ${ACTIVITY_TIMEOUT_MS / 1000}s, killing process`);
+            ytdlpProcess.kill("SIGTERM");
+          }
+        } catch { /* ignore stat errors */ }
+      }, 10_000); // check every 10 seconds
+
+      ytdlpProcess.stdout?.on("data", (data) => {
+        lastActivity = Date.now();
+        // Log progress lines from yt-dlp (when not --quiet)
+        const line = data.toString().trim();
+        if (line && line.includes("%")) {
+          console.log(`[CLIP GENERATOR] YT_DLP: ${line}`);
+        }
+      });
 
       ytdlpProcess.stderr?.on("data", (data) => {
+        lastActivity = Date.now();
         stderr += data.toString();
       });
 
       ytdlpProcess.on("error", (err) => {
+        clearInterval(sizeCheckInterval);
         reject(new Error(`Failed to spawn yt-dlp: ${err.message}. Make sure yt-dlp is installed.`));
       });
 
       ytdlpProcess.on("close", (code) => {
+        clearInterval(sizeCheckInterval);
         if (code !== 0) {
           reject(new Error(`yt-dlp failed with code ${code}: ${stderr}`));
           return;
