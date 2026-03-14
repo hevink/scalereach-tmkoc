@@ -78,7 +78,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
   },
   agency: {
     plan: "agency",
-    minutes: { total: -1, type: "monthly", renewable: true }, // -1 = unlimited
+    minutes: { total: 5000, type: "monthly", renewable: true }, // 5000 minutes/month, 60000/year
     limits: {
       videoLength: 3 * 60 * 60, // 3 hours in seconds
       uploadSize: 4 * 1024 * 1024 * 1024, // 4GB in bytes

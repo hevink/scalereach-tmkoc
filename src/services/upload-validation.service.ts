@@ -86,7 +86,7 @@ export class UploadValidationService {
 
     const maxSize = planConfig.limits.uploadSize;
 
-    // -1 means unlimited (agency plan)
+    // -1 means unlimited (upload size)
     if (maxSize === -1) {
       return { valid: true };
     }

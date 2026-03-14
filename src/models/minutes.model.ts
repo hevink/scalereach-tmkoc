@@ -146,7 +146,7 @@ export class MinutesModel {
   // Check if workspace has enough minutes
   static async hasMinutes(workspaceId: string, amount: number): Promise<boolean> {
     const balance = await this.getBalance(workspaceId);
-    if (balance.minutesRemaining === -1) return true; // unlimited (agency)
+    if (balance.minutesRemaining === -1) return true; // unlimited (legacy sentinel)
     return balance.minutesRemaining >= amount;
   }
 
@@ -169,9 +169,9 @@ export class MinutesModel {
     try {
       const current = await this.getBalance(params.workspaceId);
 
-      // Agency plan: minutesRemaining = -1 means unlimited - skip deduction entirely
+      // -1 means unlimited - skip deduction entirely (legacy sentinel)
       if (current.minutesRemaining === -1) {
-        console.log(`[MINUTES MODEL] DEDUCT_MINUTES skipped - unlimited plan (agency)`);
+        console.log(`[MINUTES MODEL] DEDUCT_MINUTES skipped - unlimited plan`);
         return { minutesRemaining: -1 };
       }
 
@@ -299,6 +299,7 @@ export class MinutesModel {
       const nextResetDate = this.getNextMonthDate();
 
       // Agency plan: unlimited minutes - just update reset date, don't touch balance
+      // (legacy: only triggers if total is still -1 from before migration)
       if (planConfig.minutes.total === -1) {
         const result = await db
           .update(workspaceMinutes)
@@ -459,7 +460,7 @@ export class MinutesModel {
       let resetDate: Date | null = null;
       
       if (planConfig.minutes.total === -1) {
-        // Agency plan: unlimited - store -1 as sentinel, no reset needed
+        // Unlimited plan: store -1 as sentinel, no reset needed
         newMinutesTotal = -1;
         resetDate = null;
       } else if (billingCycle === "annual") {
@@ -497,8 +498,7 @@ export class MinutesModel {
         return current;
       }
       
-      // Add new minutes to existing remaining minutes (don't replace)
-      // Agency plan: -1 means unlimited - store as-is, don't add to existing
+      // -1 means unlimited (legacy sentinel) - store as-is, don't add to existing
       const newMinutesRemaining = newMinutesTotal === -1 ? -1 : current.minutesRemaining + newMinutesTotal;
       const newMinutesUsed = current.minutesUsed; // Keep existing usage
 

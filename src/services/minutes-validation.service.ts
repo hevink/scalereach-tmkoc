@@ -29,6 +29,7 @@ const ERROR_MESSAGES: Record<string, Record<string, string>> = {
     free: "You don't have enough minutes. Free plan includes 50 one-time minutes. Upgrade to Starter (200/month) or Pro (500/month) for more.",
     starter: "You've used all your minutes for this month. They'll reset on your renewal date. Upgrade to Pro for 150% more minutes.",
     pro: "You've used all your minutes for this month. They'll reset on your renewal date.",
+    agency: "You've used all your minutes for this month. They'll reset on your renewal date.",
   },
   REGENERATION_LIMIT_REACHED: {
     free: "You've reached the regeneration limit (2) for this video. Upgrade to Starter or Pro for 5 regenerations per video.",
@@ -50,12 +51,6 @@ export function canUploadVideo(
   effectiveDurationInSeconds?: number
 ): ValidationResult {
   const plan = planConfig.plan;
-
-  // Agency plan: unlimited everything, skip all checks
-  if (plan === "agency") {
-    const billingDuration = effectiveDurationInSeconds ?? durationInSeconds;
-    return { allowed: true, minutesWillBeDeducted: calculateMinuteConsumption(billingDuration) };
-  }
 
   // Check 1: Video length limit (always check full video duration)
   if (planConfig.limits.videoLength !== -1 && durationInSeconds > planConfig.limits.videoLength) {
@@ -103,11 +98,6 @@ export function canRegenerateVideo(
   minutesRemaining: number
 ): ValidationResult {
   const plan = planConfig.plan;
-
-  // Agency plan: unlimited regenerations and minutes
-  if (plan === "agency") {
-    return { allowed: true, minutesWillBeDeducted: calculateMinuteConsumption(durationInSeconds) };
-  }
 
   // Check 1: Regeneration limit (-1 = unlimited)
   if (planConfig.limits.regenerations !== -1 && regenerationCount >= planConfig.limits.regenerations) {
@@ -164,7 +154,7 @@ export function validateFileSize(
   planConfig: PlanConfig,
   sizeInBytes: number
 ): ValidationResult {
-  // -1 = unlimited (agency plan)
+  // -1 = unlimited (upload size)
   if (planConfig.limits.uploadSize === -1) {
     return { allowed: true };
   }
