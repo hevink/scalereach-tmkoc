@@ -1,0 +1,11 @@
+# Smart crop Python dependencies
+# Install: pip install -r src/scripts/requirements.txt
+
+mediapipe>=0.10.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# Speaker diarization (optional but recommended for multi-speaker smart crop)
+# Requires HF_TOKEN env var + accepting model terms at:
+# https://huggingface.co/pyannote/speaker-diarization-3.1
+pyannote.audio>=3.1.0

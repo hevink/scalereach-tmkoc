@@ -49,7 +49,6 @@ tmp_dir   = sys.argv[3]
 
 audio_path  = os.path.join(tmp_dir, f"{clip_id}.wav")
 coords_path = os.path.join(tmp_dir, f"{clip_id}_coords.json")
-local_video = os.path.join(tmp_dir, f"{clip_id}_src.mp4")
 
 log(f"clip_id={clip_id} tmp_dir={tmp_dir}")
 
@@ -65,17 +64,16 @@ except ImportError as e:
     log(f"ERROR: Missing dependency: {e}")
     sys.exit(2)
 
-# ── Step 1: Download video ────────────────────────────────────────────────────
+# ── Step 1: Use source video directly (already downloaded by Node.js worker) ──
+# The input file is a local temp file passed by the clip generator — no copy needed.
 
-log("Downloading video to tmp...")
-dl = subprocess.run(
-    ["ffmpeg", "-y", "-i", video_url, "-c", "copy", local_video],
-    capture_output=True
-)
-if dl.returncode != 0:
-    log(f"ERROR: ffmpeg download failed: {dl.stderr.decode()[-500:]}")
+local_video = video_url  # video_url is actually a local file path from Node.js
+
+if not os.path.exists(local_video):
+    log(f"ERROR: Source file not found: {local_video}")
     sys.exit(1)
-log("Download done.")
+
+log(f"Using source file directly: {local_video}")
 
 # ── Step 2: Video dimensions ──────────────────────────────────────────────────
 
@@ -89,9 +87,6 @@ cap.release()
 
 if src_w == 0 or src_h == 0 or fps <= 0 or duration <= 0:
     log(f"ERROR: Invalid video dimensions or duration ({src_w}x{src_h}, fps={fps}, dur={duration})")
-    # Cleanup downloaded file
-    try: os.unlink(local_video)
-    except: pass
     sys.exit(1)
 
 log(f"Video: {src_w}x{src_h} @ {fps:.1f}fps, {duration:.1f}s")
@@ -99,25 +94,33 @@ log(f"Video: {src_w}x{src_h} @ {fps:.1f}fps, {duration:.1f}s")
 # ── Speed optimization: pre-downscale large videos for face detection ─────────
 # OpenCV decodes full-res frames even if we resize after. For 4K+ videos,
 # create a 720p proxy for face detection (FFmpeg decode is much faster).
+# Proxy is keyed by source file path so multiple clips from the same video reuse it.
 PROXY_MAX_H = 720
 proxy_video = local_video
 proxy_scale = 1.0
 if src_h > PROXY_MAX_H:
-    proxy_video = os.path.join(tmp_dir, f"{clip_id}_proxy.mp4")
+    # Use source file basename (without clip-specific prefix) to share proxy across clips
+    import hashlib
+    source_hash = hashlib.md5(os.path.realpath(local_video).encode()).hexdigest()[:12]
+    proxy_video = os.path.join(tmp_dir, f"proxy_{source_hash}_{PROXY_MAX_H}p.mp4")
     proxy_scale = PROXY_MAX_H / src_h
-    log(f"Pre-downscaling {src_w}x{src_h} → {int(src_w * proxy_scale)}x{PROXY_MAX_H} for face detection...")
-    proxy_result = subprocess.run(
-        ["ffmpeg", "-y", "-i", local_video,
-         "-vf", f"scale=-2:{PROXY_MAX_H}", "-c:v", "libx264", "-preset", "ultrafast",
-         "-crf", "28", "-an", proxy_video],
-        capture_output=True
-    )
-    if proxy_result.returncode != 0:
-        log("WARNING: Proxy downscale failed, using original")
-        proxy_video = local_video
-        proxy_scale = 1.0
+
+    if os.path.exists(proxy_video):
+        log(f"Reusing existing proxy: {proxy_video}")
     else:
-        log("Proxy ready.")
+        log(f"Pre-downscaling {src_w}x{src_h} → {int(src_w * proxy_scale)}x{PROXY_MAX_H} for face detection...")
+        proxy_result = subprocess.run(
+            ["ffmpeg", "-y", "-i", local_video,
+             "-vf", f"scale=-2:{PROXY_MAX_H}", "-c:v", "libx264", "-preset", "ultrafast",
+             "-crf", "28", "-an", proxy_video],
+            capture_output=True
+        )
+        if proxy_result.returncode != 0:
+            log("WARNING: Proxy downscale failed, using original")
+            proxy_video = local_video
+            proxy_scale = 1.0
+        else:
+            log("Proxy ready.")
 
 crop_w = int(src_h * 9 / 16)
 if crop_w > src_w:
@@ -328,9 +331,6 @@ if video_type == "group":
     log(f"Group shot detected (4+ faces) - letterboxing full frame into 9:16")
     with open(coords_path, "w") as f:
         json.dump({"mode": "letterbox", "src_w": src_w, "src_h": src_h}, f)
-    for p in [local_video]:
-        try: os.unlink(p)
-        except: pass
     log("Done (letterbox - group shot).")
     sys.exit(0)
 
@@ -427,7 +427,9 @@ if hf_token:
             speakers = set(s["speaker"] for s in diarization_segments)
             log(f"Diarization done: {len(diarization_segments)} segments, {len(speakers)} speakers")
         except Exception as e:
-            log(f"WARNING: Diarization failed ({e}) - face-only tracking")
+            log(f"WARNING: Diarization failed ({e}) - face-only tracking. "
+                f"To fix: pip install pyannote.audio && accept model terms at "
+                f"https://huggingface.co/pyannote/speaker-diarization-3.1")
 else:
     log("No HF_TOKEN - skipping audio extraction & diarization")
 
@@ -610,9 +612,8 @@ if not raw_coords:
     log("WARNING: No raw coordinates - skipping reframe")
     with open(coords_path, "w") as f:
         json.dump({"mode": "skip"}, f)
-    for p in [audio_path, local_video]:
-        try: os.unlink(p)
-        except: pass
+    try: os.unlink(audio_path)
+    except: pass
     sys.exit(0)
 
 smoothed_x    = float(raw_coords[0]["x"])
@@ -718,9 +719,8 @@ if not frame_coords:
     log("WARNING: No frame coordinates generated - skipping reframe")
     with open(coords_path, "w") as f:
         json.dump({"mode": "skip"}, f)
-    for p in [audio_path, local_video]:
-        try: os.unlink(p)
-        except: pass
+    try: os.unlink(audio_path)
+    except: pass
     sys.exit(0)
 
 # Build segments
@@ -765,13 +765,15 @@ with open(coords_path, "w") as f:
     else:
         json.dump({"mode": "skip"}, f)
 
-for path in [audio_path, local_video, proxy_video if proxy_video != local_video else None]:
+for path in [audio_path]:
     if path is None:
         continue
     try:
         os.unlink(path)
     except Exception:
         pass
+# NOTE: local_video is NOT deleted here — it's owned by the Node.js worker (cleanup in finally block).
+# Proxy video is kept for potential reuse by other clips from the same source.
 
 log("Done.")
 sys.exit(0)
