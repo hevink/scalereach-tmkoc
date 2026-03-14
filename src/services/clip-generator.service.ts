@@ -703,14 +703,22 @@ export class ClipGeneratorService {
         rawSize: clipWithoutCaptionsBuffer.length,
       });
 
-      // ── STEP 5: Upload both versions to R2 ──
+      // ── STEP 5: Upload to R2 ──
+      // Skip redundant raw upload when captions are off (both buffers are identical)
       onProgress?.(70);
       this.logOperation("UPLOADING_CLIP_WITH_CAPTIONS", { storageKey, size: clipWithCaptionsBuffer.length });
       const { url: storageUrl } = await R2Service.uploadFile(storageKey, clipWithCaptionsBuffer, "video/mp4");
 
-      onProgress?.(85);
-      this.logOperation("UPLOADING_RAW_CLIP", { rawStorageKey, size: clipWithoutCaptionsBuffer.length });
-      const { url: rawStorageUrl } = await R2Service.uploadFile(rawStorageKey, clipWithoutCaptionsBuffer, "video/mp4");
+      let rawStorageUrl: string;
+      if (clipWithCaptionsBuffer === clipWithoutCaptionsBuffer) {
+        // No captions — raw is identical to captioned, skip duplicate upload
+        rawStorageUrl = storageUrl;
+        this.logOperation("SKIP_RAW_UPLOAD", { reason: "identical to captioned (no captions)", savedBytes: clipWithoutCaptionsBuffer.length });
+      } else {
+        onProgress?.(85);
+        this.logOperation("UPLOADING_RAW_CLIP", { rawStorageKey, size: clipWithoutCaptionsBuffer.length });
+        ({ url: rawStorageUrl } = await R2Service.uploadFile(rawStorageKey, clipWithoutCaptionsBuffer, "video/mp4"));
+      }
 
       // ── STEP 6: Generate thumbnail from local captioned file (before cleanup) ──
       // Use the local file - much faster than re-downloading from R2
