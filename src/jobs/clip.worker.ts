@@ -89,10 +89,14 @@ async function checkAndNotifyAllClipsReady(
       // Ignore - file may not exist if shared source wasn't used or already cleaned up
     });
 
-    // Get user and video info for email
-    const [user, video] = await Promise.all([
+    // Get user, video, and workspace info for email (parallel)
+    const [user, video, workspace] = await Promise.all([
       UserModel.getById(userId),
       VideoModel.getById(videoId),
+      workspaceId ? WorkspaceModel.getById(workspaceId).catch((err) => {
+        console.warn(`[CLIP WORKER] Could not fetch workspace ${workspaceId}:`, err);
+        return null;
+      }) : Promise.resolve(null),
     ]);
 
     if (!user?.email) {
@@ -100,16 +104,7 @@ async function checkAndNotifyAllClipsReady(
       return;
     }
 
-    // Get workspace slug if available
-    let workspaceSlug: string | undefined;
-    if (workspaceId) {
-      try {
-        const workspace = await WorkspaceModel.getById(workspaceId);
-        workspaceSlug = workspace?.slug;
-      } catch (err) {
-        console.warn(`[CLIP WORKER] Could not fetch workspace ${workspaceId}:`, err);
-      }
-    }
+    const workspaceSlug = workspace?.slug;
 
     // Send email notification
     await emailService.sendAllClipsReadyNotification({
@@ -256,40 +251,43 @@ async function processClipGenerationJob(
 
     await job.updateProgress(85);
 
-    // Upload thumbnail - use the buffer already extracted locally during clip generation
-    // (avoids re-downloading the clip from R2 just to extract a frame)
+    // Run thumbnail upload and old-clip lookup in parallel (saves 700-1300ms)
     const thumbnailStart = Date.now();
-    console.log(`[CLIP WORKER] Uploading thumbnail...`);
+    console.log(`[CLIP WORKER] Uploading thumbnail + fetching existing clip (parallel)...`);
     let thumbnailKey: string | undefined;
     let thumbnailUrl: string | undefined;
 
-    try {
-      if (generatedClip.thumbnailBuffer && generatedClip.thumbnailBuffer.length > 100) {
-        // Use the locally-extracted thumbnail buffer
-        thumbnailKey = generatedClip.storageKey.replace(/\.mp4$/, "-thumb.jpg");
-        const { url } = await R2Service.uploadFile(thumbnailKey, generatedClip.thumbnailBuffer, "image/jpeg");
-        thumbnailUrl = url;
-        console.log(`[CLIP WORKER] Thumbnail uploaded: ${thumbnailKey} (${generatedClip.thumbnailBuffer.length} bytes)`);
-      } else {
-        // Fallback: extract from R2 (slower, but handles edge cases)
-        console.warn(`[CLIP WORKER] No local thumbnail buffer - falling back to R2 extraction`);
-        const thumbnail = await ClipGeneratorService.generateThumbnail(
-          generatedClip.storageKey,
-          aspectRatio,
-          quality
-        );
-        thumbnailKey = thumbnail.thumbnailKey;
-        thumbnailUrl = thumbnail.thumbnailUrl;
-        console.log(`[CLIP WORKER] Thumbnail generated (fallback): ${thumbnailKey}`);
+    const thumbnailPromise = (async () => {
+      try {
+        if (generatedClip.thumbnailBuffer && generatedClip.thumbnailBuffer.length > 100) {
+          thumbnailKey = generatedClip.storageKey.replace(/\.mp4$/, "-thumb.jpg");
+          const { url } = await R2Service.uploadFile(thumbnailKey, generatedClip.thumbnailBuffer, "image/jpeg");
+          thumbnailUrl = url;
+          console.log(`[CLIP WORKER] Thumbnail uploaded: ${thumbnailKey} (${generatedClip.thumbnailBuffer.length} bytes)`);
+        } else {
+          console.warn(`[CLIP WORKER] No local thumbnail buffer - falling back to R2 extraction`);
+          const thumbnail = await ClipGeneratorService.generateThumbnail(
+            generatedClip.storageKey,
+            aspectRatio,
+            quality
+          );
+          thumbnailKey = thumbnail.thumbnailKey;
+          thumbnailUrl = thumbnail.thumbnailUrl;
+          console.log(`[CLIP WORKER] Thumbnail generated (fallback): ${thumbnailKey}`);
+        }
+      } catch (thumbError) {
+        console.warn(`[CLIP WORKER] Thumbnail generation failed (non-fatal):`, thumbError);
       }
-    } catch (thumbError) {
-      console.warn(`[CLIP WORKER] Thumbnail generation failed (non-fatal):`, thumbError);
-    }
+    })();
+
+    const [, existingClip] = await Promise.all([
+      thumbnailPromise,
+      ClipModel.getById(clipId),
+    ]);
 
     await job.updateProgress(90);
 
     // Delete old R2 files before updating DB (avoids CDN serving stale cached video)
-    const existingClip = await ClipModel.getById(clipId);
     if (existingClip) {
       const oldKeys = [
         existingClip.storageKey,
