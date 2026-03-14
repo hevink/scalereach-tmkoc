@@ -231,9 +231,12 @@ export class SplitScreenCompositorService {
   /**
    * Clean up temporary files.
    * Skips files that are in the background video cache (they're reused across clips).
+   * Logs each deletion with file size for observability.
    */
   static async cleanup(paths: string[]): Promise<void> {
     const cachedPaths = new Set(this.bgCache.values());
+    let deletedCount = 0;
+    let deletedBytes = 0;
     for (const p of paths) {
       try {
         if (cachedPaths.has(p)) {
@@ -241,11 +244,18 @@ export class SplitScreenCompositorService {
           continue;
         }
         if (fs.existsSync(p)) {
+          const stat = await fs.promises.stat(p);
           await fs.promises.unlink(p);
+          deletedCount++;
+          deletedBytes += stat.size;
+          this.log("CLEANUP_DELETED", { path: path.basename(p), sizeMB: (stat.size / 1024 / 1024).toFixed(1) });
         }
       } catch (err) {
         this.log("CLEANUP_WARN", { path: p, error: String(err) });
       }
+    }
+    if (deletedCount > 0) {
+      this.log("CLEANUP_SUMMARY", { files: deletedCount, totalMB: (deletedBytes / 1024 / 1024).toFixed(1) });
     }
   }
 }

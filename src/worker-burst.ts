@@ -14,6 +14,7 @@ import "./lib/sentry";
 
 import { startClipWorker } from "./jobs/clip.worker";
 import { startDubbingWorker } from "./jobs/dubbing.worker";
+import { cleanupOrphanedTempFiles } from "./utils/temp-cleanup";
 
 const CLIP_CONCURRENCY = parseInt(process.env.CLIP_WORKER_CONCURRENCY || "8", 10);
 const DUBBING_CONCURRENCY = parseInt(process.env.DUBBING_WORKER_CONCURRENCY || "2", 10);
@@ -22,6 +23,9 @@ const HEALTH_PORT = parseInt(process.env.BURST_HEALTH_PORT || "3003", 10);
 console.log(`[BURST] Starting burst workers`);
 console.log(`[BURST] Clip concurrency: ${CLIP_CONCURRENCY}`);
 console.log(`[BURST] Dubbing concurrency: ${DUBBING_CONCURRENCY}`);
+
+// Clean up orphaned temp files from previous crashed runs
+cleanupOrphanedTempFiles().catch(() => {});
 
 const clipWorker = startClipWorker(CLIP_CONCURRENCY);
 const dubbingWorker = startDubbingWorker(DUBBING_CONCURRENCY);

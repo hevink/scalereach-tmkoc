@@ -8,6 +8,7 @@ import { existsSync as fsExists } from "fs";
 import { startPotServer, stopPotServer } from "./lib/pot-server";
 import { startVideoWorker } from "./jobs/video.worker";
 import { startClipWorker } from "./jobs/clip.worker";
+import { cleanupOrphanedTempFiles } from "./utils/temp-cleanup";
 import { startTranslationWorker, translationQueue } from "./jobs/translation.worker";
 import { startDubbingWorker, dubbingQueue } from "./jobs/dubbing.worker";
 import { startSocialWorker } from "./jobs/social.worker";
@@ -46,6 +47,9 @@ const PM2_ERR_FILE = process.env.PM2_ERR_FILE ||
   `/opt/scalereach/logs/worker-error.log`;
 
 startPotServer();
+
+// Clean up orphaned temp files from previous crashed runs
+cleanupOrphanedTempFiles().catch(() => {});
 
 console.log("[WORKER] Starting video processing worker...");
 const videoWorker = startVideoWorker(VIDEO_WORKER_CONCURRENCY);
