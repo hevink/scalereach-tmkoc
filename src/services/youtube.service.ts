@@ -445,10 +445,14 @@ export class YouTubeService {
     // Add proxy if configured
     if (proxy) {
       args.unshift("--proxy", proxy);
+      console.log(`[YOUTUBE SERVICE] Using proxy for audio stream`);
     }
 
     // Download only the selected timeframe if specified
-    if (startTime !== undefined || endTime !== undefined) {
+    // NOTE: --download-sections uses ffmpeg internally, which does NOT route through the proxy.
+    // When a proxy is configured, skip timeframe cutting here and download the full audio instead.
+    // The extra bandwidth is negligible for audio-only streams (~1MB/min).
+    if ((startTime !== undefined || endTime !== undefined) && !proxy) {
       const start = startTime ?? 0;
       const end = endTime ?? videoInfo.duration;
       const formatTs = (s: number) => {
@@ -462,6 +466,8 @@ export class YouTubeService {
         "--force-keyframes-at-cuts",
       );
       console.log(`[YOUTUBE SERVICE] Timeframe audio: ${formatTs(start)} → ${formatTs(end)}`);
+    } else if ((startTime !== undefined || endTime !== undefined) && proxy) {
+      console.log(`[YOUTUBE SERVICE] Skipping --download-sections (proxy active, ffmpeg can't use it). Downloading full audio.`);
     }
 
     if (cookiesPath) {
