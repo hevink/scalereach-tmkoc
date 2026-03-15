@@ -53,7 +53,7 @@ export class YouTubeService {
     { data: YouTubeVideoInfo; expiry: number }
   >();
 
-  /** In-flight promises keyed by video ID — deduplicates concurrent calls */
+  /** In-flight promises keyed by video ID - deduplicates concurrent calls */
   private static videoInfoPending = new Map<string, Promise<YouTubeVideoInfo>>();
 
   /**
@@ -178,7 +178,7 @@ export class YouTubeService {
       // 2. If another call for the same ID is already in-flight, piggyback on it
       const pending = this.videoInfoPending.get(videoId);
       if (pending) {
-        console.log(`[YOUTUBE SERVICE] Video info dedup — waiting on in-flight request for: ${videoId}`);
+        console.log(`[YOUTUBE SERVICE] Video info dedup - waiting on in-flight request for: ${videoId}`);
         return pending;
       }
 
@@ -202,12 +202,12 @@ export class YouTubeService {
       return promise;
     }
 
-    // No video ID extracted — skip cache, fetch directly
+    // No video ID extracted - skip cache, fetch directly
     return this.fetchVideoInfoUncached(url);
   }
 
   /**
-   * Internal uncached fetch — HTTP API → yt-dlp → oEmbed fallback chain.
+   * Internal uncached fetch - HTTP API → yt-dlp → oEmbed fallback chain.
    */
   private static async fetchVideoInfoUncached(url: string): Promise<YouTubeVideoInfo> {
     // Prefer HTTP API when available (no yt-dlp dependency)

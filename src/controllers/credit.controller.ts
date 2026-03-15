@@ -196,6 +196,7 @@ export class CreditController {
           successUrl: returnUrl,
           cancelUrl: failUrl,
           customerEmail: user.email,
+          customerName: user.name || "",
           metadata,
         });
 
@@ -218,6 +219,7 @@ export class CreditController {
           productId: dodoProductId,
           successUrl: returnUrl,
           customerEmail: user.email,
+          customerName: user.name || "",
           metadata,
         });
 
@@ -558,44 +560,44 @@ export class CreditController {
   }
 
   // Track affiliate commission for any payment event
-  private static async trackAffiliateCommission(data: any, metadata: any) {
-    try {
-      const { workspaceId, userId, planName } = metadata;
-      const paymentId = data?.payment_id;
-      const subscriptionId = data?.subscription_id;
-      const totalAmount = data?.total_amount; // in cents from Dodo
+      private static async trackAffiliateCommission(data: any, metadata: any) {
+        try {
+          const { workspaceId, userId, planName } = metadata;
+          const paymentId = data?.payment_id;
+          const subscriptionId = data?.subscription_id;
+          const totalAmount = data?.total_amount; // in paise (smallest INR unit) from Dodo
 
-      if (!userId || !totalAmount) {
-        return;
+          if (!userId || !totalAmount) {
+            return;
+          }
+
+          // Fix #5: Guard against zero/negative amounts (refunds, malformed webhooks)
+          if (totalAmount <= 0) {
+            console.log(`[CREDIT CONTROLLER] Affiliate commission skipped: invalid amount ${totalAmount}`);
+            return;
+          }
+
+          // Check if this user was referred by someone
+          const ref = await AffiliateModel.getReferralByReferredUser(userId);
+          if (!ref) {
+            return; // Not a referred user, skip
+          }
+
+          await AffiliateModel.recordCommission({
+            referralId: ref.id,
+            referrerUserId: ref.referrerUserId,
+            paymentAmountCents: totalAmount,
+            paymentId: paymentId || undefined,
+            subscriptionId: subscriptionId || undefined,
+            planName: planName || undefined,
+          });
+
+          console.log(`[CREDIT CONTROLLER] Affiliate commission recorded for referrer ${ref.referrerUserId}, payment: ₹${(totalAmount / 100).toFixed(2)}`);
+        } catch (error) {
+          // Don't fail the webhook if affiliate tracking fails
+          console.error("[CREDIT CONTROLLER] Affiliate commission tracking error (non-fatal):", error);
+        }
       }
-
-      // Fix #5: Guard against zero/negative amounts (refunds, malformed webhooks)
-      if (totalAmount <= 0) {
-        console.log(`[CREDIT CONTROLLER] Affiliate commission skipped: invalid amount ${totalAmount}`);
-        return;
-      }
-
-      // Check if this user was referred by someone
-      const ref = await AffiliateModel.getReferralByReferredUser(userId);
-      if (!ref) {
-        return; // Not a referred user, skip
-      }
-
-      await AffiliateModel.recordCommission({
-        referralId: ref.id,
-        referrerUserId: ref.referrerUserId,
-        paymentAmountCents: totalAmount,
-        paymentId: paymentId || undefined,
-        subscriptionId: subscriptionId || undefined,
-        planName: planName || undefined,
-      });
-
-      console.log(`[CREDIT CONTROLLER] Affiliate commission recorded for referrer ${ref.referrerUserId}, payment: $${(totalAmount / 100).toFixed(2)}`);
-    } catch (error) {
-      // Don't fail the webhook if affiliate tracking fails
-      console.error("[CREDIT CONTROLLER] Affiliate commission tracking error (non-fatal):", error);
-    }
-  }
 
   // Get customer portal URL
   static async getCustomerPortal(c: Context) {

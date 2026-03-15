@@ -170,4 +170,41 @@ export class AffiliateController {
       return c.json({ error: "Failed to bulk mark commissions" }, 500);
     }
   }
+
+  // GET /api/admin/affiliate/overview - Admin: get all affiliates with stats
+  static async adminGetAffiliates(c: Context) {
+    AffiliateController.logRequest(c, "ADMIN_GET_AFFILIATES");
+
+    try {
+      const user = c.get("user");
+      if (!user || user.role !== "admin") {
+        return c.json({ error: "Admin access required" }, 403);
+      }
+
+      const affiliates = await AffiliateModel.getAllAffiliates();
+      return c.json({ affiliates });
+    } catch (error: any) {
+      console.error("[AFFILIATE CONTROLLER] ADMIN_GET_AFFILIATES error:", error);
+      return c.json({ error: "Failed to get affiliates" }, 500);
+    }
+  }
+
+  // GET /api/admin/affiliate/referrals/:userId - Admin: get referrals for a specific referrer
+  static async adminGetReferrals(c: Context) {
+    const userId = c.req.param("userId");
+    AffiliateController.logRequest(c, "ADMIN_GET_REFERRALS", { userId });
+
+    try {
+      const user = c.get("user");
+      if (!user || user.role !== "admin") {
+        return c.json({ error: "Admin access required" }, 403);
+      }
+
+      const referrals = await AffiliateModel.getReferralsForReferrer(userId);
+      return c.json({ referrals });
+    } catch (error: any) {
+      console.error("[AFFILIATE CONTROLLER] ADMIN_GET_REFERRALS error:", error);
+      return c.json({ error: "Failed to get referrals" }, 500);
+    }
+  }
 }

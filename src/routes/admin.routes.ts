@@ -66,6 +66,8 @@ adminRouter.get("/worker-logs/stream", AdminController.getWorkerLogStream);
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);
 
 // Affiliate management
+adminRouter.get("/affiliate/overview", AffiliateController.adminGetAffiliates);
+adminRouter.get("/affiliate/referrals/:userId", AffiliateController.adminGetReferrals);
 adminRouter.get("/affiliate/commissions", AffiliateController.adminGetCommissions);
 adminRouter.post("/affiliate/commissions/:id/pay", AffiliateController.adminMarkPaid);
 adminRouter.post("/affiliate/commissions/bulk-pay", AffiliateController.adminBulkMarkPaid);

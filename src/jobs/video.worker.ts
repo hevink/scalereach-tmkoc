@@ -342,7 +342,7 @@ async function processYouTubeVideo(
       console.log(`[VIDEO WORKER] Saving ${viralClips.length} viral clips and queuing generation with captions...`);
 
       // Clean up stale clips from a previous crashed run (e.g. worker killed mid-processing).
-      // Only delete clips that never finished generating — preserve any that are 'ready' or 'exported'.
+      // Only delete clips that never finished generating - preserve any that are 'ready' or 'exported'.
       const existingClips = await db.select({ id: viralClip.id, status: viralClip.status })
         .from(viralClip)
         .where(eq(viralClip.videoId, videoId));
@@ -421,7 +421,7 @@ async function processYouTubeVideo(
             sharedSourceSpanStart = undefined;
           }
         } else {
-          console.log(`[VIDEO WORKER] Skipping shared source: span ${spanDuration}s > 3x clip total ${totalClipDuration}s — clips too spread out`);
+          console.log(`[VIDEO WORKER] Skipping shared source: span ${spanDuration}s > 3x clip total ${totalClipDuration}s - clips too spread out`);
         }
       }
 
@@ -490,7 +490,7 @@ async function processYouTubeVideo(
           ? await pickSplitScreenBg(splitScreenBgPool, videoConfig.splitRatio ?? 50)
           : undefined;
 
-        // No artificial stagger delay — BullMQ concurrency (default: 2) naturally
+        // No artificial stagger delay - BullMQ concurrency (default: 2) naturally
         // throttles parallel clip jobs. Shared source eliminates per-clip yt-dlp calls,
         // and the fallback path is rare enough that concurrent downloads are acceptable.
         const delayMs = 0;

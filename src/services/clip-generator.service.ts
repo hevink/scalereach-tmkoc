@@ -309,7 +309,7 @@ export class ClipGeneratorService {
       // ── STEP 1: Download/extract source segment ONCE ──
       onProgress?.(10);
       if (options.sharedSourceKey) {
-        // Shared source: pre-downloaded spanning segment in R2 — slice locally with ffmpeg
+        // Shared source: pre-downloaded spanning segment in R2 - slice locally with ffmpeg
         // This avoids a per-clip yt-dlp round trip to YouTube
         const offsetStart = options.startTime - (options.sharedSourceSpanStart ?? options.startTime);
         const offsetEnd = options.endTime - (options.sharedSourceSpanStart ?? options.startTime);
@@ -735,13 +735,13 @@ export class ClipGeneratorService {
       let rawStorageUrl: string;
 
       if (clipWithCaptionsBuffer === clipWithoutCaptionsBuffer) {
-        // No captions — raw is identical to captioned, single upload
+        // No captions - raw is identical to captioned, single upload
         this.logOperation("UPLOADING_CLIP_SINGLE", { storageKey, size: clipWithCaptionsBuffer.length });
         ({ url: storageUrl } = await R2Service.uploadFile(storageKey, clipWithCaptionsBuffer, "video/mp4"));
         rawStorageUrl = storageUrl;
         this.logOperation("SKIP_RAW_UPLOAD", { reason: "identical to captioned (no captions)", savedBytes: clipWithoutCaptionsBuffer.length });
       } else {
-        // Both versions needed — upload in parallel
+        // Both versions needed - upload in parallel
         this.logOperation("UPLOADING_CLIPS_PARALLEL", {
           captionedKey: storageKey, captionedSize: clipWithCaptionsBuffer.length,
           rawKey: rawStorageKey, rawSize: clipWithoutCaptionsBuffer.length,

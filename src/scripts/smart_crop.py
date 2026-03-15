@@ -65,7 +65,7 @@ except ImportError as e:
     sys.exit(2)
 
 # ── Step 1: Use source video directly (already downloaded by Node.js worker) ──
-# The input file is a local temp file passed by the clip generator — no copy needed.
+# The input file is a local temp file passed by the clip generator - no copy needed.
 
 local_video = video_url  # video_url is actually a local file path from Node.js
 
@@ -772,7 +772,7 @@ for path in [audio_path]:
         os.unlink(path)
     except Exception:
         pass
-# NOTE: local_video is NOT deleted here — it's owned by the Node.js worker (cleanup in finally block).
+# NOTE: local_video is NOT deleted here - it's owned by the Node.js worker (cleanup in finally block).
 # Proxy video is kept for potential reuse by other clips from the same source.
 
 log("Done.")

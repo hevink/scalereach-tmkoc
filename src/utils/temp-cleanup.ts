@@ -6,7 +6,7 @@
  * are left behind when a Node.js process crashes (OOM, SIGKILL) before
  * the `finally` cleanup block can run.
  *
- * Called once on worker startup — not a recurring cron.
+ * Called once on worker startup - not a recurring cron.
  */
 
 import * as fs from "fs";
@@ -33,7 +33,7 @@ const DEFAULT_MAX_AGE_MS = 60 * 60 * 1000;
 
 /**
  * Delete orphaned temp files from previous crashed runs.
- * Safe to call on startup — only touches files matching known patterns
+ * Safe to call on startup - only touches files matching known patterns
  * that are older than `maxAgeMs`.
  */
 export async function cleanupOrphanedTempFiles(
@@ -66,7 +66,7 @@ export async function cleanupOrphanedTempFiles(
         deletedCount++;
         deletedBytes += stat.size;
       } catch {
-        // File may have been deleted between readdir and stat — ignore
+        // File may have been deleted between readdir and stat - ignore
       }
     }
 

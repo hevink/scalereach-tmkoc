@@ -83,7 +83,7 @@ export class SplitScreenCompositorService {
 
   /**
    * Download a background video from R2 to a local temp file.
-   * Results are cached by storageKey — subsequent calls for the same background
+   * Results are cached by storageKey - subsequent calls for the same background
    * return the existing file instantly. Concurrent calls are deduplicated.
    * Aborts if download exceeds 60 seconds.
    */

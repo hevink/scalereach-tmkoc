@@ -1,5 +1,5 @@
 /**
- * Autoscaler — runs on the BASE instance via PM2
+ * Autoscaler - runs on the BASE instance via PM2
  *
  * Checks BullMQ clip-generation queue depth every 60s.
  * If waiting+active >= SCALE_UP_THRESHOLD → starts burst EC2 instance.
@@ -21,7 +21,7 @@ const SCALE_DOWN_IDLE_MS = parseInt(process.env.SCALE_DOWN_IDLE_MS || "600000", 
 const CHECK_INTERVAL_MS = parseInt(process.env.SCALER_CHECK_INTERVAL_MS || "60000", 10); // 60s
 const AWS_REGION = process.env.AWS_REGION || "us-east-1";
 
-// Redis — reuse the same env vars as the worker
+// Redis - reuse the same env vars as the worker
 const REDIS_URL = process.env.REDIS_URL;
 const REDIS_HOST = process.env.REDIS_HOST || "localhost";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || "6379", 10);
@@ -119,7 +119,7 @@ async function stopBurst() {
     return;
   }
   stopAlreadySent = true;
-  await notify(`💤 Stopping burst instance — queue empty for ${Math.round(SCALE_DOWN_IDLE_MS / 60000)}min\n<b>Instance:</b> <code>${BURST_INSTANCE_ID}</code>`);
+  await notify(`💤 Stopping burst instance - queue empty for ${Math.round(SCALE_DOWN_IDLE_MS / 60000)}min\n<b>Instance:</b> <code>${BURST_INSTANCE_ID}</code>`);
   await ec2.send(new StopInstancesCommand({ InstanceIds: [BURST_INSTANCE_ID!] }));
 }
 
@@ -146,7 +146,7 @@ async function check() {
       // Reset so we don't keep firing stop every check cycle
       lastActiveTime = Date.now();
     } else if (total > 0) {
-      // Queue has jobs but below threshold — keep tracking activity
+      // Queue has jobs but below threshold - keep tracking activity
       lastActiveTime = Date.now();
     }
   } catch (err) {

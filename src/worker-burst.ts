@@ -1,5 +1,5 @@
 /**
- * Burst Worker — runs on the burst EC2 instance only
+ * Burst Worker - runs on the burst EC2 instance only
  *
  * Stripped-down worker that only starts CPU-heavy workers:
  * - Clip generation (FFmpeg encoding)

@@ -342,6 +342,74 @@ export class AffiliateModel {
     return result || null;
   }
 
+  // Admin: Get all affiliates (users with at least 1 referral) with summary stats
+  static async getAllAffiliates() {
+    this.logOperation("GET_ALL_AFFILIATES");
+
+    // Get all unique referrers who have at least 1 referral
+    const affiliates = await db
+      .select({
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        referralCode: user.referralCode,
+        totalReferrals: sql<number>`COUNT(DISTINCT ${referral.id})`,
+        convertedReferrals: sql<number>`COUNT(DISTINCT CASE WHEN ${referral.status} = 'converted' THEN ${referral.id} END)`,
+        totalEarnedCents: sql<number>`COALESCE(SUM(${affiliateCommission.commissionAmountCents}), 0)`,
+        pendingCents: sql<number>`COALESCE(SUM(CASE WHEN ${affiliateCommission.status} = 'pending' THEN ${affiliateCommission.commissionAmountCents} ELSE 0 END), 0)`,
+        paidCents: sql<number>`COALESCE(SUM(CASE WHEN ${affiliateCommission.status} = 'paid' THEN ${affiliateCommission.commissionAmountCents} ELSE 0 END), 0)`,
+        revenueGeneratedCents: sql<number>`COALESCE(SUM(${affiliateCommission.paymentAmountCents}), 0)`,
+      })
+      .from(referral)
+      .innerJoin(user, eq(referral.referrerUserId, user.id))
+      .leftJoin(affiliateCommission, eq(affiliateCommission.referrerUserId, user.id))
+      .groupBy(user.id, user.name, user.email, user.referralCode)
+      .orderBy(desc(sql`COALESCE(SUM(${affiliateCommission.commissionAmountCents}), 0)`));
+
+    return affiliates;
+  }
+
+  // Admin: Get referrals for a specific referrer (with commission details)
+  static async getReferralsForReferrer(referrerUserId: string) {
+    this.logOperation("GET_REFERRALS_FOR_REFERRER", { referrerUserId });
+
+    const referrals = await db
+      .select({
+        id: referral.id,
+        referredUserId: referral.referredUserId,
+        referredName: sql<string>`referred.name`,
+        referredEmail: sql<string>`referred.email`,
+        status: referral.status,
+        createdAt: referral.createdAt,
+        convertedAt: referral.convertedAt,
+      })
+      .from(referral)
+      .innerJoin(sql`"user" AS referred`, sql`referred.id = ${referral.referredUserId}`)
+      .where(eq(referral.referrerUserId, referrerUserId))
+      .orderBy(desc(referral.createdAt));
+
+    // Get commissions grouped by referral
+    const commissions = await db
+      .select()
+      .from(affiliateCommission)
+      .where(eq(affiliateCommission.referrerUserId, referrerUserId))
+      .orderBy(desc(affiliateCommission.createdAt));
+
+    // Map commissions to referrals
+    const referralsWithCommissions = referrals.map((ref) => ({
+      ...ref,
+      commissions: commissions.filter((c) => c.referralId === ref.id),
+      totalCommissionCents: commissions
+        .filter((c) => c.referralId === ref.id)
+        .reduce((sum, c) => sum + c.commissionAmountCents, 0),
+      totalPaymentCents: commissions
+        .filter((c) => c.referralId === ref.id)
+        .reduce((sum, c) => sum + c.paymentAmountCents, 0),
+    }));
+
+    return referralsWithCommissions;
+  }
+
   // Send email to referrer when someone signs up via their link
   private static async notifyReferrerOfSignup(referrerUserId: string, referredUserId: string) {
     const [referrer] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, referrerUserId)).limit(1);

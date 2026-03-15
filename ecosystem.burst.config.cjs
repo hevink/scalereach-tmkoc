@@ -1,4 +1,4 @@
-// PM2 config — BURST EC2 instance only
+// PM2 config - BURST EC2 instance only
 // Runs clip + dubbing workers at high concurrency
 // Auto-starts on boot via systemd
 module.exports = {

@@ -499,32 +499,34 @@ class EmailService {
   }
 
   // Send notification to referrer when they earn a commission
-  async sendAffiliateCommissionNotification(params: {
-    to: string;
-    referrerName: string;
-    commissionAmountCents: number;
-    paymentAmountCents: number;
-    planName: string;
-  }): Promise<boolean> {
-    const { to, referrerName, commissionAmountCents, paymentAmountCents, planName } = params;
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+  // Send notification to referrer when they earn a commission
+    // Send notification to referrer when they earn a commission
+      async sendAffiliateCommissionNotification(params: {
+        to: string;
+        referrerName: string;
+        commissionAmountCents: number;
+        paymentAmountCents: number;
+        planName: string;
+      }): Promise<boolean> {
+        const { to, referrerName, commissionAmountCents, paymentAmountCents, planName } = params;
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 
-    const commissionAmount = `$${(commissionAmountCents / 100).toFixed(2)}`;
-    const paymentAmount = `$${(paymentAmountCents / 100).toFixed(2)}`;
+        const commissionAmount = `$${(commissionAmountCents / 100).toFixed(2)}`;
+        const paymentAmount = `$${(paymentAmountCents / 100).toFixed(2)}`;
 
-    console.log(`[EMAIL] Affiliate commission notification → ${to} (earned: ${commissionAmount})`);
+        console.log(`[EMAIL] Affiliate commission notification → ${to} (earned: ${commissionAmount})`);
 
-    const subject = affiliateCommissionEarnedSubject(commissionAmount);
-    const html = affiliateCommissionEarnedTemplate({
-      referrerName,
-      commissionAmount,
-      paymentAmount,
-      planName: planName || "Pro",
-      dashboardUrl: `${frontendUrl}/affiliate`,
-    });
+        const subject = affiliateCommissionEarnedSubject(commissionAmount);
+        const html = affiliateCommissionEarnedTemplate({
+          referrerName,
+          commissionAmount,
+          paymentAmount,
+          planName: planName || "Pro",
+          dashboardUrl: `${frontendUrl}/affiliate`,
+        });
 
-    return this.sendEmail({ to, subject, html });
-  }
+        return this.sendEmail({ to, subject, html });
+      }
 }
 
 

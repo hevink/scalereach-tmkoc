@@ -21,6 +21,7 @@ export interface CreatePaymentLinkParams {
   quantity?: number;
   successUrl: string;
   customerEmail?: string;
+  customerName?: string;
   customerId?: string;
   metadata?: Record<string, string>;
 }
@@ -70,7 +71,7 @@ export class DodoService {
         },
         customer: {
           email: params.customerEmail || "",
-          name: "",
+          name: params.customerName || "",
         },
         product_cart: [
           {
@@ -96,6 +97,7 @@ export class DodoService {
     successUrl: string;
     cancelUrl?: string;
     customerEmail?: string;
+    customerName?: string;
     metadata?: Record<string, string>;
   }) {
     if (!dodoClient) {
@@ -105,6 +107,10 @@ export class DodoService {
     try {
       // Use checkout sessions API for hosted checkout URL
       const session = await dodoClient.checkoutSessions.create({
+        customer: {
+          email: params.customerEmail || "",
+          name: params.customerName || "",
+        },
         product_cart: [
           {
             product_id: params.productId,
