@@ -12,17 +12,19 @@ export class AffiliateController {
     AffiliateController.logRequest(c, "GET_STATS");
 
     try {
-      const user = c.get("user");
-      if (!user) return c.json({ error: "Unauthorized" }, 401);
+      const sessionUser = c.get("user");
+      if (!sessionUser) return c.json({ error: "Unauthorized" }, 401);
 
-      const stats = await AffiliateModel.getAffiliateStats(user.id);
+      // Fetch referralCode from DB (not in session object)
+      const dbUser = await AffiliateModel.getReferralCodeForUser(sessionUser.id);
+      const stats = await AffiliateModel.getAffiliateStats(sessionUser.id);
 
       return c.json({
-        referralLink: user.referralCode
-          ? `${process.env.FRONTEND_URL || "https://app.scalereach.ai"}/r/${user.referralCode}`
+        referralLink: dbUser?.referralCode
+          ? `${process.env.FRONTEND_URL || "https://app.scalereach.ai"}/r/${dbUser.referralCode}`
           : null,
-        referralCode: user.referralCode || null,
-        username: user.username || null,
+        referralCode: dbUser?.referralCode || null,
+        username: sessionUser.username || null,
         commissionRate: 25,
         ...stats,
       });

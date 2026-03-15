@@ -319,6 +319,16 @@ export class AffiliateModel {
     return results;
   }
 
+  // Get referralCode for a user by ID
+  static async getReferralCodeForUser(userId: string) {
+    const [result] = await db
+      .select({ referralCode: user.referralCode })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    return result || null;
+  }
+
   // Get referrer user by referralCode (for /r/:code links)
   static async getReferrerByUsername(referralCode: string) {
     this.logOperation("GET_REFERRER_BY_REFERRAL_CODE", { referralCode });
