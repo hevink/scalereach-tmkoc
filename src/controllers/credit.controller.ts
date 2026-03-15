@@ -175,7 +175,9 @@ export class CreditController {
 
       const dodoProductId = pkg?.dodoProductId || productId;
       const credits = pkg?.credits || 0;
-      const planName = pkg?.name || "Plan";
+      // Resolve plan name: from package DB, or from product-to-plan mapping, or capitalize the mapped plan key
+      const mappedPlan = PRODUCT_TO_PLAN[dodoProductId] || PRODUCT_TO_PLAN[productId];
+      const planName = pkg?.name || (mappedPlan ? mappedPlan.charAt(0).toUpperCase() + mappedPlan.slice(1) : "Plan");
 
       const metadata = {
         workspaceId,
@@ -562,10 +564,18 @@ export class CreditController {
   // Track affiliate commission for any payment event
       private static async trackAffiliateCommission(data: any, metadata: any) {
         try {
-          const { workspaceId, userId, planName } = metadata;
+          const { workspaceId, userId } = metadata;
           const paymentId = data?.payment_id;
           const subscriptionId = data?.subscription_id;
           const totalAmount = data?.total_amount; // in paise (smallest INR unit) from Dodo
+
+          // Resolve plan name: from metadata, or from product mapping
+          let planName = metadata?.planName;
+          if (!planName || planName === "Plan") {
+            const productId = metadata?.packageId || data?.product_cart?.[0]?.product_id || data?.product_id;
+            const mapped = productId ? PRODUCT_TO_PLAN[productId] : null;
+            planName = mapped ? mapped.charAt(0).toUpperCase() + mapped.slice(1) : undefined;
+          }
 
           if (!userId || !totalAmount) {
             return;
@@ -592,7 +602,7 @@ export class CreditController {
             planName: planName || undefined,
           });
 
-          console.log(`[CREDIT CONTROLLER] Affiliate commission recorded for referrer ${ref.referrerUserId}, payment: ₹${(totalAmount / 100).toFixed(2)}`);
+          console.log(`[CREDIT CONTROLLER] Affiliate commission recorded for referrer ${ref.referrerUserId}, payment: $${(totalAmount / 100).toFixed(2)}`);
         } catch (error) {
           // Don't fail the webhook if affiliate tracking fails
           console.error("[CREDIT CONTROLLER] Affiliate commission tracking error (non-fatal):", error);
