@@ -15,6 +15,10 @@ import {
   FONT_STACK,
   EMAIL_ICONS,
   emailIcon,
+  affiliateNewReferralTemplate,
+  affiliateNewReferralSubject,
+  affiliateCommissionEarnedTemplate,
+  affiliateCommissionEarnedSubject,
 } from "../templates/emails";
 
 interface EmailConfig {
@@ -468,6 +472,55 @@ class EmailService {
       preheaderText: `All ${clipCount} clips are ready for "${videoTitle}"`,
       content,
       footerText: `You're receiving this because you uploaded a video to ScaleReach.`,
+    });
+
+    return this.sendEmail({ to, subject, html });
+  }
+
+  // Send notification to referrer when someone signs up via their link
+  async sendAffiliateNewReferralNotification(params: {
+    to: string;
+    referrerName: string;
+    referredName: string;
+  }): Promise<boolean> {
+    const { to, referrerName, referredName } = params;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+    console.log(`[EMAIL] Affiliate new referral notification → ${to} (referred: ${referredName})`);
+
+    const subject = affiliateNewReferralSubject(referredName);
+    const html = affiliateNewReferralTemplate({
+      referrerName,
+      referredName,
+      dashboardUrl: `${frontendUrl}/affiliate`,
+    });
+
+    return this.sendEmail({ to, subject, html });
+  }
+
+  // Send notification to referrer when they earn a commission
+  async sendAffiliateCommissionNotification(params: {
+    to: string;
+    referrerName: string;
+    commissionAmountCents: number;
+    paymentAmountCents: number;
+    planName: string;
+  }): Promise<boolean> {
+    const { to, referrerName, commissionAmountCents, paymentAmountCents, planName } = params;
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+    const commissionAmount = `$${(commissionAmountCents / 100).toFixed(2)}`;
+    const paymentAmount = `$${(paymentAmountCents / 100).toFixed(2)}`;
+
+    console.log(`[EMAIL] Affiliate commission notification → ${to} (earned: ${commissionAmount})`);
+
+    const subject = affiliateCommissionEarnedSubject(commissionAmount);
+    const html = affiliateCommissionEarnedTemplate({
+      referrerName,
+      commissionAmount,
+      paymentAmount,
+      planName: planName || "Pro",
+      dashboardUrl: `${frontendUrl}/affiliate`,
     });
 
     return this.sendEmail({ to, subject, html });

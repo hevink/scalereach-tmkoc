@@ -54,3 +54,13 @@ export {
   affiliateLaunchEmailSubject,
   type AffiliateLaunchEmailParams,
 } from './affiliate-launch.template';
+
+// Affiliate notification emails (referral signup + commission earned)
+export {
+  affiliateNewReferralTemplate,
+  affiliateNewReferralSubject,
+  affiliateCommissionEarnedTemplate,
+  affiliateCommissionEarnedSubject,
+  type AffiliateNewReferralParams,
+  type AffiliateCommissionEarnedParams,
+} from './affiliate-notification.template';

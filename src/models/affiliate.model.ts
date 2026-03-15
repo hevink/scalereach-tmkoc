@@ -3,6 +3,7 @@ import { referral, affiliateCommission } from "../db/schema";
 import { user } from "../db/schema";
 import { eq, and, desc, sql, sum } from "drizzle-orm";
 import { performance } from "perf_hooks";
+import { emailService } from "../services/email.service";
 
 export class AffiliateModel {
   private static logOperation(operation: string, details?: any) {
@@ -71,6 +72,12 @@ export class AffiliateModel {
 
       const duration = performance.now() - startTime;
       console.log(`[AFFILIATE MODEL] CREATE_REFERRAL completed in ${duration.toFixed(2)}ms`);
+
+      // Send email notification to referrer (fire-and-forget)
+      this.notifyReferrerOfSignup(params.referrerUserId, params.referredUserId).catch((err) => {
+        console.error("[AFFILIATE MODEL] Failed to send referral signup notification:", err);
+      });
+
       return result;
     } catch (error) {
       const duration = performance.now() - startTime;
@@ -171,6 +178,12 @@ export class AffiliateModel {
       }
 
       console.log(`[AFFILIATE MODEL] Commission recorded: ${(commissionAmountCents / 100).toFixed(2)} for referrer ${params.referrerUserId}`);
+
+      // Send commission notification to referrer (fire-and-forget)
+      this.notifyReferrerOfCommission(params.referrerUserId, commissionAmountCents, params.paymentAmountCents, params.planName).catch((err) => {
+        console.error("[AFFILIATE MODEL] Failed to send commission notification:", err);
+      });
+
       return result;
     }
 
@@ -317,5 +330,32 @@ export class AffiliateModel {
       .limit(1);
 
     return result || null;
+  }
+
+  // Send email to referrer when someone signs up via their link
+  private static async notifyReferrerOfSignup(referrerUserId: string, referredUserId: string) {
+    const [referrer] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, referrerUserId)).limit(1);
+    const [referred] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, referredUserId)).limit(1);
+    if (!referrer || !referred) return;
+
+    await emailService.sendAffiliateNewReferralNotification({
+      to: referrer.email,
+      referrerName: referrer.name || referrer.email.split("@")[0],
+      referredName: referred.name || "A new user",
+    });
+  }
+
+  // Send email to referrer when they earn a commission
+  private static async notifyReferrerOfCommission(referrerUserId: string, commissionAmountCents: number, paymentAmountCents: number, planName?: string) {
+    const [referrer] = await db.select({ name: user.name, email: user.email }).from(user).where(eq(user.id, referrerUserId)).limit(1);
+    if (!referrer) return;
+
+    await emailService.sendAffiliateCommissionNotification({
+      to: referrer.email,
+      referrerName: referrer.name || referrer.email.split("@")[0],
+      commissionAmountCents,
+      paymentAmountCents,
+      planName: planName || "Pro",
+    });
   }
 }

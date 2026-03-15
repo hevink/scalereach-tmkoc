@@ -80,7 +80,7 @@ export function affiliateLaunchEmailTemplate(params: AffiliateLaunchEmailParams)
 
           <!-- Referral link section -->
           <tr>
-            <td style="background-color: ${BRAND_COLORS.bgCard}; border-top: 1px solid ${BRAND_COLORS.border}; padding: 28px 40px;" class="content-section">
+            <td style="background-color: ${BRAND_COLORS.bgCard}; border-top: 1px solid ${BRAND_COLORS.border}; padding: 28px 40px; text-align: center;" class="content-section">
               <p style="margin: 0 0 12px; font-size: 13px; font-weight: 600; color: ${BRAND_COLORS.textMuted}; text-transform: uppercase; letter-spacing: 0.5px;">
                 Your referral link
               </p>
