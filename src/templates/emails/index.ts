@@ -47,3 +47,10 @@ export {
   passwordResetEmailSubject,
   type PasswordResetEmailParams,
 } from './password-reset.template';
+
+// Affiliate program launch announcement
+export {
+  affiliateLaunchEmailTemplate,
+  affiliateLaunchEmailSubject,
+  type AffiliateLaunchEmailParams,
+} from './affiliate-launch.template';

@@ -5,6 +5,7 @@ import {
   clipReadyEmailTemplate,
   invitationEmailTemplate,
   passwordResetEmailTemplate,
+  affiliateLaunchEmailTemplate,
   baseTemplate,
   primaryButton,
   divider,
@@ -38,6 +39,7 @@ emailRouter.get("/preview", (c) => {
     { name: "verification", label: "Email Verification" },
     { name: "video-processed", label: "Video Processed" },
     { name: "all-clips-ready", label: "All Clips Ready" },
+    { name: "affiliate-launch", label: "Affiliate Program Launch" },
   ];
 
   const html = `
@@ -229,6 +231,16 @@ emailRouter.get("/preview/all-clips-ready", (c) => {
     preheaderText: 'All 12 clips are ready for "How to Build a SaaS in 2026"',
     content,
     footerText: "You're receiving this because you uploaded a video to ScaleReach.",
+  });
+  return c.html(html);
+});
+
+// Preview: Affiliate Launch
+emailRouter.get("/preview/affiliate-launch", (c) => {
+  const html = affiliateLaunchEmailTemplate({
+    userName: "Hevin",
+    referralLink: `${SAMPLE_DATA.frontendUrl}/r/hevin`,
+    referralCode: "hevin",
   });
   return c.html(html);
 });
