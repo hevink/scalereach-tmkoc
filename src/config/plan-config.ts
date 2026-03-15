@@ -27,7 +27,7 @@ export interface PlanConfig {
 export const PLAN_CONFIGS: Record<string, PlanConfig> = {
   free: {
     plan: "free",
-    minutes: { total: 50, type: "one-time", renewable: false },
+    minutes: { total: 0, type: "one-time", renewable: false },
     limits: {
       videoLength: 1800, // 30 minutes
       uploadSize: 2 * 1024 * 1024 * 1024, // 2GB

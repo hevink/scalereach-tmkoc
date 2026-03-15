@@ -47,7 +47,7 @@ async function resetWorkspace(workspaceSlug: string) {
         editingOperationsUsed: 0,
       })
       .where(eq(workspaceMinutes.workspaceId, ws.id));
-    console.log("✅ Minutes balance reset to free plan (50 minutes)");
+    console.log("✅ Minutes balance reset to free plan (0 minutes)");
 
     // 3. Clear minute transaction history (optional - for clean slate)
     console.log("\n3. Clearing minute transaction history...");

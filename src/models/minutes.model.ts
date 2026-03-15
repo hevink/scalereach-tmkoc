@@ -36,31 +36,12 @@ export class MinutesModel {
 
       if (!result[0]) {
         // Get workspace plan and initialize
-        // Note: For free plan, getBalance initializes with 0 minutes.
-        // The 50 free minutes are only granted explicitly during first workspace creation.
+        // Free plan gets 0 minutes. No free minutes on sign-up.
         const ws = await db
           .select({ plan: workspace.plan, ownerId: workspace.ownerId })
           .from(workspace)
           .where(eq(workspace.id, workspaceId));
         const plan = ws[0]?.plan || "free";
-        
-        if (plan === "free") {
-          // Check if this is the user's first workspace
-          const ownerId = ws[0]?.ownerId;
-          let isFirstWorkspace = true;
-          if (ownerId) {
-            const allWorkspaces = await db
-              .select({ id: workspace.id })
-              .from(workspace)
-              .where(eq(workspace.ownerId, ownerId));
-            isFirstWorkspace = allWorkspaces.length <= 1;
-          }
-          
-          if (!isFirstWorkspace) {
-            // Not the first workspace - initialize with 0 minutes
-            return this.initializeBalance(workspaceId, "free", 0);
-          }
-        }
         
         return this.initializeBalance(workspaceId, plan);
       }
