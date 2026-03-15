@@ -423,11 +423,21 @@ export class ClipGeneratorService {
             proc.stdout?.on("data", (d) => process.stdout.write(`[SMART CROP PY] ${d}`));
             proc.stderr?.on("data", (d) => process.stderr.write(`[SMART CROP PY] ${d}`));
             proc.on("error", (err) => reject(new Error(`Python spawn failed: ${err.message}`)));
-            proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`Python exited ${code}`)));
+            proc.on("close", (code) => code === 0 ? resolve() : reject(new Error(`__FALLBACK__`)));
           });
 
           const coordsPath = path.join(TMP_DIR, `${options.clipId}_coords.json`);
-          const result = JSON.parse(await fs.promises.readFile(coordsPath, "utf-8"));
+          let result: any;
+          try {
+            result = JSON.parse(await fs.promises.readFile(coordsPath, "utf-8"));
+          } catch (parseErr) {
+            // Coords file missing or malformed — fall back to standard conversion
+            this.logOperation("SMART_CROP_COORDS_READ_FAILED", {
+              clipId: options.clipId,
+              error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+            });
+            result = { mode: "skip", fallback_reason: "coords file unreadable" };
+          }
           await fs.promises.unlink(coordsPath).catch(() => {});
 
           if (result.mode !== "skip") {
@@ -566,20 +576,17 @@ export class ClipGeneratorService {
             }
           }
         } catch (scErr) {
-          // If it's a fallback signal (not a real error), do standard conversion
-          if (scErr instanceof Error && scErr.message === "__FALLBACK__") {
-            this.logOperation("SMART_CROP_FALLBACK_TO_STANDARD", { clipId: options.clipId });
-            await this.convertAspectRatioFile(
-              rawSourcePath, rawOutputPath, width, height,
-              undefined, options.watermark, options.quality,
-              options.backgroundStyle, undefined, false, options.videoScale
-            );
-            clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
-          } else {
-            // Smart crop was explicitly enabled - fail the job so the user knows
-            console.error(`[CLIP GENERATOR] Smart crop FAILED for clip ${options.clipId}:`, scErr);
-            throw new Error(`Smart AI Reframing failed: ${scErr instanceof Error ? scErr.message : scErr}`);
-          }
+          // Smart crop failed — ALWAYS fall back to standard conversion so the clip still gets produced.
+          // Never let smart crop failures kill the clip job.
+          const reason = scErr instanceof Error ? scErr.message : String(scErr);
+          this.logOperation("SMART_CROP_FALLBACK_TO_STANDARD", { clipId: options.clipId, reason });
+          console.error(`[CLIP GENERATOR] Smart crop failed for clip ${options.clipId}, falling back to standard: ${reason}`);
+          await this.convertAspectRatioFile(
+            rawSourcePath, rawOutputPath, width, height,
+            undefined, options.watermark, options.quality,
+            options.backgroundStyle, undefined, false, options.videoScale
+          );
+          clipWithoutCaptionsBuffer = await fs.promises.readFile(rawOutputPath);
         }
       }
 

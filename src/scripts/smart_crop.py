@@ -52,6 +52,22 @@ coords_path = os.path.join(tmp_dir, f"{clip_id}_coords.json")
 
 log(f"clip_id={clip_id} tmp_dir={tmp_dir}")
 
+# ── Safe fallback helper ──────────────────────────────────────────────────────
+# If ANYTHING goes wrong, write a skip file so the Node.js worker can still
+# produce a center-cropped clip instead of failing entirely.
+
+def write_fallback_and_exit(reason, exit_code=0):
+    """Write a safe skip coords file and exit. The clip won't be smart-cropped
+    but it won't fail either — Node.js will fall back to center crop."""
+    log(f"FALLBACK: {reason} — writing skip coords so clip generation continues")
+    try:
+        with open(coords_path, "w") as f:
+            json.dump({"mode": "skip", "fallback_reason": reason}, f)
+    except Exception as e:
+        # Last resort: even if we can't write the file, exit cleanly
+        log(f"FALLBACK: Could not write coords file: {e}")
+    sys.exit(exit_code)
+
 # ── Imports ───────────────────────────────────────────────────────────────────
 
 try:
@@ -62,7 +78,7 @@ try:
     from mediapipe.tasks.python import vision as mp_vision
 except ImportError as e:
     log(f"ERROR: Missing dependency: {e}")
-    sys.exit(2)
+    write_fallback_and_exit(f"missing dependency: {e}", exit_code=0)
 
 # ── Step 1: Use source video directly (already downloaded by Node.js worker) ──
 # The input file is a local temp file passed by the clip generator - no copy needed.
@@ -71,23 +87,27 @@ local_video = video_url  # video_url is actually a local file path from Node.js
 
 if not os.path.exists(local_video):
     log(f"ERROR: Source file not found: {local_video}")
-    sys.exit(1)
+    write_fallback_and_exit("source file not found")
 
 log(f"Using source file directly: {local_video}")
 
 # ── Step 2: Video dimensions ──────────────────────────────────────────────────
 
-cap      = cv2.VideoCapture(local_video)
-src_w    = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-src_h    = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-fps      = cap.get(cv2.CAP_PROP_FPS)
-total_f  = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-duration = total_f / fps if fps > 0 else 0
-cap.release()
+try:
+    cap      = cv2.VideoCapture(local_video)
+    if not cap.isOpened():
+        write_fallback_and_exit("cv2.VideoCapture failed to open source file")
+    src_w    = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    src_h    = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps      = cap.get(cv2.CAP_PROP_FPS)
+    total_f  = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    duration = total_f / fps if fps > 0 else 0
+    cap.release()
+except Exception as e:
+    write_fallback_and_exit(f"failed to read video dimensions: {e}")
 
 if src_w == 0 or src_h == 0 or fps <= 0 or duration <= 0:
-    log(f"ERROR: Invalid video dimensions or duration ({src_w}x{src_h}, fps={fps}, dur={duration})")
-    sys.exit(1)
+    write_fallback_and_exit(f"invalid video dimensions ({src_w}x{src_h}, fps={fps}, dur={duration})")
 
 log(f"Video: {src_w}x{src_h} @ {fps:.1f}fps, {duration:.1f}s")
 
@@ -142,15 +162,21 @@ if aspect_ratio <= 0.65:
 model_path = os.environ.get("MODEL_PATH", "/tmp/blaze_face_short_range.tflite")
 if not os.path.exists(model_path):
     log(f"Downloading face detector model...")
-    import urllib.request
-    urllib.request.urlretrieve(
-        "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
-        model_path
-    )
+    try:
+        import urllib.request
+        urllib.request.urlretrieve(
+            "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+            model_path
+        )
+    except Exception as e:
+        write_fallback_and_exit(f"failed to download face detector model: {e}")
 
-base_options  = mp_python.BaseOptions(model_asset_path=model_path)
-detector_opts = mp_vision.FaceDetectorOptions(base_options=base_options, min_detection_confidence=0.25)
-face_detector = mp_vision.FaceDetector.create_from_options(detector_opts)
+try:
+    base_options  = mp_python.BaseOptions(model_asset_path=model_path)
+    detector_opts = mp_vision.FaceDetectorOptions(base_options=base_options, min_detection_confidence=0.25)
+    face_detector = mp_vision.FaceDetector.create_from_options(detector_opts)
+except Exception as e:
+    write_fallback_and_exit(f"failed to initialize face detector: {e}")
 
 # ── Speed optimization: downscale large frames for face detection ─────────────
 # MediaPipe doesn't need full resolution - 480p is plenty for face detection.
@@ -158,43 +184,56 @@ face_detector = mp_vision.FaceDetector.create_from_options(detector_opts)
 DETECT_MAX_H = 480
 
 def detect_faces_in_frame(frame, proxy_scale=1.0):
-    orig_h, orig_w = frame.shape[:2]
-    # If we're already using a proxy video, coordinates need to be scaled back
-    # to original resolution. Also downscale further for detection if still large.
-    if orig_h > DETECT_MAX_H:
-        det_scale = DETECT_MAX_H / orig_h
-        small = cv2.resize(frame, (int(orig_w * det_scale), DETECT_MAX_H), interpolation=cv2.INTER_AREA)
-    else:
-        small = frame
-        det_scale = 1.0
+    """Detect faces in a single frame. Returns empty list on any error
+    so one bad frame never crashes the entire pipeline."""
+    try:
+        orig_h, orig_w = frame.shape[:2]
+        if orig_h == 0 or orig_w == 0:
+            return []
+        # If we're already using a proxy video, coordinates need to be scaled back
+        # to original resolution. Also downscale further for detection if still large.
+        if orig_h > DETECT_MAX_H:
+            det_scale = DETECT_MAX_H / orig_h
+            small = cv2.resize(frame, (int(orig_w * det_scale), DETECT_MAX_H), interpolation=cv2.INTER_AREA)
+        else:
+            small = frame
+            det_scale = 1.0
 
-    rgb      = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-    results  = face_detector.detect(mp_image)
-    faces = []
-    # Total scale from detection pixels back to original video resolution
-    total_scale = 1.0 / (det_scale * proxy_scale) if proxy_scale != 1.0 else 1.0 / det_scale
-    if results.detections:
-        for det in results.detections:
-            bb = det.bounding_box
-            # Scale coordinates back to original resolution
-            x = int(bb.origin_x * total_scale)
-            y = int(bb.origin_y * total_scale)
-            w = int(bb.width * total_scale)
-            h = int(bb.height * total_scale)
-            orig_full_w = int(orig_w / proxy_scale) if proxy_scale != 1.0 else orig_w
-            # Use nose+eye blend as face center - more accurate than bbox center
-            kps = det.keypoints
-            if len(kps) >= 3:
-                eye_cx  = int((kps[0].x + kps[1].x) / 2 * orig_full_w)
-                nose_cx = int(kps[2].x * orig_full_w)
-                face_cx = int(eye_cx * 0.4 + nose_cx * 0.6)
-            elif len(kps) >= 2:
-                face_cx = int((kps[0].x + kps[1].x) / 2 * orig_full_w)
-            else:
-                face_cx = x + w // 2
-            faces.append({"x": x, "y": y, "w": w, "h": h, "cx": face_cx, "cy": y + h//2, "area": w * h})
-    return faces
+        rgb      = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        results  = face_detector.detect(mp_image)
+        faces = []
+        # Total scale from detection pixels back to original video resolution
+        total_scale = 1.0 / (det_scale * proxy_scale) if proxy_scale != 1.0 else 1.0 / det_scale
+        if results.detections:
+            for det in results.detections:
+                bb = det.bounding_box
+                # Scale coordinates back to original resolution
+                x = int(bb.origin_x * total_scale)
+                y = int(bb.origin_y * total_scale)
+                w = int(bb.width * total_scale)
+                h = int(bb.height * total_scale)
+                if w <= 0 or h <= 0:
+                    continue  # skip degenerate detections
+                orig_full_w = int(orig_w / proxy_scale) if proxy_scale != 1.0 else orig_w
+                # Use nose+eye blend as face center - more accurate than bbox center
+                kps = det.keypoints
+                if len(kps) >= 3:
+                    eye_cx  = int((kps[0].x + kps[1].x) / 2 * orig_full_w)
+                    nose_cx = int(kps[2].x * orig_full_w)
+                    face_cx = int(eye_cx * 0.4 + nose_cx * 0.6)
+                elif len(kps) >= 2:
+                    face_cx = int((kps[0].x + kps[1].x) / 2 * orig_full_w)
+                else:
+                    face_cx = x + w // 2
+                # Clamp face center to valid range
+                face_cx = max(0, min(face_cx, src_w))
+                faces.append({"x": x, "y": y, "w": w, "h": h, "cx": face_cx, "cy": y + h//2, "area": w * h})
+        return faces
+    except Exception as e:
+        # Log but don't crash — this frame just has no faces
+        log(f"WARNING: Face detection failed on frame: {e}")
+        return []
 
 # ── IMPROVEMENT 1: Face identity matching across frames ───────────────────────
 
@@ -239,60 +278,60 @@ pip_detections = 0
 full_detections = 0
 small_corner_count = 0  # Track consistent small corner faces
 
-cap = cv2.VideoCapture(proxy_video)
-for t in sample_times:
-    cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
-    ret, frame = cap.read()
-    if not ret:
-        continue
-    faces = detect_faces_in_frame(frame, proxy_scale)
-    sample_faces.append(faces)
+try:
+    cap = cv2.VideoCapture(proxy_video)
+    if not cap.isOpened():
+        log("WARNING: Could not open proxy video for type detection, trying original")
+        cap = cv2.VideoCapture(local_video)
+        proxy_scale = 1.0
+        if not cap.isOpened():
+            write_fallback_and_exit("could not open video for type detection")
+    for t in sample_times:
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ret, frame = cap.read()
+        if not ret:
+            continue
+        faces = detect_faces_in_frame(frame, proxy_scale)
+        sample_faces.append(faces)
 
-    for face in faces:
-        w_ratio = face["w"] / src_w   # face width relative to frame
-        h_ratio = face["h"] / src_h   # face height relative to frame
+        for face in faces:
+            w_ratio = face["w"] / src_w if src_w > 0 else 0
+            h_ratio = face["h"] / src_h if src_h > 0 else 0
 
-        log(f"  face: cx={face['cx']}, cy={face['cy']}, w={face['w']}, h={face['h']}, w_ratio={w_ratio:.3f}, area={face['area']}")
+            log(f"  face: cx={face['cx']}, cy={face['cy']}, w={face['w']}, h={face['h']}, w_ratio={w_ratio:.3f}, area={face['area']}")
 
-        # Small face heuristic: if face is very small (< 10% of frame width),
-        # it's almost certainly a PiP webcam overlay
-        is_small_face = w_ratio < 0.10
+            is_small_face = w_ratio < 0.10
+            in_corner = (face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.70) and \
+                        (face["cy"] < src_h * 0.30 or face["cy"] > src_h * 0.70)
+            on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
+            is_centered = src_w * 0.15 < face["cx"] < src_w * 0.85 and \
+                          src_h * 0.15 < face["cy"] < src_h * 0.85 and \
+                          w_ratio >= 0.08
 
-        # Corner detection: face center is in outer 30% of frame on any axis
-        in_corner = (face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.70) and \
-                    (face["cy"] < src_h * 0.30 or face["cy"] > src_h * 0.70)
+            if is_small_face and in_corner:
+                pip_detections += 2
+                small_corner_count += 1
+            elif is_small_face and on_side:
+                pip_detections += 1
+            elif is_small_face:
+                pip_detections += 1
+            elif is_centered:
+                full_detections += 1
+            else:
+                full_detections += 1
 
-        # Side detection: face is on the left or right edge (non-overlapping with centered)
-        on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
+        centered_faces = [f for f in faces if src_w * 0.25 < f["cx"] < src_w * 0.75
+                          and f["w"] / src_w >= 0.08]
+        if len(centered_faces) >= 2:
+            full_detections += 2
 
-        # Centered: face is reasonably sized and not a tiny webcam overlay
-        # Use wider range (15%-85%) since talking heads are often slightly off-center
-        is_centered = src_w * 0.15 < face["cx"] < src_w * 0.85 and \
-                      src_h * 0.15 < face["cy"] < src_h * 0.85 and \
-                      w_ratio >= 0.08  # must be at least 8% of frame width
-
-        if is_small_face and in_corner:
-            # Small face in corner = definitely PiP webcam
-            pip_detections += 2
-            small_corner_count += 1
-        elif is_small_face and on_side:
-            # Small face on the edge = likely PiP webcam
-            pip_detections += 1
-        elif is_small_face:
-            # Small face elsewhere = possibly PiP
-            pip_detections += 1
-        elif is_centered:
-            full_detections += 1
-        else:
-            # Large face that's off-center - still a normal speaker, not PiP
-            full_detections += 1
-
-    centered_faces = [f for f in faces if src_w * 0.25 < f["cx"] < src_w * 0.75
-                      and f["w"] / src_w >= 0.08]
-    if len(centered_faces) >= 2:
-        full_detections += 2
-
-cap.release()
+    cap.release()
+except Exception as e:
+    log(f"WARNING: Video type detection failed: {e}")
+    try: cap.release()
+    except: pass
+    # If type detection fails entirely, fall back to skip (center crop)
+    write_fallback_and_exit(f"video type detection crashed: {e}")
 
 total_face_frames = sum(1 for f in sample_faces if f)
 no_face_frames    = len(sample_times) - total_face_frames
@@ -442,23 +481,37 @@ def get_speaker_at(t):
 # ── IMPROVEMENT 3: Face detection loop with identity matching ─────────────────
 
 cap = cv2.VideoCapture(proxy_video)
+if not cap.isOpened():
+    log("WARNING: Could not open proxy for face tracking, trying original")
+    cap = cv2.VideoCapture(local_video)
+    proxy_scale = 1.0
+    if not cap.isOpened():
+        write_fallback_and_exit("could not open video for face tracking")
 # Adaptive sample interval: 0.1s for short clips, 0.2s for longer ones
 sample_interval = 0.2 if duration > 30 else 0.1
 log(f"Face tracking interval: {sample_interval}s ({int(duration / sample_interval)} samples)")
 frame_data = []
 prev_faces = []
 t = 0.0
-while t < duration:
-    cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
-    ret, frame = cap.read()
-    if not ret:
-        break
-    faces = detect_faces_in_frame(frame, proxy_scale)
-    faces = match_faces_across_frames(prev_faces, faces)
-    frame_data.append({"t": round(t, 2), "faces": faces})
-    prev_faces = faces
-    t += sample_interval
-cap.release()
+try:
+    while t < duration:
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ret, frame = cap.read()
+        if not ret:
+            break
+        faces = detect_faces_in_frame(frame, proxy_scale)
+        faces = match_faces_across_frames(prev_faces, faces)
+        frame_data.append({"t": round(t, 2), "faces": faces})
+        prev_faces = faces
+        t += sample_interval
+except Exception as e:
+    log(f"WARNING: Face tracking loop error at t={t:.2f}s: {e} — using {len(frame_data)} frames collected so far")
+finally:
+    cap.release()
+
+# If we got zero usable frames, fall back
+if not frame_data:
+    write_fallback_and_exit("face tracking produced zero frames")
 
 detected = sum(1 for f in frame_data if f["faces"])
 log(f"Face detection done: {detected}/{len(frame_data)} frames have faces")
@@ -528,49 +581,48 @@ if not speaker_pos and diarization_segments:
         log(f"Speaker mapping (fallback): {spk} → cx={speaker_pos[spk]}")
 
 def get_crop_x(faces, t, last_crop_cx=None):
-    if not faces:
-        return None
-    if len(faces) == 1:
-        target_cx = faces[0]["cx"]
-    else:
-        spk = get_speaker_at(t)
-        primary_cx = None
-
-        if spk and spk in speaker_pos:
-            # Pick the face closest to this speaker's known position
-            primary_cx = min(faces, key=lambda f: abs(f["cx"] - speaker_pos[spk]))["cx"]
-        elif last_crop_cx is not None:
-            # No speaker info - pick face closest to current tracking position
-            edge_margin = crop_w
-            interior = [f for f in faces if edge_margin < f["cx"] < src_w - edge_margin]
-            candidates = interior if interior else faces
-            primary_cx = min(candidates, key=lambda f: abs(f["cx"] - last_crop_cx))["cx"]
+    """Get the horizontal crop position for a frame. Returns None if no faces.
+    Wrapped in try/catch so a single bad frame never crashes the pipeline."""
+    try:
+        if not faces:
+            return None
+        if len(faces) == 1:
+            target_cx = faces[0]["cx"]
         else:
-            edge_margin = crop_w
-            interior = [f for f in faces if edge_margin < f["cx"] < src_w - edge_margin]
-            candidates = interior if interior else faces
-            primary_cx = max(candidates, key=lambda f: f["area"])["cx"]
+            spk = get_speaker_at(t)
+            primary_cx = None
 
-        # Group framing: if other faces are close enough to fit in the crop window,
-        # center the crop on the group midpoint instead of just the primary face.
-        # This avoids ping-ponging when 2-3 people are having a conversation close together.
-        nearby = [f for f in faces if abs(f["cx"] - primary_cx) < crop_w * 0.8]
-        if len(nearby) >= 2:
-            left_cx  = min(f["cx"] for f in nearby)
-            right_cx = max(f["cx"] for f in nearby)
-            group_span = right_cx - left_cx
-            # Only group-frame if they actually fit within the crop window (with some padding)
-            face_padding = max(f["w"] for f in nearby) // 2
-            if group_span + face_padding * 2 <= crop_w:
-                target_cx = (left_cx + right_cx) // 2
+            if spk and spk in speaker_pos:
+                primary_cx = min(faces, key=lambda f: abs(f["cx"] - speaker_pos[spk]))["cx"]
+            elif last_crop_cx is not None:
+                edge_margin = crop_w
+                interior = [f for f in faces if edge_margin < f["cx"] < src_w - edge_margin]
+                candidates = interior if interior else faces
+                primary_cx = min(candidates, key=lambda f: abs(f["cx"] - last_crop_cx))["cx"]
             else:
-                # Group too wide - stick with primary speaker
-                target_cx = primary_cx
-        else:
-            target_cx = primary_cx
+                edge_margin = crop_w
+                interior = [f for f in faces if edge_margin < f["cx"] < src_w - edge_margin]
+                candidates = interior if interior else faces
+                primary_cx = max(candidates, key=lambda f: f["area"])["cx"]
 
-    crop_x = target_cx - crop_w // 2
-    return max(0, min(crop_x, src_w - crop_w))
+            nearby = [f for f in faces if abs(f["cx"] - primary_cx) < crop_w * 0.8]
+            if len(nearby) >= 2:
+                left_cx  = min(f["cx"] for f in nearby)
+                right_cx = max(f["cx"] for f in nearby)
+                group_span = right_cx - left_cx
+                face_padding = max(f["w"] for f in nearby) // 2
+                if group_span + face_padding * 2 <= crop_w:
+                    target_cx = (left_cx + right_cx) // 2
+                else:
+                    target_cx = primary_cx
+            else:
+                target_cx = primary_cx
+
+        crop_x = target_cx - crop_w // 2
+        return max(0, min(crop_x, src_w - crop_w))
+    except Exception as e:
+        log(f"WARNING: get_crop_x failed at t={t}: {e}")
+        return None
 
 # ── IMPROVEMENT 4: Velocity-based prediction when face is missing ─────────────
 
@@ -603,10 +655,16 @@ for fd in frame_data:
 
 # DEAD_ZONE: ignore movements smaller than this (prevents micro-jitter from face detection noise)
 # MOVE_ZONE: start slow panning only above this threshold (prevents wobble from natural head sway)
-# SNAP_ZONE: instant jump for speaker switches / scene cuts
-DEAD_ZONE = 30     # px - ignore tiny face bbox fluctuations
-MOVE_ZONE = 80     # px - start slow pan for intentional movement
-SNAP_ZONE = 200    # px - instant snap for speaker switch
+# SNAP_ZONE: instant jump for speaker switches / scene cuts (raised from 200 to 350
+#            so fast head movement in podcasts doesn't trigger hard snaps)
+DEAD_ZONE = 40     # px - ignore tiny face bbox fluctuations (raised from 30)
+MOVE_ZONE = 100    # px - start slow pan for intentional movement (raised from 80)
+SNAP_ZONE = 350    # px - instant snap only for true speaker switch (raised from 200)
+
+# Velocity history: track recent movement directions to detect oscillation.
+# If the face is bouncing left-right (gesturing, laughing), we suppress the pan
+# instead of chasing every frame. Window of 5 samples ≈ 0.5-1.0s of history.
+VELOCITY_WINDOW = 5
 
 if not raw_coords:
     log("WARNING: No raw coordinates - skipping reframe")
@@ -622,48 +680,91 @@ init_faces    = fd_map.get(f"{raw_coords[0]['t']:.2f}", {}).get("faces", [])
 smoothed_y    = float(get_crop_y(init_faces, src_h, crop_h))
 prev_had_face = raw_coords[0]["face"]
 coords        = []
+velocity_hist = []  # recent (raw_x - smoothed_x) deltas to detect oscillation
+
+def is_oscillating(hist):
+    """Detect if recent movement is oscillating (direction changes ≥ 3 times in window).
+    This catches gesturing, laughing, leaning back-and-forth — movements where
+    the camera should hold still instead of chasing."""
+    if len(hist) < 3:
+        return False
+    signs = [1 if v > 0 else -1 if v < 0 else 0 for v in hist]
+    direction_changes = sum(1 for i in range(1, len(signs)) if signs[i] != 0 and signs[i] != signs[i-1])
+    return direction_changes >= 3
 
 # Y-axis dead zones (vertical jitter is less noticeable, so tighter thresholds)
-Y_DEAD_ZONE = 15    # px - ignore tiny vertical fluctuations
-Y_MOVE_ZONE = 40    # px - slow vertical pan
-Y_SNAP_ZONE = 120   # px - instant vertical snap (e.g. person stands up)
+Y_DEAD_ZONE = 20    # px - ignore tiny vertical fluctuations (raised from 15)
+Y_MOVE_ZONE = 50    # px - slow vertical pan (raised from 40)
+Y_SNAP_ZONE = 150   # px - instant vertical snap (raised from 120)
+y_velocity_hist = []
 
 for rc in raw_coords:
     raw_x = float(rc["x"])
-    delta = abs(raw_x - smoothed_x)
+    delta = raw_x - smoothed_x  # signed delta (direction matters for oscillation)
+    abs_delta = abs(delta)
+
+    # Track velocity history for oscillation detection
+    velocity_hist.append(delta)
+    if len(velocity_hist) > VELOCITY_WINDOW:
+        velocity_hist.pop(0)
+
+    oscillating = is_oscillating(velocity_hist)
 
     if rc["face"] and not prev_had_face:
         # Face reappeared - snap to it
         smoothed_x = raw_x
-    elif delta > SNAP_ZONE:
+        velocity_hist.clear()
+    elif abs_delta > SNAP_ZONE:
         # Big jump (speaker switch) - snap instantly
         smoothed_x = raw_x
-    elif delta > MOVE_ZONE:
+        velocity_hist.clear()
+    elif oscillating and abs_delta < SNAP_ZONE:
+        # Face is bouncing around (gesturing, laughing) - hold position.
+        # Only apply a very tiny correction toward the average recent position
+        # so the crop doesn't drift if the person genuinely shifted.
+        avg_raw = smoothed_x + sum(velocity_hist) / len(velocity_hist)
+        ALPHA = 0.01
+        smoothed_x = ALPHA * avg_raw + (1 - ALPHA) * smoothed_x
+    elif abs_delta > MOVE_ZONE:
         # Intentional movement - smooth pan with moderate alpha
-        ALPHA = min(0.15, 0.05 + delta / 1000.0)
+        # Capped lower than before (0.10 max instead of 0.15) for more cinematic feel
+        ALPHA = min(0.10, 0.03 + abs_delta / 1500.0)
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
-    elif delta > DEAD_ZONE:
+    elif abs_delta > DEAD_ZONE:
         # Small drift - very slow correction to avoid visible wobble
-        ALPHA = 0.03
+        ALPHA = 0.02
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
-    # else: delta <= DEAD_ZONE - do nothing, hold position
+    # else: abs_delta <= DEAD_ZONE - do nothing, hold position
 
-    # Y-axis smoothing - same 3-tier approach to prevent vertical jitter
+    # Y-axis smoothing - same approach with oscillation detection
     frame_faces = fd_map.get(f"{rc['t']:.2f}", {}).get("faces", [])
     raw_y       = float(get_crop_y(frame_faces, src_h, crop_h))
-    delta_y     = abs(raw_y - smoothed_y)
+    delta_y     = raw_y - smoothed_y
+    abs_delta_y = abs(delta_y)
+
+    y_velocity_hist.append(delta_y)
+    if len(y_velocity_hist) > VELOCITY_WINDOW:
+        y_velocity_hist.pop(0)
+
+    y_oscillating = is_oscillating(y_velocity_hist)
 
     if rc["face"] and not prev_had_face:
         smoothed_y = raw_y
-    elif delta_y > Y_SNAP_ZONE:
+        y_velocity_hist.clear()
+    elif abs_delta_y > Y_SNAP_ZONE:
         smoothed_y = raw_y
-    elif delta_y > Y_MOVE_ZONE:
-        ALPHA_Y = min(0.12, 0.04 + delta_y / 800.0)
+        y_velocity_hist.clear()
+    elif y_oscillating and abs_delta_y < Y_SNAP_ZONE:
+        avg_raw_y = smoothed_y + sum(y_velocity_hist) / len(y_velocity_hist)
+        ALPHA_Y = 0.01
+        smoothed_y = ALPHA_Y * avg_raw_y + (1 - ALPHA_Y) * smoothed_y
+    elif abs_delta_y > Y_MOVE_ZONE:
+        ALPHA_Y = min(0.08, 0.03 + abs_delta_y / 1000.0)
         smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
-    elif delta_y > Y_DEAD_ZONE:
-        ALPHA_Y = 0.025
+    elif abs_delta_y > Y_DEAD_ZONE:
+        ALPHA_Y = 0.02
         smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
-    # else: delta_y <= Y_DEAD_ZONE - hold vertical position
+    # else: abs_delta_y <= Y_DEAD_ZONE - hold vertical position
 
     coords.append({
         "t":    rc["t"],
@@ -678,7 +779,7 @@ for rc in raw_coords:
 log(f"Generated {len(coords)} crop keyframes")
 
 # Interpolate to per-frame with smooth easing
-INTERP_SNAP    = 200
+INTERP_SNAP    = 350  # match SNAP_ZONE - only hard-cut interpolation for true speaker switches
 frame_coords   = []
 frame_interval = 1.0 / fps
 
@@ -723,47 +824,62 @@ if not frame_coords:
     except: pass
     sys.exit(0)
 
-# Build segments
-segments = []
-if frame_coords:
-    seg_type   = "face" if frame_coords[0].get("face") else "letterbox"
-    seg_start  = frame_coords[0]["t"]
-    seg_coords = [frame_coords[0]]
-    for fc in frame_coords[1:]:
-        t = "face" if fc.get("face") else "letterbox"
-        if t != seg_type:
-            segments.append({"type": seg_type, "start": seg_start, "end": fc["t"], "coords": seg_coords})
-            seg_type   = t
-            seg_start  = fc["t"]
-            seg_coords = [fc]
+# Build segments — wrapped in try/catch so any edge case in segment
+# building doesn't kill the clip. If this fails, we still have frame_coords.
+try:
+    segments = []
+    if frame_coords:
+        seg_type   = "face" if frame_coords[0].get("face") else "letterbox"
+        seg_start  = frame_coords[0]["t"]
+        seg_coords = [frame_coords[0]]
+        for fc in frame_coords[1:]:
+            t = "face" if fc.get("face") else "letterbox"
+            if t != seg_type:
+                segments.append({"type": seg_type, "start": seg_start, "end": fc["t"], "coords": seg_coords})
+                seg_type   = t
+                seg_start  = fc["t"]
+                seg_coords = [fc]
+            else:
+                seg_coords.append(fc)
+        segments.append({"type": seg_type, "start": seg_start, "end": round(duration, 4), "coords": seg_coords})
+
+    # Merge short segments
+    MIN_SEG_DURATION = 1.5
+    merged = []
+    for seg in segments:
+        seg_dur = seg["end"] - seg["start"]
+        if merged and seg_dur < MIN_SEG_DURATION:
+            merged[-1]["end"] = seg["end"]
+            merged[-1]["coords"].extend(seg["coords"])
         else:
-            seg_coords.append(fc)
-    segments.append({"type": seg_type, "start": seg_start, "end": round(duration, 4), "coords": seg_coords})
+            merged.append(seg)
+    segments = merged
+    log(f"Segments after merge: {len(segments)} (min_dur={MIN_SEG_DURATION}s)")
 
-# Merge short segments
-MIN_SEG_DURATION = 1.5
-merged = []
-for seg in segments:
-    seg_dur = seg["end"] - seg["start"]
-    if merged and seg_dur < MIN_SEG_DURATION:
-        merged[-1]["end"] = seg["end"]
-        merged[-1]["coords"].extend(seg["coords"])
-    else:
-        merged.append(seg)
-segments = merged
-log(f"Segments after merge: {len(segments)} (min_dur={MIN_SEG_DURATION}s)")
+    has_face      = any(s["type"] == "face"      for s in segments)
+    has_letterbox = any(s["type"] == "letterbox" for s in segments)
 
-has_face      = any(s["type"] == "face"      for s in segments)
-has_letterbox = any(s["type"] == "letterbox" for s in segments)
+    with open(coords_path, "w") as f:
+        if has_face and has_letterbox:
+            json.dump({"mode": "mixed", "segments": segments, "crop_w": crop_w, "crop_h": crop_h}, f)
+        elif has_face:
+            clean = [{k: v for k, v in c.items() if k != "face"} for c in frame_coords]
+            json.dump({"mode": "crop", "coords": clean}, f)
+        else:
+            json.dump({"mode": "skip"}, f)
 
-with open(coords_path, "w") as f:
-    if has_face and has_letterbox:
-        json.dump({"mode": "mixed", "segments": segments, "crop_w": crop_w, "crop_h": crop_h}, f)
-    elif has_face:
-        clean = [{k: v for k, v in c.items() if k != "face"} for c in frame_coords]
-        json.dump({"mode": "crop", "coords": clean}, f)
-    else:
-        json.dump({"mode": "skip"}, f)
+except Exception as e:
+    log(f"WARNING: Segment building / JSON write failed: {e}")
+    # Last-ditch fallback: try to write raw frame_coords as simple crop mode
+    try:
+        with open(coords_path, "w") as f:
+            if frame_coords:
+                clean = [{k: v for k, v in c.items() if k != "face"} for c in frame_coords]
+                json.dump({"mode": "crop", "coords": clean}, f)
+            else:
+                json.dump({"mode": "skip", "fallback_reason": f"segment build failed: {e}"}, f)
+    except Exception as e2:
+        write_fallback_and_exit(f"could not write any coords: {e2}")
 
 for path in [audio_path]:
     if path is None:
