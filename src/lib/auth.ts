@@ -37,7 +37,69 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
-          // Send welcome email after user is created (fire-and-forget to not block auth flow)
+          // Auto-generate permanent referralCode from email prefix (never changes)
+          if (!user.referralCode) {
+            try {
+              const { eq } = await import("drizzle-orm");
+              const base = user.email
+                .split("@")[0]
+                .toLowerCase()
+                .replace(/[^a-z0-9_.]/g, "")
+                .slice(0, 25);
+
+              let candidate = base || "user";
+              let suffix = 0;
+
+              while (true) {
+                const existing = await db.query.user.findFirst({
+                  where: eq(schema.user.referralCode, candidate),
+                });
+                if (!existing) break;
+                suffix++;
+                candidate = `${base}${suffix}`;
+              }
+
+              await db.update(schema.user)
+                .set({ referralCode: candidate })
+                .where(eq(schema.user.id, user.id));
+              console.log(`[AUTH] Generated referralCode "${candidate}" for user ${user.id}`);
+            } catch (err) {
+              console.error("[AUTH] Failed to generate referralCode:", err);
+            }
+          }
+
+          // Auto-generate username from email if not set (e.g. Google OAuth signups)
+          if (!user.username) {
+            try {
+              const { eq } = await import("drizzle-orm");
+              const baseUsername = user.email
+                .split("@")[0]
+                .toLowerCase()
+                .replace(/[^a-z0-9_.]/g, "")
+                .slice(0, 25);
+
+              let candidateUsername = baseUsername || "user";
+              let attempts = 0;
+
+              while (attempts < 10) {
+                const existing = await db.query.user.findFirst({
+                  where: eq(schema.user.username, candidateUsername),
+                });
+                if (!existing) break;
+                attempts++;
+                candidateUsername = `${baseUsername}${Math.floor(Math.random() * 9000) + 1000}`;
+              }
+
+              await db.update(schema.user)
+                .set({ username: candidateUsername })
+                .where(eq(schema.user.id, user.id));
+              console.log(`[AUTH] Auto-generated username "${candidateUsername}" for user ${user.id}`);
+            } catch (err) {
+              console.error("[AUTH] Failed to auto-generate username:", err);
+            }
+          }
+
+          // Send welcome email (fire-and-forget)
           emailService.sendWelcomeEmail({
             to: user.email,
             userName: user.name || user.email.split("@")[0],

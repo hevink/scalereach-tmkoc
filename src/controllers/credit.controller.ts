@@ -2,6 +2,7 @@ import { Context } from "hono";
 import { CreditModel } from "../models/credit.model";
 import { MinutesModel } from "../models/minutes.model";
 import { WorkspaceModel } from "../models/workspace.model";
+import { AffiliateModel } from "../models/affiliate.model";
 import { DodoService, DodoWebhookPayload } from "../services/dodo.service";
 
 const isLiveMode = process.env.DODO_ENVIRONMENT === "live_mode";
@@ -393,6 +394,9 @@ export class CreditController {
 
       console.log(`[CREDIT CONTROLLER] Credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
     }
+
+    // Track affiliate commission for this payment
+    await CreditController.trackAffiliateCommission(data, metadata);
   }
 
   // Handle subscription active event
@@ -463,6 +467,9 @@ export class CreditController {
 
       console.log(`[CREDIT CONTROLLER] Subscription credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
     }
+
+    // Track affiliate commission for initial subscription payment
+    await CreditController.trackAffiliateCommission(data, metadata);
   }
 
   // Handle subscription renewal
@@ -526,6 +533,9 @@ export class CreditController {
 
       console.log(`[CREDIT CONTROLLER] Renewal credits added - workspace: ${workspaceId}, amount: ${creditAmount}`);
     }
+
+    // Track affiliate commission for renewal (lifetime 25%)
+    await CreditController.trackAffiliateCommission(data, metadata);
   }
 
   // Handle subscription canceled event
@@ -545,6 +555,46 @@ export class CreditController {
       console.log(`[CREDIT CONTROLLER] Workspace subscription marked as cancelled: ${workspaceId}`);
     }
     // Credits remain until they're used - no credit action needed
+  }
+
+  // Track affiliate commission for any payment event
+  private static async trackAffiliateCommission(data: any, metadata: any) {
+    try {
+      const { workspaceId, userId, planName } = metadata;
+      const paymentId = data?.payment_id;
+      const subscriptionId = data?.subscription_id;
+      const totalAmount = data?.total_amount; // in cents from Dodo
+
+      if (!userId || !totalAmount) {
+        return;
+      }
+
+      // Fix #5: Guard against zero/negative amounts (refunds, malformed webhooks)
+      if (totalAmount <= 0) {
+        console.log(`[CREDIT CONTROLLER] Affiliate commission skipped: invalid amount ${totalAmount}`);
+        return;
+      }
+
+      // Check if this user was referred by someone
+      const ref = await AffiliateModel.getReferralByReferredUser(userId);
+      if (!ref) {
+        return; // Not a referred user, skip
+      }
+
+      await AffiliateModel.recordCommission({
+        referralId: ref.id,
+        referrerUserId: ref.referrerUserId,
+        paymentAmountCents: totalAmount,
+        paymentId: paymentId || undefined,
+        subscriptionId: subscriptionId || undefined,
+        planName: planName || undefined,
+      });
+
+      console.log(`[CREDIT CONTROLLER] Affiliate commission recorded for referrer ${ref.referrerUserId}, payment: $${(totalAmount / 100).toFixed(2)}`);
+    } catch (error) {
+      // Don't fail the webhook if affiliate tracking fails
+      console.error("[CREDIT CONTROLLER] Affiliate commission tracking error (non-fatal):", error);
+    }
   }
 
   // Get customer portal URL

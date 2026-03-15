@@ -37,11 +37,13 @@ export const user = pgTable(
     primaryPlatforms: jsonb("primary_platforms")
       .$type<string[]>()
       .default([]),
+    referralCode: text("referral_code").unique(),
   },
   (table) => ({
     emailIdx: index("idx_user_email").on(table.email),
     usernameIdx: index("idx_user_username").on(table.username),
     isOnboardedIdx: index("idx_user_isOnboarded").on(table.isOnboarded),
+    referralCodeIdx: index("idx_user_referral_code").on(table.referralCode),
   })
 );
 

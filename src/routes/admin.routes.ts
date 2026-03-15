@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { AdminController } from "../controllers/admin.controller";
+import { AffiliateController } from "../controllers/affiliate.controller";
 import { adminMiddleware } from "../middleware/admin.middleware";
 
 const adminRouter = new Hono();
@@ -63,5 +64,10 @@ adminRouter.get("/worker-logs/stream", AdminController.getWorkerLogStream);
 
 // Credit analytics
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);
+
+// Affiliate management
+adminRouter.get("/affiliate/commissions", AffiliateController.adminGetCommissions);
+adminRouter.post("/affiliate/commissions/:id/pay", AffiliateController.adminMarkPaid);
+adminRouter.post("/affiliate/commissions/bulk-pay", AffiliateController.adminBulkMarkPaid);
 
 export default adminRouter;

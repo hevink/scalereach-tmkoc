@@ -12,3 +12,4 @@ export * from "./share.schema";
 
 export * from "./background-video.schema";
 export * from "./social.schema";
+export * from "./affiliate.schema";
