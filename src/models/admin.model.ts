@@ -1146,7 +1146,7 @@ export class AdminModel {
     try {
       const result = await db.execute(sql`
         SELECT
-          w.id, w.name, w.slug, w.plan, w.billing_cycle,
+          w.id, w.name, w.slug, w.description, w.plan, w.billing_cycle,
           w.subscription_id, w.subscription_status,
           w.subscription_renewal_date, w.subscription_cancelled_at,
           w.created_at, w.updated_at,
@@ -1170,6 +1170,7 @@ export class AdminModel {
         id: row.id,
         name: row.name,
         slug: row.slug,
+        description: row.description,
         plan: row.plan || "free",
         billingCycle: row.billing_cycle,
         subscriptionId: row.subscription_id,
@@ -1208,6 +1209,7 @@ export class AdminModel {
         username: user.username,
         image: user.image,
         role: user.role,
+        primaryPlatforms: user.primaryPlatforms,
         emailVerified: user.emailVerified,
         isOnboarded: user.isOnboarded,
         twoFactorEnabled: user.twoFactorEnabled,
