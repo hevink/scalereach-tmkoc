@@ -640,8 +640,10 @@ for fd in frame_data:
         # instead of blindly holding the last face position.
         # This handles B-roll, text screens, etc. much better.
         center_x = (src_w - crop_w) // 2
-        # Blend toward center: 20% per step (reaches center in ~1-2s)
-        predicted_x = last_x + (center_x - last_x) * 0.20
+        # Blend toward center: 8% per step (reaches center in ~3-4s)
+        # Slower than before (was 20%) to avoid visible drift when face
+        # detection flickers for just 1-2 frames
+        predicted_x = last_x + (center_x - last_x) * 0.08
         x             = int(max(0, min(predicted_x, src_w - crop_w)))
         last_velocity *= 0.3
     else:
@@ -655,16 +657,18 @@ for fd in frame_data:
 
 # DEAD_ZONE: ignore movements smaller than this (prevents micro-jitter from face detection noise)
 # MOVE_ZONE: start slow panning only above this threshold (prevents wobble from natural head sway)
-# SNAP_ZONE: instant jump for speaker switches / scene cuts (raised from 200 to 350
-#            so fast head movement in podcasts doesn't trigger hard snaps)
-DEAD_ZONE = 40     # px - ignore tiny face bbox fluctuations (raised from 30)
-MOVE_ZONE = 100    # px - start slow pan for intentional movement (raised from 80)
-SNAP_ZONE = 350    # px - instant snap only for true speaker switch (raised from 200)
+# SNAP_ZONE: instant jump for speaker switches / scene cuts
+# All thresholds are RELATIVE to video width so they scale correctly for 720p, 1080p, 4K, etc.
+DEAD_ZONE = max(60, int(src_w * 0.025))   # ~2.5% of width (e.g. 96px on 4K, 48px on 1080p)
+MOVE_ZONE = max(120, int(src_w * 0.055))   # ~5.5% of width (e.g. 211px on 4K, 105px on 1080p)
+SNAP_ZONE = max(400, int(src_w * 0.12))    # ~12% of width (e.g. 460px on 4K, 230px on 1080p)
+
+log(f"Smoothing thresholds (scaled to {src_w}px): DEAD={DEAD_ZONE}, MOVE={MOVE_ZONE}, SNAP={SNAP_ZONE}")
 
 # Velocity history: track recent movement directions to detect oscillation.
 # If the face is bouncing left-right (gesturing, laughing), we suppress the pan
-# instead of chasing every frame. Window of 5 samples ≈ 0.5-1.0s of history.
-VELOCITY_WINDOW = 5
+# instead of chasing every frame. Window of 8 samples ≈ 1.6s of history at 0.2s interval.
+VELOCITY_WINDOW = 8
 
 if not raw_coords:
     log("WARNING: No raw coordinates - skipping reframe")
@@ -686,16 +690,20 @@ def is_oscillating(hist):
     """Detect if recent movement is oscillating (direction changes ≥ 3 times in window).
     This catches gesturing, laughing, leaning back-and-forth — movements where
     the camera should hold still instead of chasing."""
-    if len(hist) < 3:
+    if len(hist) < 4:
         return False
     signs = [1 if v > 0 else -1 if v < 0 else 0 for v in hist]
-    direction_changes = sum(1 for i in range(1, len(signs)) if signs[i] != 0 and signs[i] != signs[i-1])
+    # Filter out zero-deltas (no movement) before counting direction changes
+    non_zero = [s for s in signs if s != 0]
+    if len(non_zero) < 3:
+        return False
+    direction_changes = sum(1 for i in range(1, len(non_zero)) if non_zero[i] != non_zero[i-1])
     return direction_changes >= 3
 
-# Y-axis dead zones (vertical jitter is less noticeable, so tighter thresholds)
-Y_DEAD_ZONE = 20    # px - ignore tiny vertical fluctuations (raised from 15)
-Y_MOVE_ZONE = 50    # px - slow vertical pan (raised from 40)
-Y_SNAP_ZONE = 150   # px - instant vertical snap (raised from 120)
+# Y-axis dead zones — scaled to video height like X thresholds
+Y_DEAD_ZONE = max(30, int(src_h * 0.015))   # ~1.5% of height
+Y_MOVE_ZONE = max(60, int(src_h * 0.035))    # ~3.5% of height
+Y_SNAP_ZONE = max(180, int(src_h * 0.10))    # ~10% of height
 y_velocity_hist = []
 
 for rc in raw_coords:
@@ -711,8 +719,10 @@ for rc in raw_coords:
     oscillating = is_oscillating(velocity_hist)
 
     if rc["face"] and not prev_had_face:
-        # Face reappeared - snap to it
-        smoothed_x = raw_x
+        # Face reappeared - DON'T snap instantly, blend quickly instead
+        # This prevents a jarring jump when face detection flickers
+        ALPHA = 0.35
+        smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
         velocity_hist.clear()
     elif abs_delta > SNAP_ZONE:
         # Big jump (speaker switch) - snap instantly
@@ -723,16 +733,16 @@ for rc in raw_coords:
         # Only apply a very tiny correction toward the average recent position
         # so the crop doesn't drift if the person genuinely shifted.
         avg_raw = smoothed_x + sum(velocity_hist) / len(velocity_hist)
-        ALPHA = 0.01
+        ALPHA = 0.005
         smoothed_x = ALPHA * avg_raw + (1 - ALPHA) * smoothed_x
     elif abs_delta > MOVE_ZONE:
         # Intentional movement - smooth pan with moderate alpha
-        # Capped lower than before (0.10 max instead of 0.15) for more cinematic feel
-        ALPHA = min(0.10, 0.03 + abs_delta / 1500.0)
+        # Capped at 0.06 for cinematic, non-jittery panning
+        ALPHA = min(0.06, 0.02 + abs_delta / 3000.0)
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
     elif abs_delta > DEAD_ZONE:
         # Small drift - very slow correction to avoid visible wobble
-        ALPHA = 0.02
+        ALPHA = 0.01
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
     # else: abs_delta <= DEAD_ZONE - do nothing, hold position
 
@@ -749,20 +759,21 @@ for rc in raw_coords:
     y_oscillating = is_oscillating(y_velocity_hist)
 
     if rc["face"] and not prev_had_face:
-        smoothed_y = raw_y
+        ALPHA_Y = 0.30
+        smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
         y_velocity_hist.clear()
     elif abs_delta_y > Y_SNAP_ZONE:
         smoothed_y = raw_y
         y_velocity_hist.clear()
     elif y_oscillating and abs_delta_y < Y_SNAP_ZONE:
         avg_raw_y = smoothed_y + sum(y_velocity_hist) / len(y_velocity_hist)
-        ALPHA_Y = 0.01
+        ALPHA_Y = 0.005
         smoothed_y = ALPHA_Y * avg_raw_y + (1 - ALPHA_Y) * smoothed_y
     elif abs_delta_y > Y_MOVE_ZONE:
-        ALPHA_Y = min(0.08, 0.03 + abs_delta_y / 1000.0)
+        ALPHA_Y = min(0.05, 0.02 + abs_delta_y / 2000.0)
         smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
     elif abs_delta_y > Y_DEAD_ZONE:
-        ALPHA_Y = 0.02
+        ALPHA_Y = 0.01
         smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
     # else: abs_delta_y <= Y_DEAD_ZONE - hold vertical position
 
@@ -779,7 +790,7 @@ for rc in raw_coords:
 log(f"Generated {len(coords)} crop keyframes")
 
 # Interpolate to per-frame with smooth easing
-INTERP_SNAP    = 350  # match SNAP_ZONE - only hard-cut interpolation for true speaker switches
+INTERP_SNAP    = SNAP_ZONE  # match SNAP_ZONE - only hard-cut interpolation for true speaker switches
 frame_coords   = []
 frame_interval = 1.0 / fps
 
@@ -801,11 +812,11 @@ for i in range(len(coords) - 1):
         else:
             t_linear = step / steps
             t_smooth = ease_in_out(t_linear)
-            interp_x = int(a["x"] + t_smooth * (b["x"] - a["x"]))
-            interp_y = int(a["y"] + t_smooth * (b["y"] - a["y"]))
+            interp_x = a["x"] + t_smooth * (b["x"] - a["x"])
+            interp_y = a["y"] + t_smooth * (b["y"] - a["y"])
         frame_coords.append({
             "t":    round(a["t"] + step * frame_interval, 4),
-            "x":    interp_x,
+            "x":    interp_x,  # keep as float for now, round after post-smoothing
             "y":    interp_y,
             "w":    crop_w,
             "h":    crop_h,
@@ -813,7 +824,45 @@ for i in range(len(coords) - 1):
         })
 
 frame_coords.append(coords[-1])
-log(f"Interpolated to {len(frame_coords)} per-frame coords ({fps}fps)")
+
+# ── Post-smoothing pass: Gaussian-like moving average to eliminate micro-jitter ──
+# The EMA + interpolation can still leave tiny 1-3px oscillations that are visible
+# as jitter. A final smoothing pass with a wide kernel eliminates these completely.
+POST_SMOOTH_RADIUS = max(3, int(fps * 0.15))  # ~0.15s window (3-4 frames at 24fps, 4-5 at 30fps)
+
+def post_smooth(values, radius):
+    """Simple moving average with edge clamping. Preserves hard cuts (scene switches)."""
+    n = len(values)
+    if n <= 1:
+        return values
+    result = values[:]
+    for i in range(n):
+        lo = max(0, i - radius)
+        hi = min(n, i + radius + 1)
+        # Check for hard cuts in the window — don't smooth across them
+        window = values[lo:hi]
+        max_jump = max(abs(window[j] - window[j-1]) for j in range(1, len(window))) if len(window) > 1 else 0
+        if max_jump > SNAP_ZONE:
+            # Hard cut in window — don't smooth this frame
+            result[i] = values[i]
+        else:
+            result[i] = sum(window) / len(window)
+    return result
+
+x_values = [fc["x"] for fc in frame_coords]
+y_values = [fc["y"] for fc in frame_coords]
+
+x_smooth = post_smooth(x_values, POST_SMOOTH_RADIUS)
+y_smooth = post_smooth(y_values, POST_SMOOTH_RADIUS)
+
+for i, fc in enumerate(frame_coords):
+    fc["x"] = int(round(x_smooth[i]))
+    fc["y"] = int(round(y_smooth[i]))
+    # Clamp to valid range
+    fc["x"] = max(0, min(fc["x"], src_w - crop_w))
+    fc["y"] = max(0, min(fc["y"], src_h - crop_h))
+
+log(f"Interpolated to {len(frame_coords)} per-frame coords ({fps}fps) with post-smoothing (radius={POST_SMOOTH_RADIUS})")
 
 # Guard: if no coords were generated, skip
 if not frame_coords:

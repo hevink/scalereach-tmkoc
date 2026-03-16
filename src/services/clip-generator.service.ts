@@ -160,13 +160,9 @@ function getOutputDimensions(
  */
 function getEncodingParams(quality: VideoQuality, pass: "raw" | "final" = "final"): { preset: string; crf: string } {
   if (quality === "2k" || quality === "4k") {
-    return pass === "raw"
-      ? { preset: "veryfast", crf: "20" }
-      : { preset: "medium", crf: "20" };
+    return { preset: "medium", crf: "18" };
   }
-  return pass === "raw"
-    ? { preset: "ultrafast", crf: "22" }
-    : { preset: "veryfast", crf: "22" };
+  return { preset: "ultrafast", crf: "22" };
 }
 
 /**
@@ -509,9 +505,9 @@ export class ClipGeneratorService {
                   return;
                 }
                 const first = allCoords[0];
-                const cmdLines = allCoords.flatMap(({ t, x, y, w, h }: any) => [
-                  `${t} crop x ${x};`, `${t} crop y ${y};`, `${t} crop w ${w};`, `${t} crop h ${h};`,
-                ]);
+                const cmdLines = allCoords.map(({ t, x, y, w, h }: any) =>
+                  `${t} crop x ${x}; ${t} crop y ${y}; ${t} crop w ${w}; ${t} crop h ${h};`
+                );
                 const cmdFile = path.join(TMP_DIR, `sc-cmds-${tempId}.txt`);
                 tempPaths.push(cmdFile);
                 require("fs").writeFileSync(cmdFile, cmdLines.join("\n"));
@@ -526,9 +522,9 @@ export class ClipGeneratorService {
                 // Standard face-tracking crop
                 const coords: Array<{ t: number; x: number; y: number; w: number; h: number }> = result.coords;
                 const first = coords[0];
-                const cmdLines = coords.flatMap(({ t, x, y, w, h }) => [
-                  `${t} crop x ${x};`, `${t} crop y ${y};`, `${t} crop w ${w};`, `${t} crop h ${h};`,
-                ]);
+                const cmdLines = coords.map(({ t, x, y, w, h }) =>
+                  `${t} crop x ${x}; ${t} crop y ${y}; ${t} crop w ${w}; ${t} crop h ${h};`
+                );
                 const cmdFile = path.join(TMP_DIR, `sc-cmds-${tempId}.txt`);
                 tempPaths.push(cmdFile);
                 require("fs").writeFileSync(cmdFile, cmdLines.join("\n"));
@@ -1018,10 +1014,11 @@ export class ClipGeneratorService {
       marginR = marginL;
     }
 
-    // Intro title style - larger than captions
-    // When split screen is active, position at the split boundary (center between top and bottom video)
-    // Otherwise default to 20% from top
-    const introFontSize = Math.round(fontSize * 1.4);
+    // Intro title style — match frontend edit preview exactly:
+    // Frontend uses: fontSize 36, fontWeight 600, lineHeight 1.2, maxWidth 90%,
+    // color #000000, backgroundColor #FFFFFF, padding 2px 6px, borderRadius 12
+    // ASS BorderStyle 3 = opaque box (OutlineColour becomes box fill)
+    const introFontSize = Math.round(36 * scaleFactor);
     const introMarginV = splitRatio
       ? Math.round(height * (splitRatio / 100))
       : Math.round(height * 0.20);
@@ -1110,7 +1107,7 @@ YCbCr Matrix: None
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: Default,${effectiveFontFamily},${fontSize},${textColor},${textColor},${outlineColor},${backColour},1,0,0,0,100,100,0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},0
 Style: Highlight,${effectiveFontFamily},${fontSize},${highlightColor},${highlightColor},${outlineColor},${backColour},1,0,0,0,${highlightScale},${highlightScale},0,0,${borderStyle},${outline},${shadow},${alignment},${marginL},${marginR},${marginV},0
-Style: IntroTitle,${effectiveFontFamily},${introFontSize},&H00000000,&H00000000,&H00000000,&H00FFFFFF,0,0,0,0,100,100,0,0,3,${Math.round(2 * scaleFactor)},0,8,${Math.round(20 * scaleFactor)},${Math.round(20 * scaleFactor)},${introMarginV},0
+Style: IntroTitle,${effectiveFontFamily},${introFontSize},&H00000000,&H00000000,&H00FFFFFF,&H00FFFFFF,1,0,0,0,100,100,0,0,3,${Math.round(6 * scaleFactor)},0,8,${Math.round(width * 0.05)},${Math.round(width * 0.05)},${introMarginV},0
 Style: EmojiOverlay,Noto Color Emoji,${emojiFontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,0,0,0,5,20,20,${emojiMarginV},0
 Style: Glow,${effectiveFontFamily},${fontSize},${glowColor},${glowColor},${glowColor},&H00000000,1,0,0,0,100,100,0,0,1,${Math.round(glowIntensity * scaleFactor)},0,${alignment},${marginL},${marginR},${marginV},0
 `;
@@ -1126,7 +1123,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       // Scale up + fade in from top, then fade out
       // {\fad(400,500)} = 400ms fade in, 500ms fade out
       // {\fscx80\fscy80\t(0,300,\fscx100\fscy100)} = start at 80% scale, animate to 100% in 300ms
-      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\b600\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
+      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\an8\\q2\\b600\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
     }
 
     // Group words into lines based on wordsPerLine setting
@@ -1781,7 +1778,9 @@ print(f"OK:{total_w}x{total_h}")
         const isCode222 = lastError.message.includes("ffmpeg exited with code 222");
         const isBotBlocked = lastError.message.includes("Sign in") ||
                               lastError.message.includes("not a bot") ||
-                              lastError.message.includes("cookies");
+                              lastError.message.includes("cookies") ||
+                              lastError.message.includes("UNPLAYABLE") ||
+                              lastError.message.includes("page needs to be reloaded");
         const isRetryableError = isCode222 || isBotBlocked ||
                                   lastError.message.includes("ffmpeg exited with code 202") ||
                                   lastError.message.includes("ffmpeg exited with code 1") ||
@@ -1827,13 +1826,25 @@ print(f"OK:{total_w}x{total_h}")
     forceKeyframes = true
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const formatSelector = "bestvideo+bestaudio/best";
+      const formatSelector = "bestvideo[height>=1080]+bestaudio/bestvideo[height>=720]+bestaudio/bestvideo+bestaudio/best";
       const downloadSection = formatYtDlpTimestamp(startTime, endTime);
       const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
         || (fs.existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
         || (fs.existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
+
+      // Use mweb client — the officially recommended client for yt-dlp as of 2025+.
+      // YouTube's web client now only serves SABR formats (UNPLAYABLE without SABR downloader).
+      // mweb provides standard DASH formats and only requires a GVS PO Token (provided by bgutil).
+      // Fallback to web_safari (HLS, no PO Token needed for GVS) then android as last resort.
+      const extractorArgs: string[] = [
+        `youtube:player_client=mweb,web_safari`,
+      ];
+      if (bgutilBaseUrl) {
+        extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
+        this.logOperation("YT_DLP_USING_POT", { baseUrl: bgutilBaseUrl });
+      }
 
       const args = [
         "-f", formatSelector,
@@ -1843,23 +1854,14 @@ print(f"OK:{total_w}x{total_h}")
         "-o", outputPath,
         "--no-playlist",
         "--newline",
-        "--no-warnings",
         "--no-post-overwrites",
         "--js-runtimes", "deno",
-        "--extractor-args", `youtube:player_client=${cookiesPath ? "web" : "web,android_vr,android"}`,
+        ...extractorArgs.flatMap(a => ["--extractor-args", a]),
         "--extractor-retries", "3",
         "--fragment-retries", "5",
         "--retry-sleep", "2",
         url,
       ];
-
-      // Add bgutil POT provider if server is running (critical for bot bypass on datacenter IPs)
-      if (bgutilBaseUrl) {
-        args.splice(args.indexOf("--extractor-retries"), 0,
-          "--extractor-args", `youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`
-        );
-        this.logOperation("YT_DLP_USING_POT", { baseUrl: bgutilBaseUrl });
-      }
 
       // Add proxy if configured
       if (proxy) {
@@ -1910,16 +1912,12 @@ print(f"OK:{total_w}x{total_h}")
 
       ytdlpProcess.stdout?.on("data", (data) => {
         lastActivity = Date.now();
-        // Log progress lines from yt-dlp (when not --quiet)
-        const line = data.toString().trim();
-        if (line && line.includes("%")) {
-          console.log(`[CLIP GENERATOR] YT_DLP: ${line}`);
-        }
       });
 
       ytdlpProcess.stderr?.on("data", (data) => {
         lastActivity = Date.now();
-        stderr += data.toString();
+        const chunk = data.toString();
+        stderr += chunk;
       });
 
       ytdlpProcess.on("error", (err) => {

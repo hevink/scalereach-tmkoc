@@ -24,7 +24,7 @@ export class AIService {
       system: systemPrompt,
       prompt,
       temperature,
-      maxOutputTokens: Math.min(maxTokens, 32000),
+      maxOutputTokens: Math.min(maxTokens, 90000),
     });
 
     console.log(`[AI] ${result.usage?.outputTokens ?? "?"} tokens used`);
@@ -37,17 +37,17 @@ export class AIService {
   ): Promise<T> {
     const { schema, systemPrompt, temperature = 0.7, maxTokens = 4096 } = options;
 
-    const result = await generateObject({
-      model: google(MODEL_ID),
-      system: systemPrompt,
-      prompt,
-      schema,
-      temperature,
-      maxOutputTokens: Math.min(maxTokens, 32000),
-    });
+        const result = await generateObject({
+          model: google(MODEL_ID),
+          system: systemPrompt,
+          prompt,
+          schema,
+          temperature,
+          maxOutputTokens: Math.min(maxTokens, 90000),
+        });
 
-    console.log(`[AI] ${result.usage?.outputTokens ?? "?"} tokens used`);
-    return result.object;
+        console.log(`[AI] ${result.usage?.outputTokens ?? "?"} tokens used`);
+        return result.object;
   }
 }
 

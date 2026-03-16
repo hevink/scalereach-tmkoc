@@ -288,22 +288,23 @@ export class YouTubeService {
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
       
+      // Use web client when cookies are available (better metadata), android as fallback
+      const extractorArgs: string[] = [
+        `youtube:player_client=${cookiesPath ? "web,android" : "android,web"}`,
+      ];
+      if (bgutilBaseUrl) {
+        extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
+        console.log(`[YOUTUBE SERVICE] Using bgutil POT provider at: ${bgutilBaseUrl}`);
+      }
+
       const args = [
         "--dump-json",
         "--no-download",
         "--no-check-certificates",
-        "--extractor-args", `youtube:player_client=${cookiesPath ? "web" : "web,android_vr,android"}`,
+        ...extractorArgs.flatMap(a => ["--extractor-args", a]),
         "--extractor-retries", "3",
         url,
       ];
-
-      // Add bgutil POT provider if server is running
-      if (bgutilBaseUrl) {
-        args.splice(args.indexOf("--extractor-retries"), 0,
-          "--extractor-args", `youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`
-        );
-        console.log(`[YOUTUBE SERVICE] Using bgutil POT provider at: ${bgutilBaseUrl}`);
-      }
 
       // Add proxy if configured
       if (proxy) {
@@ -315,6 +316,8 @@ export class YouTubeService {
         args.unshift("--cookies", cookiesPath);
         console.log(`[YOUTUBE SERVICE] Using cookies from: ${cookiesPath}`);
       }
+
+      console.log(`[YOUTUBE SERVICE] yt-dlp args: ${JSON.stringify(args)}`);
 
       const childProcess = spawn("yt-dlp", args);
       let stdout = "";
@@ -421,6 +424,14 @@ export class YouTubeService {
     const proxy = process.env.YOUTUBE_PROXY;
     const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
     
+    // Use web client when cookies are available, android as fallback
+    const extractorArgs: string[] = [
+      `youtube:player_client=${cookiesPath ? "web,android" : "android,web"}`,
+    ];
+    if (bgutilBaseUrl) {
+      extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
+    }
+
     const args = [
       "-f", "bestaudio[ext=m4a]/bestaudio/best",
       "-o", "-",
@@ -428,19 +439,12 @@ export class YouTubeService {
       "--no-warnings",
       "--no-check-certificates",
       "--prefer-free-formats",
-      "--extractor-args", `youtube:player_client=${cookiesPath ? "web" : "web,android_vr,android"}`,
+      ...extractorArgs.flatMap(a => ["--extractor-args", a]),
       "--extractor-retries", "3",
       "--fragment-retries", "5",
       "--retry-sleep", "2",
       url,
     ];
-
-    // Add bgutil POT provider if server is running
-    if (bgutilBaseUrl) {
-      args.splice(args.indexOf("--extractor-retries"), 0,
-        "--extractor-args", `youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`
-      );
-    }
 
     // Add proxy if configured
     if (proxy) {
