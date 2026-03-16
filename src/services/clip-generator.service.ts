@@ -1777,9 +1777,46 @@ print(f"OK:{total_w}x{total_h}")
     let lastError: Error | null = null;
     let forceKeyframes = true;
     const expectedDuration = endTime - startTime;
+    let code222Count = 0;
+    let truncatedCount = 0;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        // If both --force-keyframes-at-cuts AND without it have failed,
+        // fall back to downloading the full video and trimming locally with FFmpeg.
+        // This avoids yt-dlp's internal FFmpeg trim entirely.
+        if (code222Count > 0 && truncatedCount > 0) {
+          this.logOperation("YT_DLP_FULL_DOWNLOAD_FALLBACK", {
+            attempt,
+            reason: "both keyframes and no-keyframes failed, downloading full video + local trim",
+          });
+          const fullPath = outputPath.replace(".mp4", "-full.mp4");
+          await this.executeYtDlpFullDownload(url, fullPath);
+          // Trim locally with FFmpeg
+          await new Promise<void>((resolve, reject) => {
+            const trimArgs = [
+              "-ss", startTime.toString(),
+              "-i", fullPath,
+              "-t", expectedDuration.toString(),
+              "-c", "copy",
+              "-avoid_negative_ts", "make_zero",
+              "-y", outputPath,
+            ];
+            this.logOperation("FFMPEG_LOCAL_TRIM", { args: trimArgs.join(" ") });
+            const proc = spawn("ffmpeg", trimArgs);
+            let stderr = "";
+            proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+            proc.on("error", (err) => reject(new Error(`FFmpeg trim spawn failed: ${err.message}`)));
+            proc.on("close", (code) => {
+              // Cleanup full download
+              this.cleanupTempFile(fullPath).catch(() => {});
+              if (code === 0) resolve();
+              else reject(new Error(`FFmpeg local trim failed (code ${code}): ${stderr.slice(-500)}`));
+            });
+          });
+          return; // Success
+        }
+
         await this.executeYtDlpDownload(url, startTime, endTime, outputPath, forceKeyframes);
 
         // Validate downloaded file duration to catch truncated downloads.
@@ -1826,6 +1863,8 @@ print(f"OK:{total_w}x{total_h}")
                               lastError.message.includes("UNPLAYABLE") ||
                               lastError.message.includes("page needs to be reloaded");
         const isTruncated = lastError.message.includes("truncated file");
+        if (isCode222) code222Count++;
+        if (isTruncated) truncatedCount++;
         const isRetryableError = isCode222 || isBotBlocked || isTruncated ||
                                   lastError.message.includes("ffmpeg exited with code 202") ||
                                   lastError.message.includes("ffmpeg exited with code 1") ||
@@ -1979,6 +2018,82 @@ print(f"OK:{total_w}x{total_h}")
           return;
         }
         resolve();
+      });
+    });
+  }
+
+  /**
+   * Download the FULL YouTube video (no --download-sections) as a fallback
+   * when both --force-keyframes-at-cuts and without it produce broken files.
+   */
+  private static async executeYtDlpFullDownload(
+    url: string,
+    outputPath: string
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const formatSelector = "bestvideo[height>=1080]+bestaudio/bestvideo[height>=720]+bestaudio/bestvideo+bestaudio/best";
+      const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
+        || (fs.existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
+        || (fs.existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
+      const proxy = process.env.YOUTUBE_PROXY;
+      const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
+
+      const extractorArgs: string[] = [`youtube:player_client=mweb,web_safari`];
+      if (bgutilBaseUrl) {
+        extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
+      }
+
+      const args = [
+        "-f", formatSelector,
+        "--merge-output-format", "mp4",
+        "-o", outputPath,
+        "--no-playlist",
+        "--newline",
+        "--no-post-overwrites",
+        "--js-runtimes", "deno",
+        ...extractorArgs.flatMap(a => ["--extractor-args", a]),
+        "--extractor-retries", "3",
+        "--fragment-retries", "5",
+        "--retry-sleep", "2",
+        url,
+      ];
+
+      if (proxy) args.unshift("--proxy", proxy);
+      if (cookiesPath) args.unshift("--cookies", cookiesPath);
+
+      this.logOperation("YT_DLP_FULL_DOWNLOAD", { args: args.join(" ") });
+
+      const proc = spawn("yt-dlp", args);
+      let stderr = "";
+      let lastActivity = Date.now();
+      const TIMEOUT_MS = 10 * 60 * 1000; // 10 min for full video
+
+      let lastLoggedSize = 0;
+      const sizeCheck = setInterval(() => {
+        try {
+          const partPath = `${outputPath}.part`;
+          const checkPath = fs.existsSync(partPath) ? partPath : (fs.existsSync(outputPath) ? outputPath : null);
+          if (checkPath) {
+            const size = fs.statSync(checkPath).size;
+            if (size !== lastLoggedSize) {
+              lastLoggedSize = size;
+              lastActivity = Date.now();
+              console.log(`[CLIP GENERATOR] YT_DLP_FULL_PROGRESS: ${(size / 1024 / 1024).toFixed(1)} MB downloaded`);
+            }
+          }
+          if (Date.now() - lastActivity > TIMEOUT_MS) {
+            proc.kill("SIGTERM");
+          }
+        } catch { /* ignore */ }
+      }, 10_000);
+
+      proc.stdout?.on("data", () => { lastActivity = Date.now(); });
+      proc.stderr?.on("data", (d) => { lastActivity = Date.now(); stderr += d.toString(); });
+      proc.on("error", (err) => { clearInterval(sizeCheck); reject(new Error(`yt-dlp full download spawn failed: ${err.message}`)); });
+      proc.on("close", (code) => {
+        clearInterval(sizeCheck);
+        if (code !== 0) reject(new Error(`yt-dlp full download failed with code ${code}: ${stderr.slice(-500)}`));
+        else resolve();
       });
     });
   }
