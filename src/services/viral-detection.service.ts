@@ -303,7 +303,7 @@ ${formattedTranscript}`;
           schema: ViralClipSchema,
           systemPrompt,
           temperature: 0.3,
-          maxTokens: 32000,
+          maxTokens: 64000,
         }
       );
 
