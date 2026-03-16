@@ -65,6 +65,7 @@ adminRouter.get("/worker-logs/stream", AdminController.getWorkerLogStream);
 // EC2 instance management
 adminRouter.get("/ec2/status", AdminController.getEC2Status);
 adminRouter.post("/ec2/control", AdminController.controlEC2Instance);
+adminRouter.get("/burst-status", AdminController.getBurstWorkerStatus);
 
 // Credit analytics
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);

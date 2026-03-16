@@ -745,4 +745,37 @@ export class AdminController {
       return c.json({ error: `EC2 control failed: ${msg}` }, 500);
     }
   }
+
+  /**
+   * Get burst worker status (proxied via burst instance IP)
+   * GET /api/admin/burst-status
+   */
+  static async getBurstWorkerStatus(c: Context) {
+    try {
+      const { DescribeInstancesCommand } = require("@aws-sdk/client-ec2");
+      const ec2 = AdminController.getEC2Client();
+      const burstId = process.env.BURST_INSTANCE_ID;
+      if (!burstId) return c.json({ error: "BURST_INSTANCE_ID not configured" }, 500);
+
+      // Get burst instance IP
+      const desc = await ec2.send(new DescribeInstancesCommand({ InstanceIds: [burstId] }));
+      const inst = desc.Reservations?.[0]?.Instances?.[0];
+      if (!inst || inst.State?.Name !== "running") {
+        return c.json({ error: "Burst instance not running", state: inst?.State?.Name || "unknown" }, 200);
+      }
+
+      const burstIp = inst.PublicIpAddress;
+      if (!burstIp) return c.json({ error: "Burst instance has no public IP" }, 200);
+
+      const burstPort = process.env.BURST_HEALTH_PORT || "3003";
+      const res = await fetch(`http://${burstIp}:${burstPort}/health`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await res.json();
+      return c.json(data, res.status as any);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to reach burst worker: ${msg}` }, 200);
+    }
+  }
 }
