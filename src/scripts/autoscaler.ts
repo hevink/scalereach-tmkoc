@@ -126,16 +126,19 @@ async function stopBurst() {
 // ── Main check loop ─────────────────────────────────────────
 async function check() {
   try {
-    const [waiting, active, delayed] = await Promise.all([
+    const [waiting, active, delayed, prioritized] = await Promise.all([
       clipQueue.getWaitingCount(),
       clipQueue.getActiveCount(),
       clipQueue.getDelayedCount(),
+      // BullMQ stores priority jobs in a separate "prioritized" sorted set,
+      // not in the "wait" list. getWaitingCount() misses them entirely.
+      redis.zcard(`bull:${CLIP_QUEUE_NAME}:prioritized`),
     ]);
-    const total = waiting + active;
+    const total = waiting + active + prioritized;
     const burstState = await getBurstState();
 
     console.log(
-      `[SCALER] Queue: waiting=${waiting} active=${active} delayed=${delayed} total=${total} | Burst: ${burstState}`
+      `[SCALER] Queue: waiting=${waiting} active=${active} prioritized=${prioritized} delayed=${delayed} total=${total} | Burst: ${burstState}`
     );
 
     if (total >= SCALE_UP_THRESHOLD) {
