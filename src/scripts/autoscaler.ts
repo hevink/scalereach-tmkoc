@@ -185,6 +185,16 @@ check();
 // Periodic check
 setInterval(check, CHECK_INTERVAL_MS);
 
+// Listen for force-check requests via Redis pub/sub
+const subscriber = redis.duplicate();
+subscriber.subscribe("scaler:force-check");
+subscriber.on("message", async (channel: string) => {
+  if (channel === "scaler:force-check") {
+    console.log("[SCALER] Force check triggered from admin");
+    await check();
+  }
+});
+
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   console.log("[SCALER] SIGTERM received, shutting down...");

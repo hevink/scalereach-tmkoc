@@ -807,4 +807,32 @@ export class AdminController {
       return c.json({ error: `Failed to read scaler state: ${msg}` }, 200);
     }
   }
+
+  /**
+   * Force the autoscaler to check the queue immediately
+   * POST /api/admin/scaler-check
+   */
+  static async forceScalerCheck(c: Context) {
+    try {
+      const IORedis = require("ioredis");
+      const redisUrl = process.env.REDIS_URL;
+      const redisHost = process.env.REDIS_HOST || "localhost";
+      const redisPort = parseInt(process.env.REDIS_PORT || "6379", 10);
+      const redisPassword = process.env.REDIS_PASSWORD || undefined;
+
+      const redisOpts: any = { maxRetriesPerRequest: 1, connectTimeout: 5000, lazyConnect: true };
+      const redis = redisUrl
+        ? new IORedis(redisUrl, redisOpts)
+        : new IORedis({ host: redisHost, port: redisPort, password: redisPassword, ...redisOpts });
+
+      await redis.connect();
+      await redis.publish("scaler:force-check", "1");
+      await redis.quit();
+
+      return c.json({ success: true, message: "Force check triggered" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to trigger check: ${msg}` }, 500);
+    }
+  }
 }
