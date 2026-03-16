@@ -1764,7 +1764,7 @@ print(f"OK:{total_w}x{total_h}")
     endTime: number,
     outputPath: string,
     quality: VideoQuality,
-    maxRetries: number = 4
+    maxRetries: number = 2
   ): Promise<void> {
     let lastError: Error | null = null;
     let forceKeyframes = true;
