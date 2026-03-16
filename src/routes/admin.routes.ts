@@ -62,6 +62,10 @@ adminRouter.post("/youtube-health", AdminController.getYouTubeHealth);
 adminRouter.get("/worker-status", AdminController.getWorkerStatus);
 adminRouter.get("/worker-logs/stream", AdminController.getWorkerLogStream);
 
+// EC2 instance management
+adminRouter.get("/ec2/status", AdminController.getEC2Status);
+adminRouter.post("/ec2/control", AdminController.controlEC2Instance);
+
 // Credit analytics
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);
 

@@ -660,4 +660,89 @@ export class AdminController {
       return c.json({ error: `Failed to reach worker: ${msg}` }, 502);
     }
   }
+
+  // ── EC2 Instance Management ─────────────────────────────────
+
+  private static getEC2Client() {
+    const { EC2Client } = require("@aws-sdk/client-ec2");
+    return new EC2Client({ region: process.env.AWS_REGION || "us-east-1" });
+  }
+
+  /**
+   * Get EC2 instance statuses for base + burst
+   * GET /api/admin/ec2/status
+   */
+  static async getEC2Status(c: Context) {
+    try {
+      const { DescribeInstancesCommand } = require("@aws-sdk/client-ec2");
+      const ec2 = AdminController.getEC2Client();
+
+      const baseId = process.env.BASE_INSTANCE_ID;
+      const burstId = process.env.BURST_INSTANCE_ID;
+      if (!baseId || !burstId) {
+        return c.json({ error: "EC2 instance IDs not configured" }, 500);
+      }
+
+      const res = await ec2.send(
+        new DescribeInstancesCommand({ InstanceIds: [baseId, burstId] })
+      );
+
+      const instances = (res.Reservations || []).flatMap((r: any) => r.Instances || []);
+      const format = (inst: any) => ({
+        id: inst.InstanceId,
+        state: inst.State?.Name || "unknown",
+        type: inst.InstanceType,
+        ip: inst.PublicIpAddress || null,
+        launchTime: inst.LaunchTime?.toISOString() || null,
+        cpuCount: inst.CpuOptions?.CoreCount ? inst.CpuOptions.CoreCount * (inst.CpuOptions.ThreadsPerCore || 1) : null,
+      });
+
+      const baseInst = instances.find((i: any) => i.InstanceId === baseId);
+      const burstInst = instances.find((i: any) => i.InstanceId === burstId);
+
+      return c.json({
+        base: baseInst ? { ...format(baseInst), role: "base", label: "Base (8GB)" } : { id: baseId, state: "unknown", role: "base" },
+        burst: burstInst ? { ...format(burstInst), role: "burst", label: "Burst (32GB)" } : { id: burstId, state: "unknown", role: "burst" },
+      });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `EC2 status failed: ${msg}` }, 500);
+    }
+  }
+
+  /**
+   * Start or stop an EC2 instance
+   * POST /api/admin/ec2/control
+   * Body: { instanceId: string, action: "start" | "stop" }
+   */
+  static async controlEC2Instance(c: Context) {
+    try {
+      const { StartInstancesCommand, StopInstancesCommand } = require("@aws-sdk/client-ec2");
+      const ec2 = AdminController.getEC2Client();
+
+      const body = await c.req.json();
+      const { instanceId, action } = body;
+
+      const baseId = process.env.BASE_INSTANCE_ID;
+      const burstId = process.env.BURST_INSTANCE_ID;
+
+      // Only allow controlling known instances
+      if (instanceId !== baseId && instanceId !== burstId) {
+        return c.json({ error: "Unknown instance ID" }, 400);
+      }
+
+      if (action === "start") {
+        await ec2.send(new StartInstancesCommand({ InstanceIds: [instanceId] }));
+        return c.json({ success: true, message: `Starting instance ${instanceId}` });
+      } else if (action === "stop") {
+        await ec2.send(new StopInstancesCommand({ InstanceIds: [instanceId] }));
+        return c.json({ success: true, message: `Stopping instance ${instanceId}` });
+      } else {
+        return c.json({ error: "Invalid action. Use 'start' or 'stop'" }, 400);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `EC2 control failed: ${msg}` }, 500);
+    }
+  }
 }
