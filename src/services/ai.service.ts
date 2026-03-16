@@ -4,9 +4,12 @@ import type { z } from "zod";
 
 const google = createGoogleGenerativeAI({
   apiKey: process.env.VERTEX_AI_API_KEY || "",
+  fetch: ((url: any, init: any) => {
+    return fetch(url, { ...init, signal: AbortSignal.timeout(5 * 60 * 1000) });
+  }) as any,
 });
 
-const MODEL_ID = "gemini-3-pro-preview";
+const MODEL_ID = "gemini-2.5-flash";
 
 console.log(`[AI] provider: google (vertex-ai)`);
 console.log(`[AI] model: ${MODEL_ID}`);

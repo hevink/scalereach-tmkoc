@@ -288,9 +288,9 @@ export class YouTubeService {
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
       
-      // Use web client when cookies are available (better metadata), android as fallback
+      // Use mweb client — officially recommended for yt-dlp (web only has SABR formats now)
       const extractorArgs: string[] = [
-        `youtube:player_client=${cookiesPath ? "web,android" : "android,web"}`,
+        `youtube:player_client=mweb,web_safari`,
       ];
       if (bgutilBaseUrl) {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
@@ -424,9 +424,9 @@ export class YouTubeService {
     const proxy = process.env.YOUTUBE_PROXY;
     const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
     
-    // Use web client when cookies are available, android as fallback
+    // Use mweb client — officially recommended for yt-dlp (web only has SABR formats now)
     const extractorArgs: string[] = [
-      `youtube:player_client=${cookiesPath ? "web,android" : "android,web"}`,
+      `youtube:player_client=mweb,web_safari`,
     ];
     if (bgutilBaseUrl) {
       extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
