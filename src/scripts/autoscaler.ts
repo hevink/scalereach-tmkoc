@@ -16,7 +16,7 @@ import {
 
 // ── Config ──────────────────────────────────────────────────
 const BURST_INSTANCE_ID = process.env.BURST_INSTANCE_ID;
-const SCALE_UP_THRESHOLD = parseInt(process.env.SCALE_UP_THRESHOLD || "3", 10);
+const SCALE_UP_THRESHOLD = parseInt(process.env.SCALE_UP_THRESHOLD || "1", 10);
 const SCALE_DOWN_IDLE_MS = parseInt(process.env.SCALE_DOWN_IDLE_MS || "600000", 10); // 10 min
 const CHECK_INTERVAL_MS = parseInt(process.env.SCALER_CHECK_INTERVAL_MS || "60000", 10); // 60s
 const AWS_REGION = process.env.AWS_REGION || "us-east-1";

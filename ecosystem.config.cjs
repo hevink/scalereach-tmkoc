@@ -12,7 +12,7 @@ module.exports = {
         NODE_ENV: "production",
         WORKER_HEALTH_PORT: "3002",
         VIDEO_WORKER_CONCURRENCY: "2",
-        CLIP_WORKER_CONCURRENCY: "1",
+        CLIP_WORKER_CONCURRENCY: "0",
         DUBBING_WORKER_CONCURRENCY: "1",
         SMART_CROP_WORKER_CONCURRENCY: "1",
         PYTHON_PATH: "/home/ubuntu/smart_crop_env/bin/python3",
@@ -41,7 +41,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         BURST_INSTANCE_ID: "i-05b7c6502ba548ab1",
-        SCALE_UP_THRESHOLD: "3",
+        SCALE_UP_THRESHOLD: "1",
         SCALE_DOWN_IDLE_MS: "600000",    // 10 minutes
         SCALER_CHECK_INTERVAL_MS: "60000", // 60 seconds
         AWS_REGION: "us-east-1",

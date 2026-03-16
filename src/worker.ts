@@ -55,7 +55,8 @@ console.log("[WORKER] Starting video processing worker...");
 const videoWorker = startVideoWorker(VIDEO_WORKER_CONCURRENCY);
 
 console.log("[WORKER] Starting clip generation worker...");
-const clipWorker = startClipWorker(CLIP_WORKER_CONCURRENCY);
+const clipWorker = CLIP_WORKER_CONCURRENCY > 0 ? startClipWorker(CLIP_WORKER_CONCURRENCY) : null;
+if (!clipWorker) console.log("[WORKER] Clip worker disabled (concurrency=0), clips handled by burst instance");
 
 console.log("[WORKER] Starting translation worker...");
 const translationWorker = startTranslationWorker();
@@ -128,7 +129,7 @@ try {
       if (url.pathname === "/health" || url.pathname === "/") {
         const redisHealth = await checkRedisHealth();
         const isHealthy = redisHealth.status === "healthy" &&
-          videoWorker.isRunning() && clipWorker.isRunning() &&
+          videoWorker.isRunning() && (clipWorker?.isRunning() ?? true) &&
           translationWorker.isRunning() && dubbingWorker.isRunning();
         return new Response(JSON.stringify({
           status: isHealthy ? "healthy" : "unhealthy",
@@ -136,7 +137,7 @@ try {
           uptime: Math.floor((Date.now() - startTime) / 1000),
           workers: {
             videoWorker: { running: videoWorker.isRunning(), concurrency: VIDEO_WORKER_CONCURRENCY },
-            clipWorker: { running: clipWorker.isRunning(), concurrency: CLIP_WORKER_CONCURRENCY },
+            clipWorker: { running: clipWorker?.isRunning() ?? false, concurrency: CLIP_WORKER_CONCURRENCY },
             translationWorker: { running: translationWorker.isRunning(), concurrency: 1 },
             dubbingWorker: { running: dubbingWorker.isRunning(), concurrency: DUBBING_WORKER_CONCURRENCY },
             socialWorker: { running: socialWorker.isRunning(), concurrency: 2 },
@@ -153,7 +154,7 @@ try {
       if (url.pathname === "/health/ready") {
         const redisHealth = await checkRedisHealth();
         const isReady = redisHealth.status === "healthy" &&
-          videoWorker.isRunning() && clipWorker.isRunning() &&
+          videoWorker.isRunning() && (clipWorker?.isRunning() ?? true) &&
           translationWorker.isRunning() && dubbingWorker.isRunning() && socialWorker.isRunning();
         return new Response(JSON.stringify({ status: isReady ? "ready" : "not_ready", timestamp: new Date().toISOString() }),
           { status: isReady ? 200 : 503, headers: SECURITY_HEADERS });
@@ -167,7 +168,7 @@ try {
         const redisHealth = await checkRedisHealth();
         const queueStats = await getQueueStats();
         const isHealthy = redisHealth.status === "healthy" &&
-          videoWorker.isRunning() && clipWorker.isRunning() &&
+          videoWorker.isRunning() && (clipWorker?.isRunning() ?? true) &&
           translationWorker.isRunning() && dubbingWorker.isRunning();
         return new Response(JSON.stringify({
           status: isHealthy ? "healthy" : "unhealthy",
@@ -176,7 +177,7 @@ try {
           git: await getGitInfo(),
           workers: {
             videoWorker: { running: videoWorker.isRunning(), concurrency: VIDEO_WORKER_CONCURRENCY },
-            clipWorker: { running: clipWorker.isRunning(), concurrency: CLIP_WORKER_CONCURRENCY },
+            clipWorker: { running: clipWorker?.isRunning() ?? false, concurrency: CLIP_WORKER_CONCURRENCY },
             translationWorker: { running: translationWorker.isRunning(), concurrency: 1 },
             dubbingWorker: { running: dubbingWorker.isRunning(), concurrency: DUBBING_WORKER_CONCURRENCY },
             socialWorker: { running: socialWorker.isRunning(), concurrency: 2 },
@@ -225,7 +226,7 @@ try {
           git: await getGitInfo(),
           workers: {
             videoWorker: { running: videoWorker.isRunning(), concurrency: VIDEO_WORKER_CONCURRENCY },
-            clipWorker: { running: clipWorker.isRunning(), concurrency: CLIP_WORKER_CONCURRENCY },
+            clipWorker: { running: clipWorker?.isRunning() ?? false, concurrency: CLIP_WORKER_CONCURRENCY },
             translationWorker: { running: translationWorker.isRunning(), concurrency: 1 },
             dubbingWorker: { running: dubbingWorker.isRunning(), concurrency: DUBBING_WORKER_CONCURRENCY },
             socialWorker: { running: socialWorker.isRunning(), concurrency: 2 },
@@ -485,7 +486,7 @@ process.on("SIGTERM", async () => {
   console.log("[WORKER] Received SIGTERM, shutting down gracefully...");
   healthServer?.stop();
   stopPotServer();
-  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close()]);
+  await Promise.all([videoWorker.close(), clipWorker?.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close()].filter(Boolean));
   process.exit(0);
 });
 
@@ -493,7 +494,7 @@ process.on("SIGINT", async () => {
   console.log("[WORKER] Received SIGINT, shutting down gracefully...");
   healthServer?.stop();
   stopPotServer();
-  await Promise.all([videoWorker.close(), clipWorker.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close()]);
+  await Promise.all([videoWorker.close(), clipWorker?.close(), translationWorker.close(), dubbingWorker.close(), socialWorker.close()].filter(Boolean));
   process.exit(0);
 });
 
