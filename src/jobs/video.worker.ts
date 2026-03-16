@@ -377,53 +377,14 @@ async function processYouTubeVideo(
 
       await db.insert(viralClip).values(clipRecords);
 
-      // ── SHARED SOURCE: Download spanning range ONCE, upload to R2 ──
-      // Instead of each clip downloading its own segment from YouTube (N yt-dlp calls),
-      // download the spanning range once and let each clip slice from it locally.
-      let sharedSourceKey: string | undefined;
-      let sharedSourceSpanStart: number | undefined;
-
-      if (clipRecords.length > 1) {
-        const allStartTimes = clipRecords.map(c => c.startTime);
-        const allEndTimes = clipRecords.map(c => c.endTime);
-        const spanStart = Math.min(...allStartTimes);
-        const spanEnd = Math.max(...allEndTimes);
-        const spanDuration = spanEnd - spanStart;
-        const totalClipDuration = clipRecords.reduce((sum, c) => sum + (c.endTime - c.startTime), 0);
-
-        // Only use shared source if the span isn't wastefully large
-        // (e.g., 2 clips totaling 60s but spanning 20 minutes = too much wasted download)
-        const useSharedSource = spanDuration <= totalClipDuration * 3;
-
-        if (useSharedSource) {
-          try {
-            const tempSharedPath = path.join(os.tmpdir(), `shared-src-${videoId}-${nanoid(6)}.mp4`);
-            console.log(`[VIDEO WORKER] Downloading shared source: ${spanStart}s–${spanEnd}s (${spanDuration}s span for ${totalClipDuration}s of clips)`);
-
-            await ClipGeneratorService.downloadYouTubeSegmentToLocalFile(
-              sourceUrl, spanStart, spanEnd, tempSharedPath, clipQuality
-            );
-
-            // Upload to R2 so clip workers (possibly on different machines) can access it
-            sharedSourceKey = `${userId}/${videoId}/shared-source.mp4`;
-            const sharedBuffer = await fs.promises.readFile(tempSharedPath);
-            await R2Service.uploadFile(sharedSourceKey, sharedBuffer, "video/mp4");
-            sharedSourceSpanStart = spanStart;
-
-            console.log(`[VIDEO WORKER] Shared source uploaded to R2: ${sharedSourceKey} (${(sharedBuffer.length / 1024 / 1024).toFixed(1)} MB)`);
-
-            // Clean up local temp file
-            await fs.promises.unlink(tempSharedPath).catch(() => {});
-          } catch (sharedErr) {
-            // If shared source download fails, fall back to per-clip downloads
-            console.warn(`[VIDEO WORKER] Shared source download failed, falling back to per-clip downloads:`, sharedErr instanceof Error ? sharedErr.message : sharedErr);
-            sharedSourceKey = undefined;
-            sharedSourceSpanStart = undefined;
-          }
-        } else {
-          console.log(`[VIDEO WORKER] Skipping shared source: span ${spanDuration}s > 3x clip total ${totalClipDuration}s - clips too spread out`);
-        }
-      }
+      // ── SHARED SOURCE: DISABLED ──
+      // Shared source download is skipped — the base instance (2 vCPU) can't handle
+      // the FFmpeg mux and it pegs CPU at 100% for 30+ minutes. Each clip worker on
+      // the burst instance downloads its own segment directly from YouTube instead.
+      // The clip generator already handles this gracefully when sharedSourceKey is undefined.
+      const sharedSourceKey: string | undefined = undefined;
+      const sharedSourceSpanStart: number | undefined = undefined;
+      console.log(`[VIDEO WORKER] Shared source disabled — clip workers will download segments directly`);
 
       // Auto-generate clips with captions burned in
       // Extract words for each clip's time range and queue generation
