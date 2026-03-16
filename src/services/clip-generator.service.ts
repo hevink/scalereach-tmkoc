@@ -158,6 +158,14 @@ function getOutputDimensions(
  * NOTE: Social media platforms re-encode all uploads to ~5-8 Mbps,
  * so CRF differences below ~23 are invisible to end viewers.
  */
+function getH264Level(quality: VideoQuality, aspectRatio?: AspectRatio): string {
+  // H.264 level must accommodate the macroblock count for the output resolution.
+  // Level 4.0 supports up to 8192 MBs (e.g. 1920x1080 = 120x68 = 8160 MBs).
+  // Level 5.1 supports up to 36864 MBs (e.g. 1440x2560 = 90x160 = 14400 MBs, 2160x3840 = 135x240 = 32400 MBs).
+  if (quality === "2k" || quality === "4k") return "5.1";
+  return "4.0";
+}
+
 function getEncodingParams(quality: VideoQuality, pass: "raw" | "final" = "final"): { preset: string; crf: string } {
   if (quality === "2k" || quality === "4k") {
     return { preset: "medium", crf: "18" };
@@ -1764,14 +1772,50 @@ print(f"OK:{total_w}x{total_h}")
     endTime: number,
     outputPath: string,
     quality: VideoQuality,
-    maxRetries: number = 2
+    maxRetries: number = 3
   ): Promise<void> {
     let lastError: Error | null = null;
     let forceKeyframes = true;
+    const expectedDuration = endTime - startTime;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         await this.executeYtDlpDownload(url, startTime, endTime, outputPath, forceKeyframes);
+
+        // Validate downloaded file duration to catch truncated downloads.
+        // yt-dlp retry without --force-keyframes-at-cuts can produce very short files
+        // when FFmpeg's internal trim gets confused by AV1 streams.
+        if (expectedDuration > 10) {
+          try {
+            const probe = spawn("ffprobe", [
+              "-v", "error", "-show_entries", "format=duration",
+              "-of", "default=noprint_wrappers=1:nokey=1", outputPath,
+            ]);
+            const durationStr = await new Promise<string>((res, rej) => {
+              let out = "";
+              probe.stdout?.on("data", (d) => { out += d.toString(); });
+              probe.on("close", (code) => code === 0 ? res(out.trim()) : rej(new Error("ffprobe failed")));
+              probe.on("error", rej);
+            });
+            const actualDuration = parseFloat(durationStr);
+            if (!isNaN(actualDuration) && actualDuration < expectedDuration * 0.5) {
+              this.logOperation("YT_DLP_TRUNCATED_FILE", {
+                attempt,
+                expectedDuration,
+                actualDuration,
+                forceKeyframes,
+              });
+              throw new Error(
+                `yt-dlp produced truncated file: ${actualDuration.toFixed(1)}s vs expected ${expectedDuration}s`
+              );
+            }
+          } catch (probeErr) {
+            // If ffprobe itself fails, the file is likely corrupt - treat as retryable
+            if (probeErr instanceof Error && probeErr.message.includes("truncated")) throw probeErr;
+            this.logOperation("YT_DLP_PROBE_FAILED", { error: String(probeErr) });
+          }
+        }
+
         return; // Success
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -1781,7 +1825,8 @@ print(f"OK:{total_w}x{total_h}")
                               lastError.message.includes("cookies") ||
                               lastError.message.includes("UNPLAYABLE") ||
                               lastError.message.includes("page needs to be reloaded");
-        const isRetryableError = isCode222 || isBotBlocked ||
+        const isTruncated = lastError.message.includes("truncated file");
+        const isRetryableError = isCode222 || isBotBlocked || isTruncated ||
                                   lastError.message.includes("ffmpeg exited with code 202") ||
                                   lastError.message.includes("ffmpeg exited with code 1") ||
                                   lastError.message.includes("Interrupted by user") ||
@@ -1790,6 +1835,8 @@ print(f"OK:{total_w}x{total_h}")
         if (isRetryableError && attempt < maxRetries) {
           // code 222 is caused by --force-keyframes-at-cuts on certain streams - disable it on retry
           if (isCode222) forceKeyframes = false;
+          // Truncated file with keyframes disabled means we need to re-enable them
+          if (isTruncated && !forceKeyframes) forceKeyframes = true;
 
           // Bot-blocked needs a longer cooldown so YouTube unblocks the IP
           // Use exponential backoff: 10s, 20s, 40s + jitter
@@ -2038,7 +2085,7 @@ print(f"OK:{total_w}x{total_h}")
             "-crf", crf,
             "-g", "48",
             "-profile:v", "high",
-            "-level", "4.0",
+            "-level", getH264Level(quality),
             "-c:a", "aac",
             "-b:a", "192k",
             "-movflags", "frag_keyframe+empty_moov",
@@ -2303,7 +2350,7 @@ print(f"OK:{total_w}x{total_h}")
       "-crf", crf,
       "-g", "48",
       "-profile:v", "high",
-      "-level", "4.0",
+      "-level", getH264Level(quality),
       "-c:a", "aac",
       "-b:a", "192k",
       // Trim to clip duration
@@ -2405,7 +2452,7 @@ print(f"OK:{total_w}x{total_h}")
           "-vf", vf,
           "-map", "0:v", "-map", "0:a?",
           "-c:v", "libx264", "-preset", preset, "-crf", crf, "-g", "48",
-          "-profile:v", "high", "-level", "4.0",
+          "-profile:v", "high", "-level", getH264Level(quality),
           "-c:a", "aac", "-b:a", "192k",
           "-movflags", "+faststart", "-y", outputPath,
         ];
@@ -2461,7 +2508,7 @@ print(f"OK:{total_w}x{total_h}")
           "-crf", crf,
           "-g", "48",
           "-profile:v", "high",
-          "-level", "4.0",
+          "-level", getH264Level(quality),
           "-c:a", "aac",
           "-b:a", "192k",
           "-movflags", "+faststart",
@@ -2514,7 +2561,7 @@ print(f"OK:{total_w}x{total_h}")
             "-crf", crf,
             "-g", "48",
             "-profile:v", "high",
-            "-level", "4.0",
+            "-level", getH264Level(quality),
             "-c:a", "aac",
             "-b:a", "192k",
             "-movflags", "+faststart",
@@ -2531,7 +2578,7 @@ print(f"OK:{total_w}x{total_h}")
             "-crf", crf,
             "-g", "48",
             "-profile:v", "high",
-            "-level", "4.0",
+            "-level", getH264Level(quality),
             "-c:a", "aac",
             "-b:a", "192k",
             "-movflags", "+faststart",
