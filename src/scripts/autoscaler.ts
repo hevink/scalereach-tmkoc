@@ -152,6 +152,21 @@ async function check() {
       // Queue has jobs but below threshold - keep tracking activity
       lastActiveTime = Date.now();
     }
+
+    // Publish scaler state to Redis so the admin dashboard can show it
+    const idleMs = Date.now() - lastActiveTime;
+    const shutdownAt = total === 0 ? lastActiveTime + SCALE_DOWN_IDLE_MS : 0;
+    await redis.set("scaler:state", JSON.stringify({
+      total, waiting, active, prioritized, delayed,
+      burstState,
+      lastActiveTime,
+      idleMs,
+      shutdownAt,
+      scaleDownIdleMs: SCALE_DOWN_IDLE_MS,
+      scaleUpThreshold: SCALE_UP_THRESHOLD,
+      checkIntervalMs: CHECK_INTERVAL_MS,
+      updatedAt: Date.now(),
+    }), "EX", 120); // expires in 2 min if scaler dies
   } catch (err) {
     console.error("[SCALER] Check failed:", err);
   }

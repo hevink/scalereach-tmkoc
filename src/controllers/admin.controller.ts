@@ -778,4 +778,33 @@ export class AdminController {
       return c.json({ error: `Failed to reach burst worker: ${msg}` }, 200);
     }
   }
+
+  /**
+   * Get autoscaler state from Redis
+   * GET /api/admin/scaler-state
+   */
+  static async getScalerState(c: Context) {
+    try {
+      const IORedis = require("ioredis");
+      const redisUrl = process.env.REDIS_URL;
+      const redisHost = process.env.REDIS_HOST || "localhost";
+      const redisPort = parseInt(process.env.REDIS_PORT || "6379", 10);
+      const redisPassword = process.env.REDIS_PASSWORD || undefined;
+
+      const redisOpts: any = { maxRetriesPerRequest: 1, connectTimeout: 5000, lazyConnect: true };
+      const redis = redisUrl
+        ? new IORedis(redisUrl, redisOpts)
+        : new IORedis({ host: redisHost, port: redisPort, password: redisPassword, ...redisOpts });
+
+      await redis.connect();
+      const raw = await redis.get("scaler:state");
+      await redis.quit();
+
+      if (!raw) return c.json({ error: "No scaler state found — scaler may not be running" }, 200);
+      return c.json(JSON.parse(raw));
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to read scaler state: ${msg}` }, 200);
+    }
+  }
 }
