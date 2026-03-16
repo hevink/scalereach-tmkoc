@@ -11,7 +11,7 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         BURST_HEALTH_PORT: "3003",
-        CLIP_WORKER_CONCURRENCY: "8",
+        CLIP_WORKER_CONCURRENCY: "4",
         DUBBING_WORKER_CONCURRENCY: "2",
         PYTHON_PATH: "/home/ubuntu/smart_crop_env/bin/python3",
         MODEL_PATH: "/home/ubuntu/blaze_face_short_range.tflite",
