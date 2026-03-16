@@ -42,7 +42,7 @@ module.exports = {
         NODE_ENV: "production",
         BURST_INSTANCE_ID: "i-05b7c6502ba548ab1",
         SCALE_UP_THRESHOLD: "1",
-        SCALE_DOWN_IDLE_MS: "600000",    // 10 minutes
+        SCALE_DOWN_IDLE_MS: "180000",    // 3 minutes
         SCALER_CHECK_INTERVAL_MS: "60000", // 60 seconds
         AWS_REGION: "us-east-1",
         PATH: "/home/ubuntu/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
