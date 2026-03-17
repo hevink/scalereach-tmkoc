@@ -340,6 +340,25 @@ no_face_frames    = len(sample_times) - total_face_frames
 group_shot_frames = sum(1 for f in sample_faces if len(f) >= 4)
 is_group_shot = group_shot_frames >= len(sample_times) * 0.4  # 4+ faces in 40%+ of samples
 
+# Detect dual-face podcast: exactly 2 faces in 40%+ of sampled frames
+dual_face_frames = sum(1 for f in sample_faces if len(f) == 2)
+# Also check that the two faces are reasonably sized (not tiny PiP)
+# AND sufficiently far apart (real 2-person podcasts have speakers on opposite sides)
+dual_face_big_frames = 0
+dual_face_spread_frames = 0
+for faces in sample_faces:
+    if len(faces) == 2:
+        both_big = all(f["w"] / src_w >= 0.08 for f in faces)
+        if both_big:
+            dual_face_big_frames += 1
+            # Check if the two faces are far enough apart to be separate speakers
+            # Real dual podcasts: speakers are typically 30%+ of frame width apart
+            sorted_f = sorted(faces, key=lambda f: f["cx"])
+            gap_ratio = (sorted_f[1]["cx"] - sorted_f[0]["cx"]) / src_w
+            if gap_ratio >= 0.25:
+                dual_face_spread_frames += 1
+is_dual_face_podcast = dual_face_spread_frames >= len(sample_times) * 0.35
+
 # Screen PiP detection:
 # - If we see consistent small corner faces (even just 2+), it's screen_pip
 # - Or if pip score is high enough relative to full
@@ -352,10 +371,12 @@ elif small_corner_count >= 2:
     video_type = "screen_pip"
 elif pip_detections >= 3 and pip_detections >= full_detections * 0.5:
     video_type = "screen_pip"
+elif is_dual_face_podcast:
+    video_type = "podcast_dual"
 else:
     video_type = "podcast"
 
-log(f"Video type: {video_type} (pip={pip_detections}, full={full_detections}, no_face={no_face_frames}, small_corner={small_corner_count}, group_frames={group_shot_frames}/{len(sample_times)})")
+log(f"Video type: {video_type} (pip={pip_detections}, full={full_detections}, no_face={no_face_frames}, small_corner={small_corner_count}, group_frames={group_shot_frames}/{len(sample_times)}, dual_face={dual_face_spread_frames}/{len(sample_times)})")
 
 # ── Step 5: Handle each video type ───────────────────────────────────────────
 
@@ -434,6 +455,96 @@ if video_type == "screen_pip":
         json.dump(result, f)
     log("Done (split screen mode).")
     sys.exit(0)
+
+# ── 5c-dual: Podcast with 2 speakers → stacked dual-face crop ────────────────
+
+if video_type == "podcast_dual":
+    log("Podcast dual-face detected - using static stacked layout...")
+
+    # ── Collect face positions from all 2-face sample frames ──────────────
+    left_faces_all = []
+    right_faces_all = []
+    for faces in sample_faces:
+        if len(faces) >= 2:
+            sorted_f = sorted(faces, key=lambda f: f["cx"])
+            left_faces_all.append(sorted_f[0])
+            right_faces_all.append(sorted_f[1])
+
+    if not left_faces_all:
+        log("WARNING: No dual-face frames found, falling back to single-face podcast")
+        video_type = "podcast"
+    else:
+        # Average face positions and sizes
+        avg_left_cx = int(sum(f["cx"] for f in left_faces_all) / len(left_faces_all))
+        avg_left_cy = int(sum(f["cy"] for f in left_faces_all) / len(left_faces_all))
+        avg_left_w  = int(sum(f["w"]  for f in left_faces_all) / len(left_faces_all))
+
+        avg_right_cx = int(sum(f["cx"] for f in right_faces_all) / len(right_faces_all))
+        avg_right_cy = int(sum(f["cy"] for f in right_faces_all) / len(right_faces_all))
+        avg_right_w  = int(sum(f["w"]  for f in right_faces_all) / len(right_faces_all))
+
+        log(f"Left speaker:  cx={avg_left_cx}, cy={avg_left_cy}, face_w={avg_left_w}")
+        log(f"Right speaker: cx={avg_right_cx}, cy={avg_right_cy}, face_w={avg_right_w}")
+
+        # ── Static crop approach (like Opus Clip / ClipsAI) ───────────────
+        # Each panel is 9:8 aspect ratio (half of 9:16 output).
+        # We compute ONE static crop rectangle per speaker, centered on their face.
+        # No dynamic tracking needed — podcast speakers don't move much.
+        panel_aspect = 9.0 / 8.0
+
+        # The midpoint between speakers — crops must not cross this
+        mid_x = (avg_left_cx + avg_right_cx) // 2
+
+        # Max crop width per speaker = distance from edge to midpoint
+        left_max_w = mid_x
+        right_max_w = src_w - mid_x
+        max_crop_w = min(left_max_w, right_max_w)
+
+        # Crop height = full source height, derive width from aspect ratio
+        face_crop_h = src_h
+        face_crop_w = int(face_crop_h * panel_aspect)
+
+        # Cap to available space (no overlap possible)
+        if face_crop_w > max_crop_w:
+            face_crop_w = max_crop_w
+            face_crop_h = int(face_crop_w / panel_aspect)
+
+        # Ensure even dimensions
+        face_crop_w = face_crop_w - (face_crop_w % 2)
+        face_crop_h = face_crop_h - (face_crop_h % 2)
+
+        # ── Compute static crop X for each speaker ───────────────────────
+        # Center the crop on the face, clamp so it stays on its own side
+        left_x = avg_left_cx - face_crop_w // 2
+        left_x = max(0, min(left_x, mid_x - face_crop_w))  # must end before midpoint
+
+        right_x = avg_right_cx - face_crop_w // 2
+        right_x = max(mid_x, min(right_x, src_w - face_crop_w))  # must start at/after midpoint
+
+        # Compute crop Y — center vertically on the face with headroom
+        left_y = max(0, avg_left_cy - int(face_crop_h * 0.40))
+        left_y = max(0, min(left_y, src_h - face_crop_h))
+
+        right_y = max(0, avg_right_cy - int(face_crop_h * 0.40))
+        right_y = max(0, min(right_y, src_h - face_crop_h))
+
+        log(f"Crop size: {face_crop_w}x{face_crop_h} (panel 9:8)")
+        log(f"Left crop:  x={left_x}, y={left_y}")
+        log(f"Right crop: x={right_x}, y={right_y}")
+        log(f"Gap between crops: {right_x - (left_x + face_crop_w)}px")
+
+        # Write static crop output — much simpler than dynamic coords
+        with open(coords_path, "w") as f:
+            json.dump({
+                "mode": "podcast_dual",
+                "left_crop":  {"x": left_x,  "y": left_y,  "w": face_crop_w, "h": face_crop_h},
+                "right_crop": {"x": right_x, "y": right_y, "w": face_crop_w, "h": face_crop_h},
+                "src_w": src_w,
+                "src_h": src_h,
+            }, f)
+
+        log("Done (podcast_dual - static crop).")
+        sys.exit(0)
 
 # ── 5c: Podcast / talking head → face tracking crop ──────────────────────────
 

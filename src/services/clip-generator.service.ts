@@ -469,6 +469,32 @@ export class ClipGeneratorService {
                   "-c:a", "aac", "-b:a", "192k",
                   "-y", reframedPath,
                 ];
+              } else if (result.mode === "podcast_dual") {
+                // Podcast with 2 speakers → static stacked dual-face crop (top + bottom)
+                const leftCrop = result.left_crop as { x: number; y: number; w: number; h: number };
+                const rightCrop = result.right_crop as { x: number; y: number; w: number; h: number };
+                const outW = width;
+                const outH = height;
+                const halfH = Math.round(outH / 2);
+
+                if (!leftCrop || !rightCrop) {
+                  this.logOperation("SMART_CROP_PODCAST_DUAL_NO_COORDS", { clipId: options.clipId });
+                  reject(new Error("__FALLBACK__"));
+                  return;
+                }
+
+                // Simple static crop: crop each speaker, scale to half output, vstack
+                args = [
+                  "-i", rawSourcePath,
+                  "-filter_complex",
+                  `[0:v]crop=${leftCrop.w}:${leftCrop.h}:${leftCrop.x}:${leftCrop.y},scale=${outW}:${halfH}:flags=lanczos[top];` +
+                  `[0:v]crop=${rightCrop.w}:${rightCrop.h}:${rightCrop.x}:${rightCrop.y},scale=${outW}:${halfH}:flags=lanczos[bot];` +
+                  `[top][bot]vstack=inputs=2,format=yuv420p[out]`,
+                  "-map", "[out]", "-map", "0:a?",
+                  "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                  "-c:a", "aac", "-b:a", "192k",
+                  "-y", reframedPath,
+                ];
               } else if (result.mode === "letterbox") {
                 // Group shot (4+ faces) - letterbox full frame into 9:16
                 args = [
