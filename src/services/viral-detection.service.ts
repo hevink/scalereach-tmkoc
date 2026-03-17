@@ -175,6 +175,95 @@ export class ViralDetectionService {
       throw new Error(`Invalid detection options: ${validation.error}`);
     }
 
+    // For long transcripts, chunk and merge results
+    const CHUNK_CHAR_LIMIT = 50_000;
+    if (transcript.length > CHUNK_CHAR_LIMIT && transcriptWords.length > 0) {
+      return this.detectViralClipsChunked(transcript, transcriptWords, options);
+    }
+
+    return this.detectViralClipsSingle(transcript, transcriptWords, options);
+  }
+
+  /**
+   * Chunk a long transcript into time-based segments, run detection on each, merge results
+   */
+  private static async detectViralClipsChunked(
+    transcript: string,
+    transcriptWords: { word: string; start: number; end: number }[],
+    options: ViralDetectionOptions
+  ): Promise<ViralClip[]> {
+    const totalDuration = transcriptWords[transcriptWords.length - 1]?.end ?? 0;
+    // ~10 min chunks with 30s overlap to catch clips at boundaries
+    const CHUNK_DURATION = 600;
+    const OVERLAP = 30;
+
+    const chunks: { start: number; end: number }[] = [];
+    for (let start = 0; start < totalDuration; start += CHUNK_DURATION - OVERLAP) {
+      chunks.push({ start, end: Math.min(start + CHUNK_DURATION, totalDuration) });
+    }
+
+    console.log(`[VIRAL DETECTION] Transcript too long (${transcript.length} chars), splitting into ${chunks.length} chunks`);
+
+    const allClips: ViralClip[] = [];
+
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const chunkWords = transcriptWords.filter(w => w.start >= chunk.start && w.end <= chunk.end);
+      const chunkTranscript = chunkWords.map(w => w.word).join(" ");
+
+      console.log(`[VIRAL DETECTION] Processing chunk ${i + 1}/${chunks.length}: ${chunk.start}s - ${chunk.end}s (${chunkTranscript.length} chars)`);
+
+      try {
+        const clips = await this.detectViralClipsSingle(chunkTranscript, chunkWords, options);
+        allClips.push(...clips);
+      } catch (error) {
+        console.error(`[VIRAL DETECTION] Chunk ${i + 1} failed, skipping:`, error instanceof Error ? error.message : error);
+      }
+    }
+
+    // Deduplicate clips that overlap significantly (from chunk boundaries)
+    const deduped = this.deduplicateClips(allClips);
+    console.log(`[VIRAL DETECTION] Merged ${allClips.length} clips from ${chunks.length} chunks → ${deduped.length} unique clips`);
+
+    return deduped.sort((a, b) => (b as any).viralityScore - (a as any).viralityScore);
+  }
+
+  /**
+   * Remove clips that overlap by more than 50% in time range
+   */
+  private static deduplicateClips(clips: ViralClip[]): ViralClip[] {
+    const sorted = [...clips].sort((a, b) => b.viralityScore - a.viralityScore);
+    const kept: ViralClip[] = [];
+
+    for (const clip of sorted) {
+      const overlaps = kept.some(existing => {
+        const overlapStart = Math.max(clip.startTime, existing.startTime);
+        const overlapEnd = Math.min(clip.endTime, existing.endTime);
+        if (overlapEnd <= overlapStart) return false;
+        const overlapDuration = overlapEnd - overlapStart;
+        const clipDuration = clip.endTime - clip.startTime;
+        return overlapDuration / clipDuration > 0.5;
+      });
+      if (!overlaps) kept.push(clip);
+    }
+
+    return kept;
+  }
+
+  /**
+   * Single-shot viral clip detection (for transcripts within size limits)
+   */
+  private static async detectViralClipsSingle(
+    transcript: string,
+    transcriptWords: { word: string; start: number; end: number }[],
+    options: ViralDetectionOptions = {}
+  ): Promise<ViralClip[]> {
+    // Validate options first
+    const validation = this.validateOptions(options);
+    if (!validation.valid) {
+      throw new Error(`Invalid detection options: ${validation.error}`);
+    }
+
     const {
       videoTitle = "Unknown",
       clipType = "viral-clips",
@@ -303,7 +392,7 @@ ${formattedTranscript}`;
           schema: ViralClipSchema,
           systemPrompt,
           temperature: 0.3,
-          maxTokens: 90000,
+          maxTokens: 300000,
         }
       );
 
