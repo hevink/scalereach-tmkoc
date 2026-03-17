@@ -288,9 +288,10 @@ export class YouTubeService {
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
       
-      // Use mweb client — officially recommended for yt-dlp (web only has SABR formats now)
+      // Use android_vr client — same as SocialPlug's reliable downloader.
+      // No n-challenge needed, no cookies needed.
       const extractorArgs: string[] = [
-        `youtube:player_client=mweb,web_safari`,
+        `youtube:player_client=android_vr,android_creator`,
       ];
       if (bgutilBaseUrl) {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
@@ -312,10 +313,7 @@ export class YouTubeService {
         console.log(`[YOUTUBE SERVICE] Using proxy: ${proxy}`);
       }
 
-      if (cookiesPath) {
-        args.unshift("--cookies", cookiesPath);
-        console.log(`[YOUTUBE SERVICE] Using cookies from: ${cookiesPath}`);
-      }
+      // Don't pass cookies — android clients are skipped by yt-dlp when cookies are present
 
       console.log(`[YOUTUBE SERVICE] yt-dlp args: ${JSON.stringify(args)}`);
 
@@ -424,9 +422,9 @@ export class YouTubeService {
     const proxy = process.env.YOUTUBE_PROXY;
     const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
     
-    // Use mweb client — officially recommended for yt-dlp (web only has SABR formats now)
+    // Use android_vr client — no n-challenge needed, no cookies needed
     const extractorArgs: string[] = [
-      `youtube:player_client=mweb,web_safari`,
+      `youtube:player_client=android_vr,android_creator`,
     ];
     if (bgutilBaseUrl) {
       extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
@@ -474,10 +472,7 @@ export class YouTubeService {
       console.log(`[YOUTUBE SERVICE] Skipping --download-sections (proxy active, ffmpeg can't use it). Downloading full audio.`);
     }
 
-    if (cookiesPath) {
-      args.unshift("--cookies", cookiesPath);
-      console.log(`[YOUTUBE SERVICE] Using cookies from: ${cookiesPath}`);
-    }
+    // Don't pass cookies — android clients are skipped by yt-dlp when cookies are present
 
     const ytdlpProcess = spawn("yt-dlp", args);
 

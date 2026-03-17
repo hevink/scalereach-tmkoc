@@ -1946,12 +1946,11 @@ print(f"OK:{total_w}x{total_h}")
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      // Use mweb client — the officially recommended client for yt-dlp as of 2025+.
-      // YouTube's web client now only serves SABR formats (UNPLAYABLE without SABR downloader).
-      // mweb provides standard DASH formats and only requires a GVS PO Token (provided by bgutil).
-      // Fallback to web_safari (HLS, no PO Token needed for GVS) then android as last resort.
+      // Use android_vr client — same approach as SocialPlug's reliable downloader.
+      // Doesn't need n-challenge (broken: YouTube player JS references self.location.origin),
+      // doesn't need cookies (yt-dlp skips android clients when cookies are present).
       const extractorArgs: string[] = [
-        `youtube:player_client=mweb,web_safari`,
+        `youtube:player_client=android_vr,android_creator`,
       ];
       if (bgutilBaseUrl) {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
@@ -1967,7 +1966,6 @@ print(f"OK:{total_w}x{total_h}")
         "--no-playlist",
         "--newline",
         "--no-post-overwrites",
-        "--js-runtimes", "deno",
         ...extractorArgs.flatMap(a => ["--extractor-args", a]),
         "--extractor-retries", "3",
         "--fragment-retries", "5",
@@ -1981,9 +1979,7 @@ print(f"OK:{total_w}x{total_h}")
         this.logOperation("YT_DLP_USING_PROXY", { proxy });
       }
 
-      if (cookiesPath) {
-        args.unshift("--cookies", cookiesPath);
-      }
+      // Don't pass cookies — android clients are skipped by yt-dlp when cookies are present
 
       this.logOperation("YT_DLP_DOWNLOAD", { args: args.join(" ") });
 
@@ -2064,7 +2060,7 @@ print(f"OK:{total_w}x{total_h}")
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      const extractorArgs: string[] = [`youtube:player_client=mweb,web_safari`];
+      const extractorArgs: string[] = [`youtube:player_client=android_vr,android_creator`];
       if (bgutilBaseUrl) {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
       }
@@ -2076,7 +2072,6 @@ print(f"OK:{total_w}x{total_h}")
         "--no-playlist",
         "--newline",
         "--no-post-overwrites",
-        "--js-runtimes", "deno",
         ...extractorArgs.flatMap(a => ["--extractor-args", a]),
         "--extractor-retries", "3",
         "--fragment-retries", "5",
@@ -2085,7 +2080,7 @@ print(f"OK:{total_w}x{total_h}")
       ];
 
       if (proxy) args.unshift("--proxy", proxy);
-      if (cookiesPath) args.unshift("--cookies", cookiesPath);
+      // Don't pass cookies — android clients are skipped by yt-dlp when cookies are present
 
       this.logOperation("YT_DLP_FULL_DOWNLOAD", { args: args.join(" ") });
 
