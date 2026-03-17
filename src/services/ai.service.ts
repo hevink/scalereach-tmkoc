@@ -5,7 +5,7 @@ import type { z } from "zod";
 const google = createGoogleGenerativeAI({
   apiKey: process.env.VERTEX_AI_API_KEY || "",
   fetch: ((url: any, init: any) => {
-    return fetch(url, { ...init, signal: AbortSignal.timeout(5 * 60 * 1000) });
+    return fetch(url, { ...init, signal: AbortSignal.timeout(15 * 60 * 1000) });
   }) as any,
 });
 
@@ -27,7 +27,7 @@ export class AIService {
       system: systemPrompt,
       prompt,
       temperature,
-      maxOutputTokens: Math.min(maxTokens, 90000),
+      maxOutputTokens: Math.min(maxTokens, 150000),
     });
 
     console.log(`[AI] ${result.usage?.outputTokens ?? "?"} tokens used`);
@@ -46,7 +46,7 @@ export class AIService {
           prompt,
           schema,
           temperature,
-          maxOutputTokens: Math.min(maxTokens, 90000),
+          maxOutputTokens: Math.min(maxTokens, 150000),
         });
 
         console.log(`[AI] ${result.usage?.outputTokens ?? "?"} tokens used`);
