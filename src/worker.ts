@@ -104,13 +104,19 @@ async function getGitInfo() {
 async function getQueueStats() {
   try {
     const [vW, vA, vC, vF] = await Promise.all([videoProcessingQueue.getWaitingCount(), videoProcessingQueue.getActiveCount(), videoProcessingQueue.getCompletedCount(), videoProcessingQueue.getFailedCount()]);
-    const [cW, cA, cC, cF] = await Promise.all([clipGenerationQueue.getWaitingCount(), clipGenerationQueue.getActiveCount(), clipGenerationQueue.getCompletedCount(), clipGenerationQueue.getFailedCount()]);
+    const [cW, cA, cC, cF, cP] = await Promise.all([
+      clipGenerationQueue.getWaitingCount(), clipGenerationQueue.getActiveCount(),
+      clipGenerationQueue.getCompletedCount(), clipGenerationQueue.getFailedCount(),
+      // BullMQ stores priority jobs in a separate sorted set, not in the wait list.
+      // getWaitingCount() misses them entirely, so we count them via Redis directly.
+      redisConnection.zcard(`bull:${clipGenerationQueue.name}:prioritized`).catch(() => 0),
+    ]);
     const [tW, tA, tC, tF] = await Promise.all([translationQueue.getWaitingCount(), translationQueue.getActiveCount(), translationQueue.getCompletedCount(), translationQueue.getFailedCount()]);
     const [dW, dA, dC, dF] = await Promise.all([dubbingQueue.getWaitingCount(), dubbingQueue.getActiveCount(), dubbingQueue.getCompletedCount(), dubbingQueue.getFailedCount()]);
     const [sW, sA, sC, sF] = await Promise.all([socialPostingQueue.getWaitingCount(), socialPostingQueue.getActiveCount(), socialPostingQueue.getCompletedCount(), socialPostingQueue.getFailedCount()]);
     return {
       videoProcessing: { waiting: vW, active: vA, completed: vC, failed: vF },
-      clipGeneration: { waiting: cW, active: cA, completed: cC, failed: cF },
+      clipGeneration: { waiting: cW + cP, active: cA, completed: cC, failed: cF },
       translation: { waiting: tW, active: tA, completed: tC, failed: tF },
       dubbing: { waiting: dW, active: dA, completed: dC, failed: dF },
       socialPosting: { waiting: sW, active: sA, completed: sC, failed: sF },

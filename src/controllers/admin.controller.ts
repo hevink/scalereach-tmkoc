@@ -775,7 +775,11 @@ export class AdminController {
       return c.json(data, res.status as any);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
-      return c.json({ error: `Failed to reach burst worker: ${msg}` }, 200);
+      const isConnectError = msg.includes("Unable to connect") || msg.includes("ECONNREFUSED") || msg.includes("ETIMEDOUT") || msg.includes("fetch failed");
+      const hint = isConnectError
+        ? ` (Check: 1) EC2 security group allows inbound TCP on port ${process.env.BURST_HEALTH_PORT || "3003"}, 2) burst worker process is running on the instance)`
+        : "";
+      return c.json({ error: `Failed to reach burst worker: ${msg}${hint}` }, 200);
     }
   }
 

@@ -51,16 +51,19 @@ async function getGitInfo() {
 
 async function getQueueStats() {
   try {
-    const [cW, cA, cC, cF] = await Promise.all([
+    const [cW, cA, cC, cF, cP] = await Promise.all([
       clipGenerationQueue.getWaitingCount(), clipGenerationQueue.getActiveCount(),
       clipGenerationQueue.getCompletedCount(), clipGenerationQueue.getFailedCount(),
+      // BullMQ stores priority jobs in a separate sorted set, not in the wait list.
+      // getWaitingCount() misses them entirely, so we count them via Redis directly.
+      redisConnection.zcard(`bull:${clipGenerationQueue.name}:prioritized`).catch(() => 0),
     ]);
     const [dW, dA, dC, dF] = await Promise.all([
       dubbingQueue.getWaitingCount(), dubbingQueue.getActiveCount(),
       dubbingQueue.getCompletedCount(), dubbingQueue.getFailedCount(),
     ]);
     return {
-      clipGeneration: { waiting: cW, active: cA, completed: cC, failed: cF },
+      clipGeneration: { waiting: cW + cP, active: cA, completed: cC, failed: cF },
       dubbing: { waiting: dW, active: dA, completed: dC, failed: dF },
     };
   } catch { return null; }
