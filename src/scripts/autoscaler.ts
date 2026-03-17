@@ -13,6 +13,7 @@ import {
   StopInstancesCommand,
   DescribeInstancesCommand,
 } from "@aws-sdk/client-ec2";
+import { execSync } from "child_process";
 
 // ── Config ──────────────────────────────────────────────────
 const BURST_INSTANCE_ID = process.env.BURST_INSTANCE_ID;
@@ -96,6 +97,53 @@ async function getBurstState(): Promise<string> {
   }
 }
 
+const SSH_KEY_PATH = process.env.SSH_KEY_PATH || "/home/ubuntu/.ssh/scalereach-worker.pem";
+const BURST_LOG_DIR = "/opt/scalereach/logs/burst"; // on base instance
+
+async function getBurstIp(): Promise<string | null> {
+  try {
+    const res = await ec2.send(
+      new DescribeInstancesCommand({ InstanceIds: [BURST_INSTANCE_ID!] })
+    );
+    return res.Reservations?.[0]?.Instances?.[0]?.PublicIpAddress || null;
+  } catch {
+    return null;
+  }
+}
+
+async function syncBurstLogs() {
+  const ip = await getBurstIp();
+  if (!ip) {
+    console.log("[SCALER] No burst IP available, skipping log sync");
+    return;
+  }
+  try {
+    // Ensure local burst log dir exists
+    execSync(`mkdir -p ${BURST_LOG_DIR}`);
+    // SCP burst logs to base instance with timestamp suffix
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const scpOpts = `-i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no -o ConnectTimeout=10`;
+    execSync(
+      `scp ${scpOpts} ubuntu@${ip}:/opt/scalereach/logs/burst-out.log ${BURST_LOG_DIR}/burst-out-${ts}.log 2>/dev/null || true`,
+      { timeout: 30000 }
+    );
+    execSync(
+      `scp ${scpOpts} ubuntu@${ip}:/opt/scalereach/logs/burst-error.log ${BURST_LOG_DIR}/burst-error-${ts}.log 2>/dev/null || true`,
+      { timeout: 30000 }
+    );
+    // Also keep a "latest" copy for quick access
+    execSync(`cp ${BURST_LOG_DIR}/burst-out-${ts}.log ${BURST_LOG_DIR}/burst-out-latest.log 2>/dev/null || true`);
+    execSync(`cp ${BURST_LOG_DIR}/burst-error-${ts}.log ${BURST_LOG_DIR}/burst-error-latest.log 2>/dev/null || true`);
+    // Clean up old logs (keep last 10)
+    execSync(`ls -t ${BURST_LOG_DIR}/burst-out-2*.log 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true`);
+    execSync(`ls -t ${BURST_LOG_DIR}/burst-error-2*.log 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true`);
+    console.log(`[SCALER] Synced burst logs from ${ip} → ${BURST_LOG_DIR}/`);
+    await notify(`📋 Synced burst logs from <code>${ip}</code>`);
+  } catch (err) {
+    console.error("[SCALER] Failed to sync burst logs:", err);
+  }
+}
+
 async function startBurst(queueDepth: number) {
   const state = await getBurstState();
   if (state === "running" || state === "pending") {
@@ -105,6 +153,29 @@ async function startBurst(queueDepth: number) {
   stopAlreadySent = false;
   await notify(`🚀 Starting burst instance\n<b>Queue depth:</b> ${queueDepth}\n<b>Instance:</b> <code>${BURST_INSTANCE_ID}</code>`);
   await ec2.send(new StartInstancesCommand({ InstanceIds: [BURST_INSTANCE_ID!] }));
+  // Sync cookies to burst after it boots (non-blocking)
+  syncCookiesToBurst();
+}
+
+async function syncCookiesToBurst(retries = 6, delayMs = 15000) {
+  const scpOpts = `-i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no -o ConnectTimeout=10`;
+  for (let i = 0; i < retries; i++) {
+    await new Promise((r) => setTimeout(r, delayMs));
+    const ip = await getBurstIp();
+    if (!ip) continue;
+    try {
+      execSync(
+        `scp ${scpOpts} /opt/scalereach/config/youtube_cookies.txt ubuntu@${ip}:/opt/scalereach/config/youtube_cookies.txt`,
+        { timeout: 20000 }
+      );
+      console.log(`[SCALER] Synced cookies to burst at ${ip}`);
+      await notify(`🍪 Synced YouTube cookies to burst <code>${ip}</code>`);
+      return;
+    } catch {
+      console.log(`[SCALER] Cookie sync attempt ${i + 1}/${retries} failed, burst may not be ready yet`);
+    }
+  }
+  console.error("[SCALER] Failed to sync cookies to burst after all retries");
 }
 
 async function stopBurst() {
@@ -119,6 +190,8 @@ async function stopBurst() {
     return;
   }
   stopAlreadySent = true;
+  // Sync burst logs to base instance before stopping
+  await syncBurstLogs();
   await notify(`💤 Stopping burst instance - queue empty for ${Math.round(SCALE_DOWN_IDLE_MS / 60000)}min\n<b>Instance:</b> <code>${BURST_INSTANCE_ID}</code>`);
   await ec2.send(new StopInstancesCommand({ InstanceIds: [BURST_INSTANCE_ID!] }));
 }
