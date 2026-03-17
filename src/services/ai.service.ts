@@ -9,7 +9,7 @@ const google = createGoogleGenerativeAI({
   }) as any,
 });
 
-const MODEL_ID = "gemini-2.5-flash";
+const MODEL_ID = "gemini-2.5-pro";
 
 console.log(`[AI] provider: google (vertex-ai)`);
 console.log(`[AI] model: ${MODEL_ID}`);
