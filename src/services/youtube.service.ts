@@ -219,14 +219,19 @@ export class YouTubeService {
       }
     }
 
-    // Try yt-dlp first
+    // Try yt-dlp first (android_vr, no cookies)
     try {
       return await this.getVideoInfoYtDlp(url);
     } catch (error: any) {
       const msg = error?.message || "";
-      // If bot-blocked or POT failure, fall back to oEmbed scrape
+      // If bot-blocked or POT failure, try web client + cookies before oEmbed
       if (msg.includes("Sign in") || msg.includes("not a bot") || msg.includes("cookies") || msg.includes("page needs to be reloaded") || msg.includes("No request handlers")) {
-        console.warn(`[YOUTUBE SERVICE] yt-dlp bot-blocked, trying oEmbed fallback`);
+        console.warn(`[YOUTUBE SERVICE] yt-dlp bot-blocked with android_vr, trying web client + cookies`);
+        try {
+          return await this.getVideoInfoYtDlp(url, true);
+        } catch (cookieErr: any) {
+          console.warn(`[YOUTUBE SERVICE] yt-dlp web+cookies also failed, trying oEmbed fallback`);
+        }
         return await this.getVideoInfoOEmbed(url);
       }
       throw error;
@@ -277,8 +282,8 @@ export class YouTubeService {
    * Get video info using yt-dlp (requires yt-dlp binary installed).
    * Used by the worker on DigitalOcean.
    */
-  static async getVideoInfoYtDlp(url: string): Promise<YouTubeVideoInfo> {
-    console.log(`[YOUTUBE SERVICE] Getting video info via yt-dlp for: ${url}`);
+  static async getVideoInfoYtDlp(url: string, useCookies = false): Promise<YouTubeVideoInfo> {
+    console.log(`[YOUTUBE SERVICE] Getting video info via yt-dlp for: ${url} (cookies: ${useCookies})`);
 
     return new Promise((resolve, reject) => {
       // Add cookies if available - check env var first, then fallback to config files
@@ -288,10 +293,10 @@ export class YouTubeService {
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
       
-      // Use android_vr client — same as SocialPlug's reliable downloader.
-      // No n-challenge needed, no cookies needed.
+      // android_vr = full quality, no cookies. web = supports cookies for bot-blocked videos.
+      const playerClient = useCookies ? "web" : "android_vr,android_creator";
       const extractorArgs: string[] = [
-        `youtube:player_client=android_vr,android_creator`,
+        `youtube:player_client=${playerClient}`,
       ];
       if (bgutilBaseUrl) {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
@@ -313,7 +318,12 @@ export class YouTubeService {
         console.log(`[YOUTUBE SERVICE] Using proxy: ${proxy}`);
       }
 
-      // Don't pass cookies — android clients are skipped by yt-dlp when cookies are present
+      // Don't pass cookies for android clients — they're skipped by yt-dlp when cookies are present
+      // Pass cookies when using web client for bot-blocked videos
+      if (useCookies && cookiesPath && existsSync(cookiesPath)) {
+        args.unshift("--cookies", cookiesPath);
+        console.log(`[YOUTUBE SERVICE] Using cookies with web client for video info`);
+      }
 
       console.log(`[YOUTUBE SERVICE] yt-dlp args: ${JSON.stringify(args)}`);
 
@@ -415,112 +425,175 @@ export class YouTubeService {
 
     const videoInfo = await this.getVideoInfo(url);
 
-    // Add cookies if available - check env var first, then fallback to config files
-    const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
-      || (existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
-      || (existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
-    const proxy = process.env.YOUTUBE_PROXY;
-    const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
-    
-    // Use android_vr client — no n-challenge needed, no cookies needed
-    const extractorArgs: string[] = [
-      `youtube:player_client=android_vr,android_creator`,
-    ];
-    if (bgutilBaseUrl) {
-      extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
+    // Try android_vr first (full quality, no cookies needed).
+    // If bot-blocked, retry with web client + cookies (may get lower quality but at least works).
+    try {
+      const result = await this.spawnAudioStream(url, videoInfo, startTime, endTime, false);
+      return result;
+    } catch (firstErr: any) {
+      const msg = firstErr?.message || "";
+      const isBotBlocked = msg.includes("Sign in") || msg.includes("not a bot") ||
+                            msg.includes("cookies") || msg.includes("UNPLAYABLE") ||
+                            msg.includes("page needs to be reloaded") || msg.includes("No request handlers");
+      if (!isBotBlocked) throw firstErr;
+
+      console.warn(`[YOUTUBE SERVICE] Audio stream bot-blocked with android_vr, retrying with web client + cookies`);
+      return await this.spawnAudioStream(url, videoInfo, startTime, endTime, true);
     }
+  }
 
-    const args = [
-      "-f", "bestaudio[ext=m4a]/bestaudio/best",
-      "-o", "-",
-      "--quiet",
-      "--no-warnings",
-      "--no-check-certificates",
-      "--prefer-free-formats",
-      ...extractorArgs.flatMap(a => ["--extractor-args", a]),
-      "--extractor-retries", "3",
-      "--fragment-retries", "5",
-      "--retry-sleep", "2",
-      url,
-    ];
+  /**
+   * Spawn a yt-dlp audio stream process and wait for it to either produce data or fail.
+   * Returns a StreamResult with the audio stream piped from yt-dlp stdout.
+   *
+   * @param useCookies - If true, uses web client + cookies (fallback for bot-blocked videos).
+   *                     Note: web client from datacenter IPs may only get lower quality audio.
+   */
+  private static spawnAudioStream(
+    url: string,
+    videoInfo: YouTubeVideoInfo,
+    startTime?: number,
+    endTime?: number,
+    useCookies = false
+  ): Promise<StreamResult> {
+    return new Promise((resolve, reject) => {
+      const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
+        || (existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
+        || (existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
+      const proxy = process.env.YOUTUBE_PROXY;
+      const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-    // Add proxy if configured
-    if (proxy) {
-      args.unshift("--proxy", proxy);
-      console.log(`[YOUTUBE SERVICE] Using proxy for audio stream`);
-    }
-
-    // Download only the selected timeframe if specified
-    // NOTE: --download-sections uses ffmpeg internally, which does NOT route through the proxy.
-    // When a proxy is configured, skip timeframe cutting here and download the full audio instead.
-    // The extra bandwidth is negligible for audio-only streams (~1MB/min).
-    if ((startTime !== undefined || endTime !== undefined) && !proxy) {
-      const start = startTime ?? 0;
-      const end = endTime ?? videoInfo.duration;
-      const formatTs = (s: number) => {
-        const h = Math.floor(s / 3600).toString().padStart(2, "0");
-        const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
-        const sec = (s % 60).toFixed(3).padStart(6, "0");
-        return `${h}:${m}:${sec}`;
-      };
-      args.splice(args.indexOf(url), 0,
-        "--download-sections", `*${formatTs(start)}-${formatTs(end)}`,
-        "--force-keyframes-at-cuts",
-      );
-      console.log(`[YOUTUBE SERVICE] Timeframe audio: ${formatTs(start)} → ${formatTs(end)}`);
-    } else if ((startTime !== undefined || endTime !== undefined) && proxy) {
-      console.log(`[YOUTUBE SERVICE] Skipping --download-sections (proxy active, ffmpeg can't use it). Downloading full audio.`);
-    }
-
-    // Don't pass cookies — android clients are skipped by yt-dlp when cookies are present
-
-    const ytdlpProcess = spawn("yt-dlp", args);
-
-    if (!ytdlpProcess.stdout) {
-      throw new Error("Failed to create stdout stream");
-    }
-
-    const stream = ytdlpProcess.stdout as unknown as Readable;
-    let stderr = "";
-    let hasReceivedData = false;
-
-    stream.on("data", () => {
-      hasReceivedData = true;
-    });
-
-    ytdlpProcess.stderr?.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    ytdlpProcess.on("error", (err) => {
-      console.error(`[YOUTUBE SERVICE] Process error: ${err.message}`);
-      stream.destroy(new Error(`Failed to spawn yt-dlp: ${err.message}. Make sure yt-dlp is installed and up to date (run: yt-dlp -U)`));
-    });
-
-    ytdlpProcess.on("close", (code) => {
-      if (code !== 0 && code !== null) {
-        console.error(`[YOUTUBE SERVICE] Stream failed with code ${code}: ${stderr}`);
-        
-        // Check for common errors
-        if (stderr.includes("403") || stderr.includes("Forbidden")) {
-          stream.destroy(new Error(`YouTube blocked the download (403 Forbidden). Please update yt-dlp: yt-dlp -U. You may also need to provide YouTube cookies.`));
-        } else if (stderr.includes("Video unavailable")) {
-          stream.destroy(new Error(`Video is unavailable or private`));
-        } else if (stderr.includes("Sign in to confirm")) {
-          stream.destroy(new Error(`YouTube requires sign-in. Please provide YouTube cookies via YOUTUBE_COOKIES_PATH env variable.`));
-        } else if (!hasReceivedData) {
-          stream.destroy(new Error(`Failed to download audio: ${stderr || 'No data received'}`));
-        }
+      // android_vr = full quality, no cookies. web = lower quality but supports cookies.
+      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      const extractorArgs: string[] = [
+        `youtube:player_client=${playerClient}`,
+      ];
+      if (bgutilBaseUrl) {
+        extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
       }
+
+      const args = [
+        "-f", "bestaudio[ext=m4a]/bestaudio/best",
+        "-o", "-",
+        "--quiet",
+        "--no-warnings",
+        "--no-check-certificates",
+        "--prefer-free-formats",
+        ...extractorArgs.flatMap(a => ["--extractor-args", a]),
+        "--extractor-retries", "3",
+        "--fragment-retries", "5",
+        "--retry-sleep", "2",
+        url,
+      ];
+
+      if (proxy) {
+        args.unshift("--proxy", proxy);
+        console.log(`[YOUTUBE SERVICE] Using proxy for audio stream`);
+      }
+
+      if ((startTime !== undefined || endTime !== undefined) && !proxy) {
+        const start = startTime ?? 0;
+        const end = endTime ?? videoInfo.duration;
+        const formatTs = (s: number) => {
+          const h = Math.floor(s / 3600).toString().padStart(2, "0");
+          const m = Math.floor((s % 3600) / 60).toString().padStart(2, "0");
+          const sec = (s % 60).toFixed(3).padStart(6, "0");
+          return `${h}:${m}:${sec}`;
+        };
+        args.splice(args.indexOf(url), 0,
+          "--download-sections", `*${formatTs(start)}-${formatTs(end)}`,
+          "--force-keyframes-at-cuts",
+        );
+        console.log(`[YOUTUBE SERVICE] Timeframe audio: ${formatTs(start)} → ${formatTs(end)}`);
+      } else if ((startTime !== undefined || endTime !== undefined) && proxy) {
+        console.log(`[YOUTUBE SERVICE] Skipping --download-sections (proxy active). Downloading full audio.`);
+      }
+
+      // Pass cookies only when using web client
+      if (useCookies && cookiesPath && existsSync(cookiesPath)) {
+        args.unshift("--cookies", cookiesPath);
+        console.log(`[YOUTUBE SERVICE] Using cookies with web client for audio stream`);
+      }
+
+      console.log(`[YOUTUBE SERVICE] Audio stream spawning (client: ${playerClient}, cookies: ${useCookies})`);
+
+      const ytdlpProcess = spawn("yt-dlp", args);
+
+      if (!ytdlpProcess.stdout) {
+        reject(new Error("Failed to create stdout stream"));
+        return;
+      }
+
+      const stream = ytdlpProcess.stdout as unknown as Readable;
+      let stderr = "";
+      let hasReceivedData = false;
+      let resolved = false;
+
+      stream.on("data", () => {
+        if (!hasReceivedData) {
+          hasReceivedData = true;
+          // First data chunk received — stream is working, resolve the promise
+          if (!resolved) {
+            resolved = true;
+            console.log(`[YOUTUBE SERVICE] Audio stream producing data for: ${videoInfo.title} (client: ${playerClient})`);
+            resolve({ stream, mimeType: "audio/m4a", videoInfo });
+          }
+        }
+      });
+
+      ytdlpProcess.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      ytdlpProcess.on("error", (err) => {
+        console.error(`[YOUTUBE SERVICE] Process error: ${err.message}`);
+        if (!resolved) {
+          resolved = true;
+          reject(new Error(`Failed to spawn yt-dlp: ${err.message}`));
+        } else {
+          stream.destroy(new Error(`yt-dlp process error: ${err.message}`));
+        }
+      });
+
+      ytdlpProcess.on("close", (code) => {
+        if (code !== 0 && code !== null) {
+          console.error(`[YOUTUBE SERVICE] Stream failed with code ${code}: ${stderr}`);
+          const errorMsg = stderr.includes("Sign in") || stderr.includes("not a bot")
+            ? `YouTube bot-blocked (${playerClient}): ${stderr.slice(0, 200)}`
+            : stderr.includes("Video unavailable")
+            ? "Video is unavailable or private"
+            : `yt-dlp audio stream failed (code ${code}): ${stderr.slice(0, 300)}`;
+
+          if (!resolved) {
+            resolved = true;
+            reject(new Error(errorMsg));
+          } else {
+            stream.destroy(new Error(errorMsg));
+          }
+        } else if (!resolved) {
+          // Process exited 0 but no data was ever received
+          resolved = true;
+          reject(new Error("yt-dlp exited successfully but produced no audio data"));
+        }
+      });
+
+      // Safety timeout: if no data arrives within 30s, reject so we can retry with cookies
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          ytdlpProcess.kill("SIGTERM");
+          reject(new Error("Audio stream timeout: no data received within 30s"));
+        }
+      }, 30_000);
+
+      // Clear timeout once resolved (either data arrived or process ended)
+      const origResolve = resolve;
+      const origReject = reject;
+      // The timeout is cleared when the stream starts producing data or the process ends
+      stream.once("data", () => clearTimeout(timeout));
+      ytdlpProcess.on("close", () => clearTimeout(timeout));
+      ytdlpProcess.on("error", () => clearTimeout(timeout));
     });
-
-    console.log(`[YOUTUBE SERVICE] Audio stream started for: ${videoInfo.title}`);
-
-    return {
-      stream,
-      mimeType: "audio/m4a",
-      videoInfo,
-    };
   }
 
   static isValidYouTubeUrl(url: string): boolean {
