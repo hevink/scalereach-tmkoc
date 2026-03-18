@@ -69,12 +69,18 @@ export class AIService {
   ): Promise<T> {
     const { schema, systemPrompt, temperature = 0.7, maxTokens = 4096 } = options;
 
+    // 3 min timeout for first chunk, 5 min total — if Pro hangs, we bail to Flash
+    const FIRST_CHUNK_TIMEOUT = 180_000;
+    const TOTAL_TIMEOUT = 300_000;
+
     const startTime = Date.now();
     let chunkCount = 0;
+    let lastChunkTime = startTime;
 
     const heartbeat = setInterval(() => {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-      console.log(`[AI] ⏳ Streaming (${modelId})... ${elapsed}s elapsed, ${chunkCount} chunks received`);
+      const sinceLast = ((Date.now() - lastChunkTime) / 1000).toFixed(0);
+      console.log(`[AI] ⏳ Streaming (${modelId})... ${elapsed}s elapsed, ${chunkCount} chunks, ${sinceLast}s since last chunk`);
     }, 5000);
 
     try {
@@ -87,12 +93,42 @@ export class AIService {
         maxOutputTokens: Math.min(maxTokens, 300000),
       });
 
-      for await (const partial of partialObjectStream) {
-        chunkCount++;
-        if (chunkCount === 1) {
-          console.log(`[AI] ✅ First chunk received after ${((Date.now() - startTime) / 1000).toFixed(1)}s (${modelId})`);
+      // Wrap the stream consumption with a timeout
+      const streamPromise = (async () => {
+        for await (const _partial of partialObjectStream) {
+          chunkCount++;
+          lastChunkTime = Date.now();
+          if (chunkCount === 1) {
+            console.log(`[AI] ✅ First chunk received after ${((Date.now() - startTime) / 1000).toFixed(1)}s (${modelId})`);
+          }
         }
-      }
+      })();
+
+      // Race: stream vs first-chunk timeout (if no chunks yet) or total timeout
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        const checkInterval = setInterval(() => {
+          const now = Date.now();
+          const elapsed = now - startTime;
+          const sinceLastChunk = now - lastChunkTime;
+
+          if (chunkCount === 0 && elapsed > FIRST_CHUNK_TIMEOUT) {
+            clearInterval(checkInterval);
+            reject(new Error(`Timeout: no chunks received after ${(elapsed / 1000).toFixed(0)}s`));
+          } else if (elapsed > TOTAL_TIMEOUT) {
+            clearInterval(checkInterval);
+            reject(new Error(`Timeout: total ${(elapsed / 1000).toFixed(0)}s exceeded (${chunkCount} chunks received)`));
+          } else if (chunkCount > 0 && sinceLastChunk > 60_000) {
+            // Stall detection: no new chunks for 60s after streaming started
+            clearInterval(checkInterval);
+            reject(new Error(`Stall: no chunks for ${(sinceLastChunk / 1000).toFixed(0)}s after ${chunkCount} chunks`));
+          }
+        }, 2000);
+
+        // Clean up interval when stream finishes normally
+        streamPromise.then(() => clearInterval(checkInterval)).catch(() => clearInterval(checkInterval));
+      });
+
+      await Promise.race([streamPromise, timeoutPromise]);
 
       clearInterval(heartbeat);
 
