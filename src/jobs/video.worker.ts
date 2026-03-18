@@ -237,7 +237,7 @@ async function processYouTubeVideo(
       console.log(`[VIDEO WORKER] Audio stream started, uploading to R2...`);
       await updateVideoStatus(videoId, "uploading");
 
-      storageKey = R2Service.generateVideoStorageKey(userId, videoId, "m4a");
+      storageKey = R2Service.generateVideoStorageKey(userId, videoId, mimeType === "audio/webm" ? "webm" : "m4a");
 
       let storageUrl: string;
       try {

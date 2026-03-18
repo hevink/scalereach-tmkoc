@@ -535,8 +535,11 @@ export class YouTubeService {
           // First data chunk received — stream is working, resolve the promise
           if (!resolved) {
             resolved = true;
-            console.log(`[YOUTUBE SERVICE] Audio stream producing data for: ${videoInfo.title} (client: ${playerClient})`);
-            resolve({ stream, mimeType: "audio/m4a", videoInfo });
+            // android_vr client returns opus/webm (format 251), not m4a
+            // Use audio/webm so R2 Content-Type matches actual data (Deepgram needs this)
+            const actualMime = playerClient.includes("android_vr") ? "audio/webm" : "audio/m4a";
+            console.log(`[YOUTUBE SERVICE] Audio stream producing data for: ${videoInfo.title} (client: ${playerClient}, mime: ${actualMime})`);
+            resolve({ stream, mimeType: actualMime, videoInfo });
           }
         }
       });
