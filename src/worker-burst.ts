@@ -17,6 +17,8 @@ import { startDubbingWorker } from "./jobs/dubbing.worker";
 import { cleanupOrphanedTempFiles } from "./utils/temp-cleanup";
 import { redisConnection, clipGenerationQueue } from "./jobs/queue";
 import { dubbingQueue } from "./jobs/dubbing.worker";
+import { R2Service } from "./services/r2.service";
+import { readFileSync, existsSync } from "fs";
 
 const CLIP_CONCURRENCY = parseInt(process.env.CLIP_WORKER_CONCURRENCY || "8", 10);
 const DUBBING_CONCURRENCY = parseInt(process.env.DUBBING_WORKER_CONCURRENCY || "2", 10);
@@ -80,6 +82,34 @@ async function checkRedisHealth() {
   }
 }
 
+const BURST_OUT_LOG = process.env.PM2_LOG_FILE || "/opt/scalereach/logs/burst-out.log";
+const BURST_ERR_LOG = process.env.PM2_ERR_FILE || "/opt/scalereach/logs/burst-error.log";
+
+async function uploadLogsToR2() {
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const results: { key: string; url: string; size: number }[] = [];
+
+  for (const { path, prefix } of [
+    { path: BURST_OUT_LOG, prefix: "burst-out" },
+    { path: BURST_ERR_LOG, prefix: "burst-error" },
+  ]) {
+    if (!existsSync(path)) continue;
+    const content = readFileSync(path);
+    if (content.length === 0) continue;
+
+    // Upload timestamped version
+    const tsKey = `logs/burst/${prefix}-${ts}.log`;
+    const { url } = await R2Service.uploadFile(tsKey, content, "text/plain");
+    results.push({ key: tsKey, url, size: content.length });
+
+    // Upload as "latest" for quick access
+    const latestKey = `logs/burst/${prefix}-latest.log`;
+    await R2Service.uploadFile(latestKey, content, "text/plain");
+  }
+
+  return results;
+}
+
 let healthServer: ReturnType<typeof Bun.serve> | null = null;
 try {
   healthServer = Bun.serve({
@@ -126,6 +156,37 @@ try {
           headers: { "Content-Type": "application/json" },
         });
       }
+      // Upload burst logs to R2 on demand
+      if (url.pathname === "/health/upload-logs" && req.method === "POST") {
+        try {
+          const results = await uploadLogsToR2();
+          return new Response(JSON.stringify({ success: true, uploaded: results }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err?.message || "Upload failed" }), {
+            status: 500, headers: { "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // Read local log content directly
+      if (url.pathname === "/health/logs") {
+        const type = url.searchParams.get("type") || "out";
+        const lines = Math.min(parseInt(url.searchParams.get("lines") || "500", 10), 5000);
+        const logPath = type === "error" ? BURST_ERR_LOG : BURST_OUT_LOG;
+        try {
+          if (!existsSync(logPath)) {
+            return new Response("Log file not found", { status: 404 });
+          }
+          const { execSync } = await import("child_process");
+          const content = execSync(`tail -${lines} "${logPath}"`, { encoding: "utf8", maxBuffer: 5 * 1024 * 1024 });
+          return new Response(content, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+        } catch (err: any) {
+          return new Response(err?.message || "Failed to read logs", { status: 500 });
+        }
+      }
+
       return new Response("Not Found", { status: 404 });
     },
   });
@@ -136,6 +197,13 @@ try {
 
 async function shutdown(signal: string) {
   console.log(`[BURST] ${signal} received, shutting down...`);
+  console.log(`[BURST] Uploading logs to R2 before shutdown...`);
+  try {
+    await uploadLogsToR2();
+    console.log(`[BURST] Logs uploaded to R2`);
+  } catch (err) {
+    console.error(`[BURST] Failed to upload logs on shutdown:`, err);
+  }
   healthServer?.stop();
   await Promise.all([clipWorker.close(), dubbingWorker.close()]);
   process.exit(0);

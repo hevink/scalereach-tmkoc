@@ -71,6 +71,7 @@ adminRouter.post("/scaler-check", AdminController.forceScalerCheck);
 adminRouter.get("/burst-logs", AdminController.getBurstLogs);
 adminRouter.post("/burst-logs/sync", AdminController.syncBurstLogs);
 adminRouter.get("/burst-logs/content", AdminController.getBurstLogContent);
+adminRouter.get("/burst-logs/live", AdminController.getBurstLogsLive);
 
 // Credit analytics
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);

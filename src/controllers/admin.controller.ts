@@ -871,30 +871,36 @@ export class AdminController {
   }
 
   /**
-   * Trigger on-demand burst log sync (tells autoscaler to SCP + upload to R2)
+   * Trigger on-demand burst log sync (calls burst instance directly to upload to R2)
    * POST /api/admin/burst-logs/sync
    */
   static async syncBurstLogs(c: Context) {
     try {
-      const IORedis = require("ioredis");
-      const redisUrl = process.env.REDIS_URL;
-      const redisHost = process.env.REDIS_HOST || "localhost";
-      const redisPort = parseInt(process.env.REDIS_PORT || "6379", 10);
-      const redisPassword = process.env.REDIS_PASSWORD || undefined;
+      const { DescribeInstancesCommand } = require("@aws-sdk/client-ec2");
+      const ec2 = AdminController.getEC2Client();
+      const burstId = process.env.BURST_INSTANCE_ID;
+      if (!burstId) return c.json({ error: "BURST_INSTANCE_ID not configured" }, 500);
 
-      const redisOpts: any = { maxRetriesPerRequest: 1, connectTimeout: 5000, lazyConnect: true };
-      const redis = redisUrl
-        ? new IORedis(redisUrl, redisOpts)
-        : new IORedis({ host: redisHost, port: redisPort, password: redisPassword, ...redisOpts });
+      // Get burst instance IP
+      const desc = await ec2.send(new DescribeInstancesCommand({ InstanceIds: [burstId] }));
+      const inst = desc.Reservations?.[0]?.Instances?.[0];
+      if (!inst || inst.State?.Name !== "running") {
+        return c.json({ error: "Burst instance not running", state: inst?.State?.Name || "unknown" }, 200);
+      }
 
-      await redis.connect();
-      await redis.publish("scaler:sync-logs", "1");
-      await redis.quit();
+      const burstIp = inst.PublicIpAddress;
+      if (!burstIp) return c.json({ error: "Burst instance has no public IP" }, 200);
 
-      return c.json({ success: true, message: "Log sync triggered — logs will appear in R2 shortly" });
+      const burstPort = process.env.BURST_HEALTH_PORT || "3003";
+      const res = await fetch(`http://${burstIp}:${burstPort}/health/upload-logs`, {
+        method: "POST",
+        signal: AbortSignal.timeout(30000),
+      });
+      const data = await res.json();
+      return c.json(data, res.status as any);
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
-      return c.json({ error: `Failed to trigger log sync: ${msg}` }, 500);
+      return c.json({ error: `Failed to sync burst logs: ${msg}` }, 500);
     }
   }
 
@@ -919,6 +925,40 @@ export class AdminController {
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       return c.json({ error: `Failed to fetch log content: ${msg}` }, 500);
+    }
+  }
+
+  /**
+   * Read live logs directly from burst instance (no R2, instant)
+   * GET /api/admin/burst-logs/live?type=out|error&lines=500
+   */
+  static async getBurstLogsLive(c: Context) {
+    try {
+      const { DescribeInstancesCommand } = require("@aws-sdk/client-ec2");
+      const ec2 = AdminController.getEC2Client();
+      const burstId = process.env.BURST_INSTANCE_ID;
+      if (!burstId) return c.json({ error: "BURST_INSTANCE_ID not configured" }, 500);
+
+      const desc = await ec2.send(new DescribeInstancesCommand({ InstanceIds: [burstId] }));
+      const inst = desc.Reservations?.[0]?.Instances?.[0];
+      if (!inst || inst.State?.Name !== "running") {
+        return c.json({ error: "Burst instance not running", state: inst?.State?.Name || "unknown" }, 200);
+      }
+
+      const burstIp = inst.PublicIpAddress;
+      if (!burstIp) return c.json({ error: "Burst instance has no public IP" }, 200);
+
+      const type = c.req.query("type") || "out";
+      const lines = c.req.query("lines") || "500";
+      const burstPort = process.env.BURST_HEALTH_PORT || "3003";
+      const res = await fetch(`http://${burstIp}:${burstPort}/health/logs?type=${type}&lines=${lines}`, {
+        signal: AbortSignal.timeout(15000),
+      });
+      const content = await res.text();
+      return c.text(content, res.status as any, { "Content-Type": "text/plain; charset=utf-8" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to read burst logs: ${msg}` }, 500);
     }
   }
 }
