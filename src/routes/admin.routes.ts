@@ -72,6 +72,7 @@ adminRouter.get("/burst-logs", AdminController.getBurstLogs);
 adminRouter.post("/burst-logs/sync", AdminController.syncBurstLogs);
 adminRouter.get("/burst-logs/content", AdminController.getBurstLogContent);
 adminRouter.get("/burst-logs/live", AdminController.getBurstLogsLive);
+adminRouter.post("/burst-youtube-test", AdminController.testBurstYouTube);
 
 // Credit analytics
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);

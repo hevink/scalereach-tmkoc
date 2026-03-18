@@ -929,6 +929,43 @@ export class AdminController {
   }
 
   /**
+   * Test yt-dlp on burst instance
+   * POST /api/admin/burst-youtube-test
+   * Body: { url: string }
+   */
+  static async testBurstYouTube(c: Context) {
+    try {
+      const { DescribeInstancesCommand } = require("@aws-sdk/client-ec2");
+      const ec2 = AdminController.getEC2Client();
+      const burstId = process.env.BURST_INSTANCE_ID;
+      if (!burstId) return c.json({ error: "BURST_INSTANCE_ID not configured" }, 500);
+
+      const desc = await ec2.send(new DescribeInstancesCommand({ InstanceIds: [burstId] }));
+      const inst = desc.Reservations?.[0]?.Instances?.[0];
+      if (!inst || inst.State?.Name !== "running") {
+        return c.json({ instance: "burst", test: { ok: false, error: "Burst instance is offline" }, state: inst?.State?.Name || "unknown" }, 200);
+      }
+
+      const burstIp = inst.PublicIpAddress;
+      if (!burstIp) return c.json({ instance: "burst", test: { ok: false, error: "Burst instance has no public IP" } }, 200);
+
+      const burstPort = process.env.BURST_HEALTH_PORT || "3003";
+      const body = await c.req.json().catch(() => ({}));
+      const res = await fetch(`http://${burstIp}:${burstPort}/health/youtube-test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(35000),
+      });
+      const data = await res.json();
+      return c.json(data, res.status as any);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ instance: "burst", test: { ok: false, error: `Failed to reach burst: ${msg}` } }, 200);
+    }
+  }
+
+  /**
    * Read live logs directly from burst instance (no R2, instant)
    * GET /api/admin/burst-logs/live?type=out|error&lines=500
    */

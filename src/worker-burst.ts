@@ -187,6 +187,57 @@ try {
         }
       }
 
+      // YouTube yt-dlp test (same as base worker's youtube-status POST)
+      if (url.pathname === "/health/youtube-test" && req.method === "POST") {
+        const body = await req.json().catch(() => ({}));
+        const testUrl = (body as any).url || "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+        const cookiesPath = process.env.YOUTUBE_COOKIES_PATH || "/opt/scalereach/config/youtube_cookies.txt";
+        const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
+        const start = Date.now();
+        try {
+          const { execSync } = await import("child_process");
+          const ytdlpVersion = execSync("yt-dlp --version", { timeout: 5000 }).toString().trim();
+
+          // Check cookie status
+          let cookieStatus: "valid" | "expired" | "missing" | "error" = "missing";
+          let cookieCount = 0;
+          if (existsSync(cookiesPath)) {
+            const content = readFileSync(cookiesPath, "utf8");
+            const lines = content.split("\n").filter(l => l && !l.startsWith("#"));
+            cookieCount = lines.length;
+            cookieStatus = "valid";
+          }
+
+          // Check POT server
+          let potStatus: "running" | "stopped" | "not_configured" = "not_configured";
+          if (bgutilBaseUrl) {
+            try {
+              const res = await fetch(bgutilBaseUrl, { signal: AbortSignal.timeout(3000) });
+              potStatus = res.ok || res.status < 500 ? "running" : "stopped";
+            } catch { potStatus = "stopped"; }
+          }
+
+          // Run yt-dlp test using YouTubeService (same as base)
+          const { YouTubeService } = await import("./services/youtube.service");
+          const videoInfo = await YouTubeService.getVideoInfoYtDlp(testUrl);
+          const elapsed = Date.now() - start;
+
+          return new Response(JSON.stringify({
+            instance: "burst",
+            cookie: { status: cookieStatus, count: cookieCount, path: cookiesPath },
+            pot: { status: potStatus, url: bgutilBaseUrl || null },
+            ytdlp: { version: ytdlpVersion },
+            test: { ok: true, elapsed_ms: elapsed, videoInfo },
+          }), { headers: { "Content-Type": "application/json" } });
+        } catch (err: any) {
+          const elapsed = Date.now() - start;
+          return new Response(JSON.stringify({
+            instance: "burst",
+            test: { ok: false, elapsed_ms: elapsed, error: err?.message || "Unknown error" },
+          }), { headers: { "Content-Type": "application/json" } });
+        }
+      }
+
       return new Response("Not Found", { status: 404 });
     },
   });
