@@ -1,0 +1,10 @@
+services:
+  - name: yt-proxy
+    addr: ":8118"
+    handler:
+      type: http
+      auth:
+        username: scalereach
+        password: sr-proxy-2026-secure
+    listener:
+      type: tcp
