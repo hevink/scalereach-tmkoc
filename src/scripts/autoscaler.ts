@@ -214,7 +214,7 @@ async function deployAndSyncBurst(retries = 8, delayMs = 15000) {
       let potOk = false;
       for (let p = 0; p < 5; p++) {
         try {
-          const check = execSync(`ssh ${sshOpts} ubuntu@${ip} "curl -sf http://localhost:4416/ >/dev/null 2>&1 && echo OK || echo FAIL"`, { timeout: 10000 }).toString().trim();
+          const check = execSync(`ssh ${sshOpts} ubuntu@${ip} "curl -so /dev/null -w '%{http_code}' http://localhost:4416/ 2>/dev/null | grep -q '[0-9]' && echo OK || echo FAIL"`, { timeout: 10000 }).toString().trim();
           if (check === "OK") { potOk = true; break; }
         } catch {}
         await new Promise((r) => setTimeout(r, 3000));
