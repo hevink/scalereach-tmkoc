@@ -4,6 +4,22 @@
 module.exports = {
   apps: [
     {
+      name: "scalereach-burst-pot",
+      script: "/home/ubuntu/bgutil-ytdlp-pot-provider/server/build/main.js",
+      interpreter: "node",
+      args: "--port 4416",
+      env: {
+        NODE_ENV: "production",
+      },
+      out_file: "./logs/burst-pot-out.log",
+      error_file: "./logs/burst-pot-error.log",
+      merge_logs: true,
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
+      max_restarts: 10,
+      restart_delay: 3000,
+      watch: false,
+    },
+    {
       name: "scalereach-burst-worker",
       script: "src/worker-burst.ts",
       interpreter: "bun",

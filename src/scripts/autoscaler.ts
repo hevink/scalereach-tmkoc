@@ -209,7 +209,19 @@ async function deployAndSyncBurst(retries = 8, delayMs = 15000) {
         { timeout: 20000 }
       );
       console.log(`[SCALER] Synced cookies to burst at ${ip}`);
-      await notify(`✅ Burst deployed & ready\n<b>IP:</b> <code>${ip}</code>\n<b>Commit:</b> <code>${gitShort}</code>\n🍪 Cookies synced`);
+
+      // Verify POT server is running (needed for YouTube bot-block bypass)
+      let potOk = false;
+      for (let p = 0; p < 5; p++) {
+        try {
+          const check = execSync(`ssh ${sshOpts} ubuntu@${ip} "curl -sf http://localhost:4416/ >/dev/null 2>&1 && echo OK || echo FAIL"`, { timeout: 10000 }).toString().trim();
+          if (check === "OK") { potOk = true; break; }
+        } catch {}
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+      console.log(`[SCALER] POT server on burst: ${potOk ? "running" : "NOT running"}`);
+
+      await notify(`✅ Burst deployed & ready\n<b>IP:</b> <code>${ip}</code>\n<b>Commit:</b> <code>${gitShort}</code>\n🍪 Cookies synced\n🔑 POT: ${potOk ? "✅" : "⚠️ not running"}`);
       return;
     } catch (err) {
       console.log(`[SCALER] Deploy+sync attempt ${i + 1}/${retries} failed, burst may not be ready yet`);
