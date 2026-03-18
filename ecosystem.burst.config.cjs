@@ -34,7 +34,7 @@ module.exports = {
         SMART_CROP_TMP_DIR: "/tmp",
         YOUTUBE_COOKIES_PATH: "/opt/scalereach/config/youtube_cookies.txt",
         YT_DLP_GET_POT_BGUTIL_BASE_URL: "http://localhost:4416",
-        YOUTUBE_PROXY: "http://scalereach:sr-proxy-2026-secure@172.31.31.36:8118",
+        YOUTUBE_PROXY: "http://Zh2cj1I0096UEPA:R6AsyxCbiOinY95@92.113.114.83:43964",
         PATH: "/home/ubuntu/.deno/bin:/home/ubuntu/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
       },
       out_file: "./logs/burst-out.log",

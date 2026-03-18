@@ -1809,16 +1809,28 @@ print(f"OK:{total_w}x{total_h}")
     let truncatedCount = 0;
     let useCookies = false;
 
+    // When proxy is active, --download-sections fails because ffmpeg connects directly
+    // to the CDN (bypassing proxy) and the IP-locked signed URL rejects it.
+    // Always use full-download + local trim when proxy is configured.
+    const useFullDownload = !!process.env.YOUTUBE_PROXY;
+    if (useFullDownload) {
+      this.logOperation("YT_DLP_PROXY_FULL_DOWNLOAD", {
+        reason: "--download-sections incompatible with proxy (ffmpeg bypasses proxy for CDN URLs)",
+      });
+    }
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         // If both --force-keyframes-at-cuts AND without it have failed,
+        // OR if proxy is active (--download-sections doesn't work through proxy),
         // fall back to downloading the full video and trimming locally with FFmpeg.
-        // This avoids yt-dlp's internal FFmpeg trim entirely.
-        if (code222Count > 0 && truncatedCount > 0) {
-          this.logOperation("YT_DLP_FULL_DOWNLOAD_FALLBACK", {
-            attempt,
-            reason: "both keyframes and no-keyframes failed, downloading full video + local trim",
-          });
+        if (useFullDownload || (code222Count > 0 && truncatedCount > 0)) {
+          if (!useFullDownload) {
+            this.logOperation("YT_DLP_FULL_DOWNLOAD_FALLBACK", {
+              attempt,
+              reason: "both keyframes and no-keyframes failed, downloading full video + local trim",
+            });
+          }
           const fullPath = outputPath.replace(".mp4", "-full.mp4");
           await this.executeYtDlpFullDownload(url, fullPath, useCookies);
           // Trim locally with FFmpeg
