@@ -869,4 +869,56 @@ export class AdminController {
       return c.json({ error: `Failed to list burst logs: ${msg}` }, 500);
     }
   }
+
+  /**
+   * Trigger on-demand burst log sync (tells autoscaler to SCP + upload to R2)
+   * POST /api/admin/burst-logs/sync
+   */
+  static async syncBurstLogs(c: Context) {
+    try {
+      const IORedis = require("ioredis");
+      const redisUrl = process.env.REDIS_URL;
+      const redisHost = process.env.REDIS_HOST || "localhost";
+      const redisPort = parseInt(process.env.REDIS_PORT || "6379", 10);
+      const redisPassword = process.env.REDIS_PASSWORD || undefined;
+
+      const redisOpts: any = { maxRetriesPerRequest: 1, connectTimeout: 5000, lazyConnect: true };
+      const redis = redisUrl
+        ? new IORedis(redisUrl, redisOpts)
+        : new IORedis({ host: redisHost, port: redisPort, password: redisPassword, ...redisOpts });
+
+      await redis.connect();
+      await redis.publish("scaler:sync-logs", "1");
+      await redis.quit();
+
+      return c.json({ success: true, message: "Log sync triggered — logs will appear in R2 shortly" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to trigger log sync: ${msg}` }, 500);
+    }
+  }
+
+  /**
+   * Fetch a burst log file content from R2 (proxied to avoid CORS issues)
+   * GET /api/admin/burst-logs/content?key=logs/burst/burst-out-latest.log
+   */
+  static async getBurstLogContent(c: Context) {
+    try {
+      const key = c.req.query("key");
+      if (!key || !key.startsWith("logs/burst/")) {
+        return c.json({ error: "Invalid log key" }, 400);
+      }
+      const { R2Service } = require("../services/r2.service");
+      const url = R2Service.getPublicUrl(key);
+      const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+      if (!res.ok) {
+        return c.json({ error: `Log file not found (${res.status})` }, 404);
+      }
+      const content = await res.text();
+      return c.text(content, 200, { "Content-Type": "text/plain; charset=utf-8" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to fetch log content: ${msg}` }, 500);
+    }
+  }
 }

@@ -288,10 +288,17 @@ setInterval(check, CHECK_INTERVAL_MS);
 // Listen for force-check requests via Redis pub/sub
 const subscriber = redis.duplicate();
 subscriber.subscribe("scaler:force-check");
+subscriber.subscribe("scaler:sync-logs");
 subscriber.on("message", async (channel: string) => {
   if (channel === "scaler:force-check") {
     console.log("[SCALER] Force check triggered from admin");
     await check();
+  }
+  if (channel === "scaler:sync-logs") {
+    console.log("[SCALER] Manual log sync triggered from admin");
+    await syncBurstLogs();
+    // Publish completion so the API can respond
+    await redis.publish("scaler:sync-logs-done", JSON.stringify({ success: true, timestamp: Date.now() }));
   }
 });
 
