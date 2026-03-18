@@ -1959,8 +1959,9 @@ print(f"OK:{total_w}x{total_h}")
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      // When bot-blocked, switch to web client with cookies instead of android_vr
-      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      // When bot-blocked, try android_vr with cookies first (gets full quality streams).
+      // The "web" client from datacenter IPs only gets 360p even with cookies.
+      const playerClient = useCookies ? "android_vr" : "android_vr,android_creator";
       const extractorArgs: string[] = [
         `youtube:player_client=${playerClient}`,
       ];
@@ -2081,7 +2082,7 @@ print(f"OK:{total_w}x{total_h}")
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      const playerClient = useCookies ? "android_vr" : "android_vr,android_creator";
       const extractorArgs: string[] = [`youtube:player_client=${playerClient}`];
       if (bgutilBaseUrl) {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
