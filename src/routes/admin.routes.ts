@@ -74,6 +74,9 @@ adminRouter.get("/burst-logs/content", AdminController.getBurstLogContent);
 adminRouter.get("/burst-logs/live", AdminController.getBurstLogsLive);
 adminRouter.post("/burst-youtube-test", AdminController.testBurstYouTube);
 
+// Queue management
+adminRouter.post("/queue-action", AdminController.queueAction);
+
 // Credit analytics
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);
 

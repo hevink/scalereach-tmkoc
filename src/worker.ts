@@ -538,6 +538,71 @@ try {
         }
       }
 
+      // ── PROTECTED: drain/clean a queue ──────────────────
+      if (url.pathname === "/health/hevin/queue-action" && req.method === "POST") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
+        }
+
+        try {
+          const body = await req.json() as { queue: string; action: string };
+          const { queue, action } = body;
+
+          const queueMap: Record<string, any> = {
+            clipGeneration: clipGenerationQueue,
+            videoProcessing: videoProcessingQueue,
+            socialPosting: socialPostingQueue,
+            translation: translationQueue,
+            dubbing: dubbingQueue,
+          };
+
+          const targetQueue = queueMap[queue];
+          if (!targetQueue) {
+            return new Response(JSON.stringify({ error: "Unknown queue", available: Object.keys(queueMap) }), { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+          }
+
+          const validActions = ["drain", "clean-completed", "clean-failed"];
+          if (!validActions.includes(action)) {
+            return new Response(JSON.stringify({ error: "Unknown action", available: validActions }), { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+          }
+
+          let result: any = {};
+
+          if (action === "drain") {
+            // Remove all waiting/delayed jobs (drain the queue)
+            await targetQueue.drain();
+            result = { drained: true };
+          } else if (action === "clean-completed") {
+            const cleaned = await targetQueue.clean(0, 1000, "completed");
+            result = { cleaned: cleaned.length, type: "completed" };
+          } else if (action === "clean-failed") {
+            const cleaned = await targetQueue.clean(0, 1000, "failed");
+            result = { cleaned: cleaned.length, type: "failed" };
+          }
+
+          // Return fresh stats
+          const [waiting, active, completed, failed] = await Promise.all([
+            targetQueue.getWaitingCount(),
+            targetQueue.getActiveCount(),
+            targetQueue.getCompletedCount(),
+            targetQueue.getFailedCount(),
+          ]);
+          // Also count prioritized jobs for clip queue
+          let prioritized = 0;
+          try { prioritized = await redisConnection.zcard(`bull:${targetQueue.name}:prioritized`); } catch {}
+
+          return new Response(JSON.stringify({
+            success: true,
+            action,
+            queue,
+            result,
+            stats: { waiting: waiting + prioritized, active, completed, failed },
+          }), { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+        } catch (err: any) {
+          return new Response(JSON.stringify({ error: err?.message || "Queue action failed" }), { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+        }
+      }
+
       return new Response("Not Found", { status: 404, headers: SECURITY_HEADERS });
     },
   });

@@ -998,4 +998,33 @@ export class AdminController {
       return c.json({ error: `Failed to read burst logs: ${msg}` }, 500);
     }
   }
+
+  /**
+   * Proxy queue action (drain/clean) to worker
+   * POST /api/admin/queue-action
+   */
+  static async queueAction(c: Context) {
+    try {
+      const workerUrl = process.env.WORKER_URL;
+      if (!workerUrl) return c.json({ error: "WORKER_URL not configured" }, 500);
+      const workerSecret = process.env.WORKER_SECRET;
+      if (!workerSecret) return c.json({ error: "WORKER_SECRET not configured" }, 500);
+
+      const body = await c.req.json();
+      const res = await fetch(`${workerUrl}/health/hevin/queue-action`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${workerSecret}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      });
+      const data = await res.json();
+      return c.json(data, res.status as any);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to reach worker: ${msg}` }, 502);
+    }
+  }
 }
