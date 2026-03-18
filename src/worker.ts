@@ -480,6 +480,64 @@ try {
         });
       }
 
+      // ── PROTECTED: execute whitelisted commands ────────────
+      if (url.pathname === "/health/hevin/exec" && req.method === "POST") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
+        }
+
+        try {
+          const body = await req.json() as { command: string };
+          const { command } = body;
+
+          // Whitelist of allowed commands for safety
+          const ALLOWED_COMMANDS: Record<string, string> = {
+            "pm2-status": "pm2 jlist",
+            "disk-usage": "df -h",
+            "memory": "free -h",
+            "top-processes": "ps aux --sort=-%mem | head -20",
+            "network-connections": "ss -tuln",
+            "docker-ps": "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null || echo 'Docker not available'",
+            "gpu-status": "nvidia-smi 2>/dev/null || echo 'No GPU available'",
+            "uptime": "uptime",
+            "yt-dlp-version": "yt-dlp --version",
+            "ffmpeg-version": "ffmpeg -version 2>&1 | head -1",
+            "pot-server-check": `curl -s -o /dev/null -w '%{http_code}' ${process.env.BGUTIL_BASE_URL || 'http://localhost:4416'} 2>/dev/null || echo 'unreachable'`,
+            "active-downloads": "ps aux | grep -E 'yt-dlp|ffmpeg' | grep -v grep || echo 'No active downloads'",
+            "redis-ping": "redis-cli ping 2>/dev/null || echo 'Redis CLI not available'",
+            "tail-errors": `tail -30 ${PM2_ERR_FILE} 2>/dev/null || echo 'No error log found'`,
+            "tail-output": `tail -30 ${PM2_LOG_FILE} 2>/dev/null || echo 'No output log found'`,
+            "git-status": "cd /opt/scalereach && git log --oneline -5 2>/dev/null || echo 'Git not available'",
+            "check-ports": "ss -tlnp 2>/dev/null | grep -E ':(3000|4416|6379|8080)' || echo 'No matching ports'",
+            "cookie-check": `wc -l ${process.env.COOKIES_PATH || '/opt/scalereach/cookies.txt'} 2>/dev/null || echo 'Cookie file not found'`,
+          };
+
+          if (!command || !ALLOWED_COMMANDS[command]) {
+            return new Response(JSON.stringify({
+              error: "Unknown command",
+              available: Object.keys(ALLOWED_COMMANDS),
+            }), { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+          }
+
+          const { execSync } = await import("child_process");
+          const output = execSync(ALLOWED_COMMANDS[command], {
+            encoding: "utf8",
+            timeout: 15000,
+            maxBuffer: 1024 * 512,
+          });
+
+          return new Response(JSON.stringify({ command, output: output.trim() }), {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+          });
+        } catch (err: any) {
+          return new Response(JSON.stringify({
+            error: err?.message || "Command execution failed",
+            output: err?.stdout?.toString() || err?.stderr?.toString() || "",
+          }), { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+        }
+      }
+
       return new Response("Not Found", { status: 404, headers: SECURITY_HEADERS });
     },
   });

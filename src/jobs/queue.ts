@@ -298,12 +298,15 @@ export function createWorker<T>(
   const worker = new Worker<T>(queueName, processor, {
     connection: createRedisConnection(),
     concurrency,
-    // FFmpeg jobs can take 2-5 minutes - increase stall thresholds so a
-    // slow encode doesn't get incorrectly marked as stalled and retried.
-    stalledInterval: 5 * 60 * 1000,  // check for stalled jobs every 5 min (default: 30s)
-    maxStalledCount: 3,               // allow 3 stall recoveries before failing (default: 1)
-    lockDuration: 10 * 60 * 1000,    // job lock lasts 10 min (default: 30s)
-    lockRenewTime: 5 * 60 * 1000,    // renew lock every 5 min (default: 15s)
+    // Stalled job recovery: when a worker crashes mid-job, BullMQ detects the
+    // stalled job and moves it back to wait after the lock expires.
+    // lockRenewTime (30s) keeps the lock alive during normal processing.
+    // If worker dies, lock expires after lockDuration (2 min), then the next
+    // stalledInterval check (30s) recovers the job. Worst case: ~2.5 min recovery.
+    stalledInterval: 30_000,          // check for stalled jobs every 30s
+    maxStalledCount: 3,               // allow 3 stall recoveries before failing
+    lockDuration: 2 * 60 * 1000,     // job lock lasts 2 min (expires fast if worker dies)
+    lockRenewTime: 30_000,            // renew lock every 30s (keeps lock alive during long FFmpeg jobs)
   });
 
   worker.on("completed", (job) => {
