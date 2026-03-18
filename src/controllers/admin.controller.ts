@@ -617,6 +617,40 @@ export class AdminController {
   }
 
   /**
+   * Proxy worker log tail snapshot
+   * GET /api/admin/worker-logs/live?type=out|err|both&lines=500
+   */
+  static async getWorkerLogsLive(c: Context) {
+    try {
+      const workerUrl = process.env.WORKER_URL;
+      if (!workerUrl) return c.json({ error: "WORKER_URL not configured" }, 500);
+      const workerSecret = process.env.WORKER_SECRET;
+      if (!workerSecret) return c.json({ error: "WORKER_SECRET not configured" }, 500);
+
+      const type = c.req.query("type") || "both";
+      const lines = c.req.query("lines") || "500";
+
+      const res = await fetch(
+        `${workerUrl}/health/hevin/logs?type=${type}&lines=${lines}`,
+        {
+          headers: { "Authorization": `Bearer ${workerSecret}` },
+          signal: AbortSignal.timeout(15000),
+        }
+      );
+
+      if (res.status === 401 || res.status === 403) {
+        return c.json({ error: "Worker rejected request - check WORKER_SECRET" }, 502);
+      }
+
+      const content = await res.text();
+      return c.text(content, res.status as any, { "Content-Type": "text/plain; charset=utf-8" });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to read worker logs: ${msg}` }, 502);
+    }
+  }
+
+  /**
    * Proxy worker log stream (SSE)
    * GET /api/admin/worker-logs/stream?type=out|err|both&lines=100
    */

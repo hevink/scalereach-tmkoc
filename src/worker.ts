@@ -46,6 +46,41 @@ const PM2_LOG_FILE = process.env.PM2_LOG_FILE ||
 const PM2_ERR_FILE = process.env.PM2_ERR_FILE ||
   `/opt/scalereach/logs/worker-error.log`;
 
+type WorkerLogType = "out" | "err" | "both";
+
+function getWorkerLogFiles(logType: WorkerLogType) {
+  const files: { path: string; isErr: boolean; label: string }[] = [];
+
+  if ((logType === "out" || logType === "both") && fsExists(PM2_LOG_FILE)) {
+    files.push({ path: PM2_LOG_FILE, isErr: false, label: "stdout" });
+  }
+  if ((logType === "err" || logType === "both") && fsExists(PM2_ERR_FILE)) {
+    files.push({ path: PM2_ERR_FILE, isErr: true, label: "stderr" });
+  }
+
+  return files;
+}
+
+function readWorkerLogTail(logType: WorkerLogType, tailLines: number): string {
+  const filesToTail = getWorkerLogFiles(logType);
+  if (filesToTail.length === 0) return "";
+
+  return filesToTail.map(({ path, label }) => {
+    try {
+      const content = execSyncNode(`tail -${tailLines} "${path}"`, {
+        encoding: "utf8",
+        maxBuffer: 5 * 1024 * 1024,
+      }).trimEnd();
+
+      if (!content) return "";
+      if (filesToTail.length === 1) return content;
+      return `==> ${label} <==\n${content}`;
+    } catch {
+      return "";
+    }
+  }).filter(Boolean).join("\n\n");
+}
+
 startPotServer();
 
 // Clean up orphaned temp files from previous crashed runs
@@ -374,6 +409,32 @@ try {
         }), { headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
       }
 
+      // ── PROTECTED: latest log tail snapshot ──────────────
+      if (url.pathname === "/health/hevin/logs") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
+        }
+
+        const requestedType = url.searchParams.get("type");
+        const logType: WorkerLogType = requestedType === "out" || requestedType === "err" || requestedType === "both"
+          ? requestedType
+          : "both";
+        const tailLines = Math.min(Math.max(parseInt(url.searchParams.get("lines") || "500", 10), 1), 5000);
+        const content = readWorkerLogTail(logType, tailLines);
+
+        if (!content) {
+          return new Response("No log files found yet", {
+            status: 200,
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          });
+        }
+
+        return new Response(content, {
+          status: 200,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }
+
       // ── PROTECTED: live log SSE stream ────────────────────
       if (url.pathname === "/health/hevin/logs/stream") {
         if (!isAuthorized(req)) {
@@ -404,14 +465,9 @@ try {
 
             // Send history first
             const historyLines: { line: string; err: boolean }[] = [];
-            const filesToTail: { path: string; isErr: boolean }[] = [];
-
-            if ((logType === "out" || logType === "both") && fsExists(PM2_LOG_FILE)) {
-              filesToTail.push({ path: PM2_LOG_FILE, isErr: false });
-            }
-            if ((logType === "err" || logType === "both") && fsExists(PM2_ERR_FILE)) {
-              filesToTail.push({ path: PM2_ERR_FILE, isErr: true });
-            }
+            const filesToTail = getWorkerLogFiles(
+              logType === "out" || logType === "err" || logType === "both" ? logType : "both"
+            );
 
             // Send last N lines as history - individual data messages so onmessage fires reliably
             for (const { path, isErr } of filesToTail) {

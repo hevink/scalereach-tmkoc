@@ -60,6 +60,7 @@ adminRouter.post("/youtube-health", AdminController.getYouTubeHealth);
 
 // Worker dashboard & logs (proxied from worker)
 adminRouter.get("/worker-status", AdminController.getWorkerStatus);
+adminRouter.get("/worker-logs/live", AdminController.getWorkerLogsLive);
 adminRouter.get("/worker-logs/stream", AdminController.getWorkerLogStream);
 
 // EC2 instance management
