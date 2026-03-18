@@ -124,11 +124,13 @@ function getOutputDimensions(
   aspectRatio: AspectRatio,
   quality: VideoQuality
 ): { width: number; height: number } {
+  const isPremium = process.env.YOUTUBE_PREMIUM === "true";
+
   const qualityMap: Record<VideoQuality, number> = {
     "720p": 720,
     "1080p": 1080,
-    "2k": 1440,   // actual encode - shown as "4K" in UI
-    "4k": 2160,
+    "2k": isPremium ? 1440 : 1080,   // capped at 1080 without Premium
+    "4k": isPremium ? 2160 : 1080,   // capped at 1080 without Premium
   };
 
   const baseSize = qualityMap[quality];
@@ -1938,7 +1940,13 @@ print(f"OK:{total_w}x{total_h}")
     forceKeyframes = true
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const formatSelector = "bestvideo[height>=1080]+bestaudio/bestvideo[height>=720]+bestaudio/bestvideo+bestaudio/best";
+      // Cap at 1080p unless YouTube Premium cookies are available.
+      // Premium unlocks 1080p Premium (AV1), 1440p, 4K streams.
+      const isPremium = process.env.YOUTUBE_PREMIUM === "true";
+      const maxHeight = isPremium ? 4320 : 1080;
+      const formatSelector = isPremium
+        ? `bestvideo[height<=${maxHeight}]+bestaudio/bestvideo[height<=1080]+bestaudio/best`
+        : `bestvideo[height<=1080][vcodec!*=av01]+bestaudio/bestvideo[height<=1080]+bestaudio/bestvideo[height<=720]+bestaudio/best`;
       const downloadSection = formatYtDlpTimestamp(startTime, endTime);
       const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
         || (fs.existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
@@ -2053,7 +2061,11 @@ print(f"OK:{total_w}x{total_h}")
     outputPath: string
   ): Promise<void> {
     return new Promise((resolve, reject) => {
-      const formatSelector = "bestvideo[height>=1080]+bestaudio/bestvideo[height>=720]+bestaudio/bestvideo+bestaudio/best";
+      const isPremium = process.env.YOUTUBE_PREMIUM === "true";
+      const maxHeight = isPremium ? 4320 : 1080;
+      const formatSelector = isPremium
+        ? `bestvideo[height<=${maxHeight}]+bestaudio/bestvideo[height<=1080]+bestaudio/best`
+        : `bestvideo[height<=1080][vcodec!*=av01]+bestaudio/bestvideo[height<=1080]+bestaudio/bestvideo[height<=720]+bestaudio/best`;
       const cookiesPath = process.env.YOUTUBE_COOKIES_PATH
         || (fs.existsSync("./config/youtube_cookies_local.txt") ? "./config/youtube_cookies_local.txt" : undefined)
         || (fs.existsSync("./config/youtube_cookies.txt") ? "./config/youtube_cookies.txt" : undefined);
