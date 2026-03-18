@@ -562,12 +562,16 @@ export class YouTubeService {
             return;
           }
           const { statSync, createReadStream } = require("fs");
+          const { PassThrough } = require("stream");
           const fileSize = statSync(tempPath!).size;
           console.log(`[YOUTUBE SERVICE] Audio downloaded to temp file: ${tempPath} (${(fileSize / 1024 / 1024).toFixed(1)} MB, mime: ${actualMime})`);
-          const fileStream = createReadStream(tempPath!) as Readable;
+          const rawStream = createReadStream(tempPath!);
+          // Wrap in PassThrough so S3 SDK doesn't see ReadStream's start/end (causes Infinity ContentLength)
+          const fileStream = new PassThrough() as Readable;
+          rawStream.pipe(fileStream);
           // Clean up temp file when stream is consumed or errors
-          fileStream.on("end", () => { try { require("fs").unlinkSync(tempPath!); } catch {} });
-          fileStream.on("error", () => { try { require("fs").unlinkSync(tempPath!); } catch {} });
+          rawStream.on("end", () => { try { require("fs").unlinkSync(tempPath!); } catch {} });
+          rawStream.on("error", () => { try { require("fs").unlinkSync(tempPath!); } catch {} });
           resolve({ stream: fileStream, mimeType: actualMime, videoInfo });
         });
       } else {
