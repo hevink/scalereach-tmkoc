@@ -20,6 +20,8 @@ export interface StreamResult {
   stream: Readable;
   mimeType: string;
   videoInfo: YouTubeVideoInfo;
+  /** Whether --download-sections actually trimmed the audio (false when proxy is active) */
+  trimmed: boolean;
 }
 
 export interface ValidationResult {
@@ -524,6 +526,10 @@ export class YouTubeService {
 
       console.log(`[YOUTUBE SERVICE] Audio stream spawning (client: ${playerClient}, cookies: ${useCookies}, tempFile: ${usesTempFile})`);
 
+      // Track whether --download-sections actually trimmed the audio
+      // When proxy is active, full audio is downloaded (trimmed=false)
+      const audioWasTrimmed = !proxy && (startTime !== undefined || endTime !== undefined);
+
       const ytdlpProcess = spawn("yt-dlp", args);
 
       let stderr = "";
@@ -572,7 +578,7 @@ export class YouTubeService {
           // Clean up temp file when stream is consumed or errors
           rawStream.on("end", () => { try { require("fs").unlinkSync(tempPath!); } catch {} });
           rawStream.on("error", () => { try { require("fs").unlinkSync(tempPath!); } catch {} });
-          resolve({ stream: fileStream, mimeType: actualMime, videoInfo });
+          resolve({ stream: fileStream, mimeType: actualMime, videoInfo, trimmed: audioWasTrimmed });
         });
       } else {
         // Stdout pipe mode (no proxy): resolve on first data chunk
@@ -589,7 +595,7 @@ export class YouTubeService {
             if (!resolved) {
               resolved = true;
               console.log(`[YOUTUBE SERVICE] Audio stream producing data for: ${videoInfo.title} (client: ${playerClient}, mime: ${actualMime})`);
-              resolve({ stream, mimeType: actualMime, videoInfo });
+              resolve({ stream, mimeType: actualMime, videoInfo, trimmed: audioWasTrimmed });
             }
           }
         });

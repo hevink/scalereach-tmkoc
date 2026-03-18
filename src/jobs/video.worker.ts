@@ -180,7 +180,10 @@ async function processYouTubeVideo(
       await job.updateProgress(70);
       timeframeStart = videoConfig?.timeframeStart ?? 0;
       timeframeEnd = videoConfig?.timeframeEnd ?? 9999;
-      const offsetWords = timeframeStart > 0
+      // When proxy is active, audio in R2 is the full video (not trimmed).
+      // Deepgram returns absolute timestamps, so no offset needed.
+      const proxyActive = !!process.env.YOUTUBE_PROXY;
+      const offsetWords = (!proxyActive && timeframeStart > 0)
         ? transcriptResult.words.map((w) => ({ ...w, start: w.start + timeframeStart, end: w.end + timeframeStart }))
         : transcriptResult.words;
 
@@ -216,7 +219,7 @@ async function processYouTubeVideo(
         throw new Error(`YouTube download failed: ${error.message}`);
       }
 
-      const { stream, videoInfo, mimeType } = streamResult;
+      const { stream, videoInfo, mimeType, trimmed: audioTrimmed } = streamResult;
 
       await updateVideoStatus(videoId, "downloading", {
         title: videoInfo.title,
@@ -270,7 +273,9 @@ async function processYouTubeVideo(
       await job.updateProgress(70);
       timeframeStart = videoConfig?.timeframeStart ?? 0;
       timeframeEnd = videoConfig?.timeframeEnd ?? videoInfo.duration;
-      const offsetWords = timeframeStart > 0
+      // Only offset timestamps when --download-sections actually trimmed the audio.
+      // When proxy is active, full audio is downloaded so Deepgram returns absolute timestamps already.
+      const offsetWords = (audioTrimmed && timeframeStart > 0)
         ? transcriptResult.words.map((w) => ({ ...w, start: w.start + timeframeStart, end: w.end + timeframeStart }))
         : transcriptResult.words;
 
@@ -300,8 +305,13 @@ async function processYouTubeVideo(
     console.log(`[VIDEO WORKER] Detecting viral clips...`);
     console.log(`[VIDEO WORKER] Processing timeframe: ${timeframeStart}s - ${timeframeEnd}s`);
 
-    const filteredWords = transcriptWords;
+    // Filter transcript words to the selected timeframe range
+    // This handles both: proxy mode (full audio, absolute timestamps) and resume (existing transcript)
+    const filteredWords = (timeframeStart > 0 || timeframeEnd < 9999)
+      ? transcriptWords.filter((w) => w.start >= timeframeStart && w.end <= timeframeEnd)
+      : transcriptWords;
     const filteredTranscript = filteredWords.map((w) => w.word).join(" ");
+    console.log(`[VIDEO WORKER] Transcript words: ${transcriptWords.length} total → ${filteredWords.length} in timeframe`);
 
     const viralClips = await ViralDetectionService.detectViralClips(
       filteredTranscript,

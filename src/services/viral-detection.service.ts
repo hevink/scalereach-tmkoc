@@ -193,8 +193,8 @@ export class ViralDetectionService {
     options: ViralDetectionOptions
   ): Promise<ViralClip[]> {
     const totalDuration = transcriptWords[transcriptWords.length - 1]?.end ?? 0;
-    // ~10 min chunks with 30s overlap to catch clips at boundaries
-    const CHUNK_DURATION = 600;
+    // ~30 min chunks with 30s overlap to catch clips at boundaries
+    const CHUNK_DURATION = 1800;
     const OVERLAP = 30;
 
     const chunks: { start: number; end: number }[] = [];
