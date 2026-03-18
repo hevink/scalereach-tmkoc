@@ -202,6 +202,46 @@ export class ClipGeneratorService {
     );
   }
 
+  // ── Full-download cache (proxy mode) ──────────────────────────────
+  // When proxy is active, each clip needs the full video downloaded first.
+  // This cache deduplicates: only 1 download per video URL, all clips share it.
+  private static fullDownloadCache = new Map<string, {
+    promise: Promise<string>;
+    refCount: number;
+    filePath: string;
+  }>();
+
+  private static async acquireFullDownload(url: string, useCookies = false): Promise<string> {
+    const existing = this.fullDownloadCache.get(url);
+    if (existing) {
+      existing.refCount++;
+      this.logOperation("FULL_DOWNLOAD_CACHE_HIT", { url, refCount: existing.refCount });
+      return existing.promise;
+    }
+    const filePath = path.join(os.tmpdir(), `yt-full-${nanoid()}.mp4`);
+    const promise = this.executeYtDlpFullDownload(url, filePath, useCookies).then(() => filePath);
+    this.fullDownloadCache.set(url, { promise, refCount: 1, filePath });
+    this.logOperation("FULL_DOWNLOAD_CACHE_MISS", { url, filePath });
+    return promise;
+  }
+
+  private static releaseFullDownload(url: string): void {
+    const entry = this.fullDownloadCache.get(url);
+    if (!entry) return;
+    entry.refCount--;
+    if (entry.refCount <= 0) {
+      // Keep file for 60s in case more clips for same video arrive
+      setTimeout(() => {
+        const current = this.fullDownloadCache.get(url);
+        if (current && current.refCount <= 0) {
+          this.fullDownloadCache.delete(url);
+          this.cleanupTempFile(current.filePath).catch(() => {});
+          this.logOperation("FULL_DOWNLOAD_CACHE_EVICT", { url });
+        }
+      }, 60_000);
+    }
+  }
+
   /**
    * Get the absolute path to the watermark logo PNG.
    * Converts from SVG on first call and caches the result.
@@ -1811,26 +1851,52 @@ print(f"OK:{total_w}x{total_h}")
 
     // When proxy is active, --download-sections fails because ffmpeg connects directly
     // to the CDN (bypassing proxy) and the IP-locked signed URL rejects it.
-    // Always use full-download + local trim when proxy is configured.
-    const useFullDownload = !!process.env.YOUTUBE_PROXY;
-    if (useFullDownload) {
-      this.logOperation("YT_DLP_PROXY_FULL_DOWNLOAD", {
-        reason: "--download-sections incompatible with proxy (ffmpeg bypasses proxy for CDN URLs)",
+    // Use full-download + local trim. A static cache ensures only ONE download per video URL
+    // even when 4 clips run concurrently for the same video.
+    const proxy = process.env.YOUTUBE_PROXY;
+    if (proxy) {
+      this.logOperation("YT_DLP_PROXY_SEGMENT", {
+        reason: "proxy active — full download + local trim (cached per video URL)",
+        url,
+        startTime,
+        endTime,
       });
+      const fullPath = await this.acquireFullDownload(url, useCookies);
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const trimArgs = [
+            "-ss", startTime.toString(),
+            "-i", fullPath,
+            "-t", expectedDuration.toString(),
+            "-c", "copy",
+            "-avoid_negative_ts", "make_zero",
+            "-y", outputPath,
+          ];
+          this.logOperation("FFMPEG_LOCAL_TRIM", { args: trimArgs.join(" ") });
+          const proc = spawn("ffmpeg", trimArgs);
+          let stderr = "";
+          proc.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
+          proc.on("error", (err: Error) => reject(new Error(`FFmpeg trim spawn failed: ${err.message}`)));
+          proc.on("close", (code: number | null) => {
+            if (code === 0) resolve();
+            else reject(new Error(`FFmpeg local trim failed (code ${code}): ${stderr.slice(-500)}`));
+          });
+        });
+      } finally {
+        this.releaseFullDownload(url);
+      }
+      return;
     }
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         // If both --force-keyframes-at-cuts AND without it have failed,
-        // OR if proxy is active (--download-sections doesn't work through proxy),
         // fall back to downloading the full video and trimming locally with FFmpeg.
-        if (useFullDownload || (code222Count > 0 && truncatedCount > 0)) {
-          if (!useFullDownload) {
-            this.logOperation("YT_DLP_FULL_DOWNLOAD_FALLBACK", {
-              attempt,
-              reason: "both keyframes and no-keyframes failed, downloading full video + local trim",
-            });
-          }
+        if (code222Count > 0 && truncatedCount > 0) {
+          this.logOperation("YT_DLP_FULL_DOWNLOAD_FALLBACK", {
+            attempt,
+            reason: "both keyframes and no-keyframes failed, downloading full video + local trim",
+          });
           const fullPath = outputPath.replace(".mp4", "-full.mp4");
           await this.executeYtDlpFullDownload(url, fullPath, useCookies);
           // Trim locally with FFmpeg
