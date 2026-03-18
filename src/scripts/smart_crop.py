@@ -394,11 +394,13 @@ if video_type == "group":
     log("Done (letterbox - group shot).")
     sys.exit(0)
 
-if video_type == "screen_pip":
-    log("Screen recording with PiP face cam - using split screen mode")
+# ── Helper: detect PiP region from a set of faces ────────────────────────────
 
-    pip_region = {"x": src_w - src_w // 4, "y": src_h - src_h // 4, "w": src_w // 4, "h": src_h // 4}
-    for faces in sample_faces:
+def detect_pip_region(faces_list):
+    """Find the PiP webcam region from a list of face-lists (sampled frames).
+    Returns the pip_region dict or None if no PiP face found."""
+    pip_region = None
+    for faces in faces_list:
         for face in faces:
             face_w_ratio = face["w"] / src_w
             in_corner = (face["cx"] < src_w * 0.35 or face["cx"] > src_w * 0.65) and \
@@ -412,14 +414,11 @@ if video_type == "screen_pip":
                     "w": min(src_w - max(0, face["x"] - pad), face["w"] + pad * 2),
                     "h": min(src_h - max(0, face["y"] - pad), face["h"] + pad * 2),
                 }
-                break
-        else:
-            continue
-        break
+                return pip_region
+    return None
 
-    log(f"PiP region: {pip_region}")
-
-    # Screen region: everything except the PiP corner
+def build_split_info(pip_region):
+    """Build the split-screen layout info from a PiP region."""
     pip_cx = pip_region["x"] + pip_region["w"] // 2
     if pip_cx > src_w * 0.5:
         screen_x = 0
@@ -432,16 +431,12 @@ if video_type == "screen_pip":
         screen_w = src_w
         screen_x = 0
 
-    # Layout: face on TOP, screen on BOTTOM (zoomed 1.25x)
-    # Target: 1080x1920 portrait
     target_w = crop_w if crop_w > 0 else int(src_h * 9 / 16)
-    target_h = src_h  # full portrait height
-    # Face takes ~55% of height, screen takes ~45%
+    target_h = src_h
     face_h = int(target_h * 0.55)
     screen_h = target_h - face_h
 
-    result = {
-        "mode": "split",
+    return {
         "screen": {"x": screen_x, "y": 0, "w": screen_w, "h": src_h},
         "pip": pip_region,
         "src_w": src_w,
@@ -451,10 +446,38 @@ if video_type == "screen_pip":
         "screen_h": screen_h,
         "screen_zoom": 1.25,
     }
-    with open(coords_path, "w") as f:
-        json.dump(result, f)
-    log("Done (split screen mode).")
-    sys.exit(0)
+
+# If the ENTIRE video is screen_pip, use the old fast path (no per-frame tracking needed)
+if video_type == "screen_pip":
+    # Check if ALL sampled frames look like PiP — if so, use static split for the whole clip
+    pip_frame_count = 0
+    for faces in sample_faces:
+        has_pip_face = any(
+            (f["w"] / src_w < 0.10 and
+             ((f["cx"] < src_w * 0.30 or f["cx"] > src_w * 0.70) and
+              (f["cy"] < src_h * 0.30 or f["cy"] > src_h * 0.70)))
+            or (f["w"] / src_w < 0.10)
+            for f in faces
+        )
+        if has_pip_face or not faces:
+            pip_frame_count += 1
+
+    # If 80%+ of frames are PiP-like, the whole clip is screen recording → static split
+    if pip_frame_count >= len(sample_times) * 0.80:
+        log("Screen recording with PiP face cam (consistent) - using static split screen mode")
+        pip_region = detect_pip_region(sample_faces)
+        if not pip_region:
+            pip_region = {"x": src_w - src_w // 4, "y": src_h - src_h // 4, "w": src_w // 4, "h": src_h // 4}
+        split_info = build_split_info(pip_region)
+        log(f"PiP region: {pip_region}")
+        with open(coords_path, "w") as f:
+            json.dump({"mode": "split", **split_info}, f)
+        log("Done (split screen mode - static).")
+        sys.exit(0)
+    else:
+        # Not all frames are PiP — fall through to per-frame tracking
+        # which will handle mixed split/face/letterbox segments
+        log(f"Screen PiP detected but only {pip_frame_count}/{len(sample_times)} frames are PiP-like — using per-frame tracking")
 
 # ── 5c-dual: Podcast with 2 speakers → stacked dual-face crop ────────────────
 
@@ -591,6 +614,30 @@ def get_speaker_at(t):
 
 # ── IMPROVEMENT 3: Face detection loop with identity matching ─────────────────
 
+def classify_frame(faces):
+    """Classify a single frame based on its detected faces.
+    Returns: 'split' | 'face' | 'group' | 'no_face'"""
+    if not faces:
+        return "no_face"
+    if len(faces) >= 4:
+        return "group"
+    # Check for PiP pattern: small face in corner/side
+    for face in faces:
+        w_ratio = face["w"] / src_w if src_w > 0 else 0
+        is_small = w_ratio < 0.10
+        in_corner = (face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.70) and \
+                    (face["cy"] < src_h * 0.30 or face["cy"] > src_h * 0.70)
+        on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
+        if is_small and (in_corner or on_side):
+            return "split"
+    return "face"
+
+# Pre-compute PiP region from sample_faces for split segments
+# (used later when building split segment info)
+global_pip_region = detect_pip_region(sample_faces)
+if not global_pip_region:
+    global_pip_region = {"x": src_w - src_w // 4, "y": src_h - src_h // 4, "w": src_w // 4, "h": src_h // 4}
+
 cap = cv2.VideoCapture(proxy_video)
 if not cap.isOpened():
     log("WARNING: Could not open proxy for face tracking, trying original")
@@ -612,7 +659,12 @@ try:
             break
         faces = detect_faces_in_frame(frame, proxy_scale)
         faces = match_faces_across_frames(prev_faces, faces)
-        frame_data.append({"t": round(t, 2), "faces": faces})
+        frame_type = classify_frame(faces)
+        # For split frames, also try to detect PiP region from this specific frame
+        frame_pip = None
+        if frame_type == "split":
+            frame_pip = detect_pip_region([faces])
+        frame_data.append({"t": round(t, 2), "faces": faces, "frame_type": frame_type, "pip": frame_pip})
         prev_faces = faces
         t += sample_interval
 except Exception as e:
@@ -761,7 +813,7 @@ for fd in frame_data:
         last_velocity = x - last_x
         last_cx       = x + crop_w // 2
 
-    raw_coords.append({"t": fd["t"], "x": x, "face": has_face})
+    raw_coords.append({"t": fd["t"], "x": x, "face": has_face, "frame_type": fd.get("frame_type", "face"), "pip": fd.get("pip")})
     last_x = x
 
 # ── IMPROVEMENT 5: Adaptive alpha (velocity-aware EMA smoothing) ──────────────
@@ -894,7 +946,9 @@ for rc in raw_coords:
         "y":    int(smoothed_y),
         "w":    crop_w,
         "h":    crop_h,
-        "face": rc["face"]
+        "face": rc["face"],
+        "frame_type": rc.get("frame_type", "face"),
+        "pip":  rc.get("pip"),
     })
     prev_had_face = rc["face"]
 
@@ -931,7 +985,9 @@ for i in range(len(coords) - 1):
             "y":    interp_y,
             "w":    crop_w,
             "h":    crop_h,
-            "face": a["face"]
+            "face": a["face"],
+            "frame_type": a.get("frame_type", "face"),
+            "pip":  a.get("pip"),
         })
 
 frame_coords.append(coords[-1])
@@ -989,11 +1045,23 @@ if not frame_coords:
 try:
     segments = []
     if frame_coords:
-        seg_type   = "face" if frame_coords[0].get("face") else "letterbox"
+        # Classify each frame into segment types: split, face, group, no_face
+        def get_seg_type(fc):
+            ft = fc.get("frame_type", "face" if fc.get("face") else "no_face")
+            if ft == "split":
+                return "split"
+            elif ft == "group":
+                return "group"
+            elif fc.get("face"):
+                return "face"
+            else:
+                return "no_face"
+
+        seg_type   = get_seg_type(frame_coords[0])
         seg_start  = frame_coords[0]["t"]
         seg_coords = [frame_coords[0]]
         for fc in frame_coords[1:]:
-            t = "face" if fc.get("face") else "letterbox"
+            t = get_seg_type(fc)
             if t != seg_type:
                 segments.append({"type": seg_type, "start": seg_start, "end": fc["t"], "coords": seg_coords})
                 seg_type   = t
@@ -1003,7 +1071,7 @@ try:
                 seg_coords.append(fc)
         segments.append({"type": seg_type, "start": seg_start, "end": round(duration, 4), "coords": seg_coords})
 
-    # Merge short segments
+    # Merge short segments into their neighbors
     MIN_SEG_DURATION = 1.5
     merged = []
     for seg in segments:
@@ -1016,15 +1084,66 @@ try:
     segments = merged
     log(f"Segments after merge: {len(segments)} (min_dur={MIN_SEG_DURATION}s)")
 
-    has_face      = any(s["type"] == "face"      for s in segments)
-    has_letterbox = any(s["type"] == "letterbox" for s in segments)
+    for seg in segments:
+        log(f"  segment: type={seg['type']}, start={seg['start']:.2f}, end={seg['end']:.2f}, frames={len(seg['coords'])}")
+
+    # Determine output mode based on segment types present
+    seg_types = set(s["type"] for s in segments)
+    has_face      = "face" in seg_types
+    has_no_face   = "no_face" in seg_types
+    has_split     = "split" in seg_types
+    has_group     = "group" in seg_types
+    is_mixed      = len(seg_types) > 1 or has_split
+
+    # Build split info for split segments
+    split_info = build_split_info(global_pip_region)
+
+    # For split segments, also check if any frame had a more specific PiP detection
+    for seg in segments:
+        if seg["type"] == "split":
+            # Find the best PiP region from frames in this segment
+            seg_pip = None
+            for fc in seg["coords"]:
+                if fc.get("pip"):
+                    seg_pip = fc["pip"]
+                    break
+            if seg_pip:
+                seg["split_info"] = build_split_info(seg_pip)
+            else:
+                seg["split_info"] = split_info
 
     with open(coords_path, "w") as f:
-        if has_face and has_letterbox:
-            json.dump({"mode": "mixed", "segments": segments, "crop_w": crop_w, "crop_h": crop_h}, f)
+        if is_mixed or (has_face and has_no_face):
+            # Mixed mode: multiple segment types — TS side will render each segment
+            # separately and concat them
+            # Strip non-serializable / internal fields from coords
+            clean_segments = []
+            for seg in segments:
+                clean_seg = {
+                    "type": seg["type"],
+                    "start": seg["start"],
+                    "end": seg["end"],
+                }
+                if seg["type"] == "split":
+                    clean_seg["split_info"] = seg.get("split_info", split_info)
+                if seg["type"] in ("face", "no_face"):
+                    clean_seg["coords"] = [{k: v for k, v in c.items() if k not in ("face", "frame_type", "pip")} for c in seg["coords"]]
+                clean_segments.append(clean_seg)
+            json.dump({
+                "mode": "mixed",
+                "segments": clean_segments,
+                "crop_w": crop_w,
+                "crop_h": crop_h,
+                "src_w": src_w,
+                "src_h": src_h,
+                "split_info": split_info,
+            }, f)
         elif has_face:
-            clean = [{k: v for k, v in c.items() if k != "face"} for c in frame_coords]
+            clean = [{k: v for k, v in c.items() if k not in ("face", "frame_type", "pip")} for c in frame_coords]
             json.dump({"mode": "crop", "coords": clean}, f)
+        elif has_split:
+            # All split — use static split mode
+            json.dump({"mode": "split", **split_info}, f)
         else:
             json.dump({"mode": "skip"}, f)
 
@@ -1034,7 +1153,7 @@ except Exception as e:
     try:
         with open(coords_path, "w") as f:
             if frame_coords:
-                clean = [{k: v for k, v in c.items() if k != "face"} for c in frame_coords]
+                clean = [{k: v for k, v in c.items() if k not in ("face", "frame_type", "pip")} for c in frame_coords]
                 json.dump({"mode": "crop", "coords": clean}, f)
             else:
                 json.dump({"mode": "skip", "fallback_reason": f"segment build failed: {e}"}, f)

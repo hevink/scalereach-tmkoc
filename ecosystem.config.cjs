@@ -21,6 +21,7 @@ module.exports = {
         YOUTUBE_COOKIES_PATH: "/opt/scalereach/config/youtube_cookies.txt",
         YT_DLP_GET_POT_BGUTIL_BASE_URL: "http://localhost:4416",
         YOUTUBE_PROXY: "http://Zh2cj1I0096UEPA:R6AsyxCbiOinY95@92.113.114.83:43964",
+        HF_TOKEN: process.env.HF_TOKEN || "",
         PATH: "/home/ubuntu/.deno/bin:/home/ubuntu/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
       },
       out_file: "./logs/worker-out.log",

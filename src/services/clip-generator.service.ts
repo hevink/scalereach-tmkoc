@@ -487,32 +487,182 @@ export class ClipGeneratorService {
           await fs.promises.unlink(coordsPath).catch(() => {});
 
           if (result.mode !== "skip") {
-            // Apply FFmpeg reframe to the ORIGINAL SOURCE → reframed 9:16 output
-            await new Promise<void>((resolve, reject) => {
-              const { spawn: spawnFfmpeg } = require("child_process");
+            // Helper to run FFmpeg with given args and return a promise
+            const runFfmpeg = (ffArgs: string[]): Promise<void> => {
+              return new Promise<void>((resolve, reject) => {
+                const { spawn: spawnFfmpeg } = require("child_process");
+                const ff = spawnFfmpeg("ffmpeg", ffArgs);
+                let stderr = "";
+                ff.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
+                ff.on("error", (err: Error) => reject(new Error(`FFmpeg reframe failed: ${err.message}`)));
+                ff.on("close", (code: number) => {
+                  if (code === 0) resolve();
+                  else reject(new Error(`FFmpeg reframe exited ${code}: ${stderr.slice(-300)}`));
+                });
+              });
+            };
+
+            if (result.mode === "mixed" && result.segments) {
+              // Mixed segments - can contain face, split, group, no_face sections
+              // Strategy: render each segment separately with its own filter, then concat
+              const segments = result.segments as Array<{
+                type: string;
+                start: number;
+                end: number;
+                coords?: Array<{ t: number; x: number; y: number; w: number; h: number }>;
+                split_info?: { screen: { x: number; y: number; w: number; h: number }; pip: { x: number; y: number; w: number; h: number }; src_w: number; src_h: number; target_w: number; face_h: number; screen_h: number; screen_zoom: number };
+              }>;
+              const cropW = result.crop_w || width;
+              const cropH = result.crop_h || height;
+              const globalSplitInfo = result.split_info;
+
+              if (!segments || segments.length === 0) {
+                throw new Error("__FALLBACK__");
+              }
+
+              const segmentPaths: string[] = [];
+              const segTempPaths: string[] = [];
+
+              for (let si = 0; si < segments.length; si++) {
+                const seg = segments[si];
+                const segPath = path.join(TMP_DIR, `sc-seg-${tempId}-${si}.mp4`);
+                segTempPaths.push(segPath);
+                segmentPaths.push(segPath);
+
+                const segDuration = seg.end - seg.start;
+                if (segDuration <= 0) continue;
+
+                let segArgs: string[];
+
+                if (seg.type === "split") {
+                  const si_info = seg.split_info || globalSplitInfo;
+                  if (!si_info) {
+                    segArgs = [
+                      "-ss", String(seg.start), "-t", String(segDuration),
+                      "-i", rawSourcePath,
+                      "-vf", `crop=${cropW}:${cropH}:(in_w-${cropW})/2:(in_h-${cropH})/2,scale=${width}:${height}:flags=lanczos,format=yuv420p`,
+                      "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                      "-c:a", "aac", "-b:a", "192k",
+                      "-y", segPath,
+                    ];
+                  } else {
+                    const pip = si_info.pip;
+                    const outW = width;
+                    const outH = height;
+                    const faceH = si_info.face_h || Math.round(outH * 0.55);
+                    const screenH = outH - faceH;
+                    const screenZoom = si_info.screen_zoom || 1.25;
+                    const screen = si_info.screen;
+                    const screenCropW = Math.round(screen.w / screenZoom);
+                    const screenCropH = Math.round(screen.h / screenZoom);
+                    const screenCropX = Math.max(0, Math.round(screen.x + screen.w / 2 - screenCropW / 2));
+                    segArgs = [
+                      "-ss", String(seg.start), "-t", String(segDuration),
+                      "-i", rawSourcePath,
+                      "-filter_complex",
+                      `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[face];` +
+                      `[0:v]crop=${screenCropW}:${screenCropH}:${screenCropX}:${screen.y},scale=${outW}:${screenH}:flags=lanczos[screen];` +
+                      `[face][screen]vstack=inputs=2,format=yuv420p[out]`,
+                      "-map", "[out]", "-map", "0:a?",
+                      "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                      "-c:a", "aac", "-b:a", "192k",
+                      "-y", segPath,
+                    ];
+                  }
+                } else if (seg.type === "group") {
+                  segArgs = [
+                    "-ss", String(seg.start), "-t", String(segDuration),
+                    "-i", rawSourcePath,
+                    "-vf", `scale=${width}:-2:flags=lanczos,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p`,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                    "-c:a", "aac", "-b:a", "192k",
+                    "-y", segPath,
+                  ];
+                } else if ((seg.type === "face" || seg.type === "no_face") && seg.coords && seg.coords.length > 0) {
+                  const segCoords = seg.coords;
+                  const adjustedCoords = segCoords.map((c: any) => ({
+                    ...c,
+                    t: Math.max(0, c.t - seg.start),
+                  }));
+                  const first = adjustedCoords[0];
+                  const cmdLines = adjustedCoords.map(({ t: ct, x, y, w, h }: any) =>
+                    `${ct} crop x ${x}; ${ct} crop y ${y}; ${ct} crop w ${w}; ${ct} crop h ${h};`
+                  );
+                  const cmdFile = path.join(TMP_DIR, `sc-seg-cmds-${tempId}-${si}.txt`);
+                  segTempPaths.push(cmdFile);
+                  require("fs").writeFileSync(cmdFile, cmdLines.join("\n"));
+                  segArgs = [
+                    "-ss", String(seg.start), "-t", String(segDuration),
+                    "-i", rawSourcePath,
+                    "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h},scale=${width}:${height}:flags=lanczos`,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                    "-c:a", "aac", "-b:a", "192k",
+                    "-y", segPath,
+                  ];
+                } else {
+                  segArgs = [
+                    "-ss", String(seg.start), "-t", String(segDuration),
+                    "-i", rawSourcePath,
+                    "-vf", `crop=${cropW}:${cropH}:(in_w-${cropW})/2:(in_h-${cropH})/2,scale=${width}:${height}:flags=lanczos,format=yuv420p`,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                    "-c:a", "aac", "-b:a", "192k",
+                    "-y", segPath,
+                  ];
+                }
+
+                this.logOperation("SMART_CROP_MIXED_SEGMENT", { clipId: options.clipId, segIndex: si, type: seg.type, start: seg.start, end: seg.end });
+                await runFfmpeg(segArgs);
+              }
+
+              // Build concat file and merge all segments
+              const concatFile = path.join(TMP_DIR, `sc-concat-${tempId}.txt`);
+              segTempPaths.push(concatFile);
+              const concatContent = segmentPaths
+                .filter(sp => require("fs").existsSync(sp))
+                .map(sp => `file '${sp}'`)
+                .join("\n");
+              require("fs").writeFileSync(concatFile, concatContent);
+
+              await runFfmpeg([
+                "-f", "concat", "-safe", "0",
+                "-i", concatFile,
+                "-c", "copy",
+                "-y", reframedPath,
+              ]);
+
+              tempPaths.push(...segTempPaths);
+            } else {
+              // Non-mixed modes: single FFmpeg pass
               let args: string[];
 
               if (result.mode === "split") {
-                // Screen recording + PiP face cam → split layout
+                // Screen recording + PiP face cam → split layout (face on top, screen on bottom)
                 const { pip, src_w: srcW, src_h: srcH } = result;
+                const splitInfo = result as any;
                 const outW = width;
                 const outH = height;
-                const halfH = Math.round(outH / 2);
-                const scaledH = Math.round(outW * srcH / srcW);
-                const padY = Math.round((halfH - scaledH) / 2);
+                const faceH = splitInfo.face_h || Math.round(outH * 0.55);
+                const screenH = outH - faceH;
+                const screenZoom = splitInfo.screen_zoom || 1.25;
+                const screen = splitInfo.screen || { x: 0, y: 0, w: srcW, h: srcH };
+
+                const screenCropW = Math.round(screen.w / screenZoom);
+                const screenCropH = Math.round(screen.h / screenZoom);
+                const screenCropX = Math.max(0, Math.round(screen.x + screen.w / 2 - screenCropW / 2));
+                const screenCropY = Math.max(0, Math.round(screen.y + screen.h / 2 - screenCropH / 2));
+
                 args = [
                   "-i", rawSourcePath,
                   "-filter_complex",
-                  `[0:v]scale=${outW}:${scaledH}:flags=lanczos,pad=${outW}:${halfH}:0:${padY}:black[full];` +
-                  `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${halfH}:flags=lanczos[face];` +
-                  `[full][face]vstack=inputs=2,format=yuv420p[out]`,
+                  `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[face];` +
+                  `[0:v]crop=${screenCropW}:${screenCropH}:${screenCropX}:${screenCropY},scale=${outW}:${screenH}:flags=lanczos[screen];` +
+                  `[face][screen]vstack=inputs=2,format=yuv420p[out]`,
                   "-map", "[out]", "-map", "0:a?",
                   "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                   "-c:a", "aac", "-b:a", "192k",
                   "-y", reframedPath,
                 ];
               } else if (result.mode === "podcast_dual") {
-                // Podcast with 2 speakers → static stacked dual-face crop (top + bottom)
                 const leftCrop = result.left_crop as { x: number; y: number; w: number; h: number };
                 const rightCrop = result.right_crop as { x: number; y: number; w: number; h: number };
                 const outW = width;
@@ -521,11 +671,9 @@ export class ClipGeneratorService {
 
                 if (!leftCrop || !rightCrop) {
                   this.logOperation("SMART_CROP_PODCAST_DUAL_NO_COORDS", { clipId: options.clipId });
-                  reject(new Error("__FALLBACK__"));
-                  return;
+                  throw new Error("__FALLBACK__");
                 }
 
-                // Simple static crop: crop each speaker, scale to half output, vstack
                 args = [
                   "-i", rawSourcePath,
                   "-filter_complex",
@@ -538,7 +686,6 @@ export class ClipGeneratorService {
                   "-y", reframedPath,
                 ];
               } else if (result.mode === "letterbox") {
-                // Group shot (4+ faces) - letterbox full frame into 9:16
                 args = [
                   "-i", rawSourcePath,
                   "-vf", `scale=${width}:-2:flags=lanczos,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p`,
@@ -546,56 +693,7 @@ export class ClipGeneratorService {
                   "-c:a", "aac", "-b:a", "192k",
                   "-y", reframedPath,
                 ];
-              } else if (result.mode === "mixed" && result.segments) {
-                // Mixed segments - face-tracked + no-face sections
-                // Extract coords from all segments; for letterbox segments without coords,
-                // generate center-crop coords so the whole clip is covered.
-                const allCoords: Array<{ t: number; x: number; y: number; w: number; h: number }> = [];
-                const cropW = result.crop_w || width;
-                const cropH = result.crop_h || height;
-
-                for (const seg of result.segments) {
-                  if (seg.coords && seg.coords.length > 0) {
-                    allCoords.push(...seg.coords);
-                  } else {
-                    // No coords for this segment - use center crop as fallback
-                    // (Python script should always provide coords now, but just in case)
-                    this.logOperation("SMART_CROP_MIXED_CENTER_FALLBACK", {
-                      clipId: options.clipId,
-                      segType: seg.type,
-                      start: seg.start,
-                      end: seg.end,
-                    });
-                    allCoords.push({
-                      t: seg.start,
-                      x: 0, // will be overridden by sendcmd if other coords exist
-                      y: 0,
-                      w: cropW,
-                      h: cropH,
-                    });
-                  }
-                }
-                if (allCoords.length === 0) {
-                  this.logOperation("SMART_CROP_MIXED_NO_COORDS", { clipId: options.clipId });
-                  reject(new Error("__FALLBACK__"));
-                  return;
-                }
-                const first = allCoords[0];
-                const cmdLines = allCoords.map(({ t, x, y, w, h }: any) =>
-                  `${t} crop x ${x}; ${t} crop y ${y}; ${t} crop w ${w}; ${t} crop h ${h};`
-                );
-                const cmdFile = path.join(TMP_DIR, `sc-cmds-${tempId}.txt`);
-                tempPaths.push(cmdFile);
-                require("fs").writeFileSync(cmdFile, cmdLines.join("\n"));
-                args = [
-                  "-i", rawSourcePath,
-                  "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h},scale=${width}:${height}:flags=lanczos`,
-                  "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-                  "-c:a", "aac", "-b:a", "192k",
-                  "-y", reframedPath,
-                ];
               } else if (result.mode === "crop" && result.coords?.length) {
-                // Standard face-tracking crop
                 const coords: Array<{ t: number; x: number; y: number; w: number; h: number }> = result.coords;
                 const first = coords[0];
                 const cmdLines = coords.map(({ t, x, y, w, h }) =>
@@ -612,21 +710,12 @@ export class ClipGeneratorService {
                   "-y", reframedPath,
                 ];
               } else {
-                // Unknown mode or missing data - skip reframe
                 this.logOperation("SMART_CROP_UNKNOWN_MODE_FALLBACK", { clipId: options.clipId, mode: result.mode });
-                reject(new Error("__FALLBACK__"));
-                return;
+                throw new Error("__FALLBACK__");
               }
 
-              const ff = spawnFfmpeg("ffmpeg", args);
-              let stderr = "";
-              ff.stderr?.on("data", (d: Buffer) => { stderr += d.toString(); });
-              ff.on("error", (err: Error) => reject(new Error(`FFmpeg reframe failed: ${err.message}`)));
-              ff.on("close", (code: number) => {
-                if (code === 0) resolve();
-                else reject(new Error(`FFmpeg reframe exited ${code}: ${stderr.slice(-300)}`));
-              });
-            });
+              await runFfmpeg(args);
+            }
 
             // Write reframed version to rawOutputPath for caption burn
             const reframedBuf = await fs.promises.readFile(reframedPath);
