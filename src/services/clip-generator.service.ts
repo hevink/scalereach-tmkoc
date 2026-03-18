@@ -1807,6 +1807,7 @@ print(f"OK:{total_w}x{total_h}")
     const expectedDuration = endTime - startTime;
     let code222Count = 0;
     let truncatedCount = 0;
+    let useCookies = false;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -1819,7 +1820,7 @@ print(f"OK:{total_w}x{total_h}")
             reason: "both keyframes and no-keyframes failed, downloading full video + local trim",
           });
           const fullPath = outputPath.replace(".mp4", "-full.mp4");
-          await this.executeYtDlpFullDownload(url, fullPath);
+          await this.executeYtDlpFullDownload(url, fullPath, useCookies);
           // Trim locally with FFmpeg
           await new Promise<void>((resolve, reject) => {
             const trimArgs = [
@@ -1845,7 +1846,7 @@ print(f"OK:{total_w}x{total_h}")
           return; // Success
         }
 
-        await this.executeYtDlpDownload(url, startTime, endTime, outputPath, forceKeyframes);
+        await this.executeYtDlpDownload(url, startTime, endTime, outputPath, forceKeyframes, useCookies);
 
         // Validate downloaded file duration to catch truncated downloads.
         // yt-dlp retry without --force-keyframes-at-cuts can produce very short files
@@ -1904,6 +1905,8 @@ print(f"OK:{total_w}x{total_h}")
           if (isCode222) forceKeyframes = false;
           // Truncated file with keyframes disabled means we need to re-enable them
           if (isTruncated && !forceKeyframes) forceKeyframes = true;
+          // Bot-blocked: switch to web client with cookies on retry
+          if (isBotBlocked) useCookies = true;
 
           // Bot-blocked needs a longer cooldown so YouTube unblocks the IP
           // Use exponential backoff: 10s, 20s, 40s + jitter
@@ -1916,6 +1919,7 @@ print(f"OK:{total_w}x{total_h}")
             maxRetries,
             delayMs,
             forceKeyframes,
+            useCookies,
             error: lastError.message,
           });
           await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -1937,7 +1941,8 @@ print(f"OK:{total_w}x{total_h}")
     startTime: number,
     endTime: number,
     outputPath: string,
-    forceKeyframes = true
+    forceKeyframes = true,
+    useCookies = false
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       // Cap at 1080p unless YouTube Premium cookies are available.
@@ -1954,11 +1959,10 @@ print(f"OK:{total_w}x{total_h}")
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      // Use android_vr client — same approach as SocialPlug's reliable downloader.
-      // Doesn't need n-challenge (broken: YouTube player JS references self.location.origin),
-      // doesn't need cookies (yt-dlp skips android clients when cookies are present).
+      // When bot-blocked, switch to web client with cookies instead of android_vr
+      const playerClient = useCookies ? "web" : "android_vr,android_creator";
       const extractorArgs: string[] = [
-        `youtube:player_client=android_vr,android_creator`,
+        `youtube:player_client=${playerClient}`,
       ];
       if (bgutilBaseUrl) {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
@@ -1987,7 +1991,11 @@ print(f"OK:{total_w}x{total_h}")
         this.logOperation("YT_DLP_USING_PROXY", { proxy });
       }
 
-      // Don't pass cookies — android clients are skipped by yt-dlp when cookies are present
+      // Pass cookies when using web client (android clients ignore cookies)
+      if (useCookies && cookiesPath && fs.existsSync(cookiesPath)) {
+        args.unshift("--cookies", cookiesPath);
+        this.logOperation("YT_DLP_USING_COOKIES", { cookiesPath, playerClient });
+      }
 
       this.logOperation("YT_DLP_DOWNLOAD", { args: args.join(" ") });
 
@@ -2058,7 +2066,8 @@ print(f"OK:{total_w}x{total_h}")
    */
   private static async executeYtDlpFullDownload(
     url: string,
-    outputPath: string
+    outputPath: string,
+    useCookies = false
   ): Promise<void> {
     return new Promise((resolve, reject) => {
       const isPremium = process.env.YOUTUBE_PREMIUM === "true";
@@ -2072,7 +2081,8 @@ print(f"OK:{total_w}x{total_h}")
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      const extractorArgs: string[] = [`youtube:player_client=android_vr,android_creator`];
+      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      const extractorArgs: string[] = [`youtube:player_client=${playerClient}`];
       if (bgutilBaseUrl) {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
       }
@@ -2092,7 +2102,11 @@ print(f"OK:{total_w}x{total_h}")
       ];
 
       if (proxy) args.unshift("--proxy", proxy);
-      // Don't pass cookies — android clients are skipped by yt-dlp when cookies are present
+
+      // Pass cookies when using web client
+      if (useCookies && cookiesPath && fs.existsSync(cookiesPath)) {
+        args.unshift("--cookies", cookiesPath);
+      }
 
       this.logOperation("YT_DLP_FULL_DOWNLOAD", { args: args.join(" ") });
 
