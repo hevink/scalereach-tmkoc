@@ -472,13 +472,20 @@ export class YouTubeService {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
       }
 
+      const actualMime = playerClient.includes("android_vr") ? "audio/webm" : "audio/m4a";
+      const ext = playerClient.includes("android_vr") ? "webm" : "m4a";
+
+      // When proxy is active, download to temp file first (piping through proxy can corrupt streams).
+      // Then return a file read stream for reliable R2 upload.
+      const usesTempFile = !!proxy;
+      const tempPath = usesTempFile ? `/tmp/yt-audio-${Date.now()}.${ext}` : undefined;
+
       const args = [
         "-f", "bestaudio[ext=m4a]/bestaudio/best",
-        "-o", "-",
-        "--quiet",
+        "-o", usesTempFile ? tempPath! : "-",
+        ...(usesTempFile ? ["--newline"] : ["--quiet"]),
         "--no-warnings",
         "--no-check-certificates",
-        "--prefer-free-formats",
         ...extractorArgs.flatMap(a => ["--extractor-args", a]),
         "--extractor-retries", "3",
         "--fragment-retries", "5",
@@ -488,7 +495,7 @@ export class YouTubeService {
 
       if (proxy) {
         args.unshift("--proxy", proxy);
-        console.log(`[YOUTUBE SERVICE] Using proxy for audio stream`);
+        console.log(`[YOUTUBE SERVICE] Using proxy for audio stream (temp file: ${tempPath})`);
       }
 
       if ((startTime !== undefined || endTime !== undefined) && !proxy) {
@@ -515,34 +522,12 @@ export class YouTubeService {
         console.log(`[YOUTUBE SERVICE] Using cookies with web client for audio stream`);
       }
 
-      console.log(`[YOUTUBE SERVICE] Audio stream spawning (client: ${playerClient}, cookies: ${useCookies})`);
+      console.log(`[YOUTUBE SERVICE] Audio stream spawning (client: ${playerClient}, cookies: ${useCookies}, tempFile: ${usesTempFile})`);
 
       const ytdlpProcess = spawn("yt-dlp", args);
 
-      if (!ytdlpProcess.stdout) {
-        reject(new Error("Failed to create stdout stream"));
-        return;
-      }
-
-      const stream = ytdlpProcess.stdout as unknown as Readable;
       let stderr = "";
-      let hasReceivedData = false;
       let resolved = false;
-
-      stream.on("data", () => {
-        if (!hasReceivedData) {
-          hasReceivedData = true;
-          // First data chunk received — stream is working, resolve the promise
-          if (!resolved) {
-            resolved = true;
-            // android_vr client returns opus/webm (format 251), not m4a
-            // Use audio/webm so R2 Content-Type matches actual data (Deepgram needs this)
-            const actualMime = playerClient.includes("android_vr") ? "audio/webm" : "audio/m4a";
-            console.log(`[YOUTUBE SERVICE] Audio stream producing data for: ${videoInfo.title} (client: ${playerClient}, mime: ${actualMime})`);
-            resolve({ stream, mimeType: actualMime, videoInfo });
-          }
-        }
-      });
 
       ytdlpProcess.stderr?.on("data", (data) => {
         stderr += data.toString();
@@ -553,49 +538,92 @@ export class YouTubeService {
         if (!resolved) {
           resolved = true;
           reject(new Error(`Failed to spawn yt-dlp: ${err.message}`));
-        } else {
-          stream.destroy(new Error(`yt-dlp process error: ${err.message}`));
         }
       });
 
-      ytdlpProcess.on("close", (code) => {
-        if (code !== 0 && code !== null) {
-          console.error(`[YOUTUBE SERVICE] Stream failed with code ${code}: ${stderr}`);
-          const errorMsg = stderr.includes("Sign in") || stderr.includes("not a bot")
-            ? `YouTube bot-blocked (${playerClient}): ${stderr.slice(0, 200)}`
-            : stderr.includes("Video unavailable")
-            ? "Video is unavailable or private"
-            : `yt-dlp audio stream failed (code ${code}): ${stderr.slice(0, 300)}`;
+      if (usesTempFile) {
+        // Temp file mode: wait for yt-dlp to finish, then return a file read stream
+        ytdlpProcess.on("close", (code) => {
+          if (resolved) return;
+          resolved = true;
+          if (code !== 0 && code !== null) {
+            console.error(`[YOUTUBE SERVICE] Stream failed with code ${code}: ${stderr}`);
+            const errorMsg = stderr.includes("Sign in") || stderr.includes("not a bot")
+              ? `YouTube bot-blocked (${playerClient}): ${stderr.slice(0, 200)}`
+              : stderr.includes("Video unavailable")
+              ? "Video is unavailable or private"
+              : `yt-dlp audio stream failed (code ${code}): ${stderr.slice(0, 300)}`;
+            reject(new Error(errorMsg));
+            return;
+          }
+          // yt-dlp finished successfully — create read stream from temp file
+          if (!existsSync(tempPath!)) {
+            reject(new Error("yt-dlp exited successfully but produced no audio file"));
+            return;
+          }
+          const { statSync, createReadStream } = require("fs");
+          const fileSize = statSync(tempPath!).size;
+          console.log(`[YOUTUBE SERVICE] Audio downloaded to temp file: ${tempPath} (${(fileSize / 1024 / 1024).toFixed(1)} MB, mime: ${actualMime})`);
+          const fileStream = createReadStream(tempPath!) as Readable;
+          // Clean up temp file when stream is consumed or errors
+          fileStream.on("end", () => { try { require("fs").unlinkSync(tempPath!); } catch {} });
+          fileStream.on("error", () => { try { require("fs").unlinkSync(tempPath!); } catch {} });
+          resolve({ stream: fileStream, mimeType: actualMime, videoInfo });
+        });
+      } else {
+        // Stdout pipe mode (no proxy): resolve on first data chunk
+        if (!ytdlpProcess.stdout) {
+          reject(new Error("Failed to create stdout stream"));
+          return;
+        }
+        const stream = ytdlpProcess.stdout as unknown as Readable;
+        let hasReceivedData = false;
 
+        stream.on("data", () => {
+          if (!hasReceivedData) {
+            hasReceivedData = true;
+            if (!resolved) {
+              resolved = true;
+              console.log(`[YOUTUBE SERVICE] Audio stream producing data for: ${videoInfo.title} (client: ${playerClient}, mime: ${actualMime})`);
+              resolve({ stream, mimeType: actualMime, videoInfo });
+            }
+          }
+        });
+
+        ytdlpProcess.on("close", (code) => {
+          if (code !== 0 && code !== null) {
+            console.error(`[YOUTUBE SERVICE] Stream failed with code ${code}: ${stderr}`);
+            const errorMsg = stderr.includes("Sign in") || stderr.includes("not a bot")
+              ? `YouTube bot-blocked (${playerClient}): ${stderr.slice(0, 200)}`
+              : stderr.includes("Video unavailable")
+              ? "Video is unavailable or private"
+              : `yt-dlp audio stream failed (code ${code}): ${stderr.slice(0, 300)}`;
+
+            if (!resolved) {
+              resolved = true;
+              reject(new Error(errorMsg));
+            } else {
+              stream.destroy(new Error(errorMsg));
+            }
+          } else if (!resolved) {
+            resolved = true;
+            reject(new Error("yt-dlp exited successfully but produced no audio data"));
+          }
+        });
+
+        // Safety timeout: if no data arrives within 30s, reject so we can retry with cookies
+        const timeout = setTimeout(() => {
           if (!resolved) {
             resolved = true;
-            reject(new Error(errorMsg));
-          } else {
-            stream.destroy(new Error(errorMsg));
+            ytdlpProcess.kill("SIGTERM");
+            reject(new Error("Audio stream timeout: no data received within 30s"));
           }
-        } else if (!resolved) {
-          // Process exited 0 but no data was ever received
-          resolved = true;
-          reject(new Error("yt-dlp exited successfully but produced no audio data"));
-        }
-      });
+        }, 30_000);
 
-      // Safety timeout: if no data arrives within 30s, reject so we can retry with cookies
-      const timeout = setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          ytdlpProcess.kill("SIGTERM");
-          reject(new Error("Audio stream timeout: no data received within 30s"));
-        }
-      }, 30_000);
-
-      // Clear timeout once resolved (either data arrived or process ended)
-      const origResolve = resolve;
-      const origReject = reject;
-      // The timeout is cleared when the stream starts producing data or the process ends
-      stream.once("data", () => clearTimeout(timeout));
-      ytdlpProcess.on("close", () => clearTimeout(timeout));
-      ytdlpProcess.on("error", () => clearTimeout(timeout));
+        stream.once("data", () => clearTimeout(timeout));
+        ytdlpProcess.on("close", () => clearTimeout(timeout));
+        ytdlpProcess.on("error", () => clearTimeout(timeout));
+      }
     });
   }
 
