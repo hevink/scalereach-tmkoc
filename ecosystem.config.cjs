@@ -1,6 +1,22 @@
 // PM2 config - BASE EC2 instance
 // Runs all workers at low concurrency + autoscaler
 // Burst instance handles heavy clip/dubbing load
+
+// Load .env.production so secrets (HF_TOKEN etc.) are available to PM2
+const fs = require("fs");
+const path = require("path");
+const envFile = path.join(__dirname, ".env.production");
+const envVars = {};
+if (fs.existsSync(envFile)) {
+  fs.readFileSync(envFile, "utf8").split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith("#")) {
+      const idx = trimmed.indexOf("=");
+      if (idx > 0) envVars[trimmed.slice(0, idx)] = trimmed.slice(idx + 1);
+    }
+  });
+}
+
 module.exports = {
   apps: [
     {
@@ -21,7 +37,7 @@ module.exports = {
         YOUTUBE_COOKIES_PATH: "/opt/scalereach/config/youtube_cookies.txt",
         YT_DLP_GET_POT_BGUTIL_BASE_URL: "http://localhost:4416",
         YOUTUBE_PROXY: "http://Zh2cj1I0096UEPA:R6AsyxCbiOinY95@92.113.114.83:43964",
-        HF_TOKEN: process.env.HF_TOKEN || "",
+        HF_TOKEN: envVars.HF_TOKEN || process.env.HF_TOKEN || "",
         PATH: "/home/ubuntu/.deno/bin:/home/ubuntu/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
       },
       out_file: "./logs/worker-out.log",

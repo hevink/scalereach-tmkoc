@@ -1953,9 +1953,11 @@ print(f"OK:{total_w}x{total_h}")
       const fullPath = await this.acquireFullDownload(url, useCookies);
       try {
         await new Promise<void>((resolve, reject) => {
+          // -ss AFTER -i = frame-accurate seeking (input-seeking before -i snaps to keyframes,
+          // causing captions to appear before audio when using -c copy)
           const trimArgs = [
-            "-ss", startTime.toString(),
             "-i", fullPath,
+            "-ss", startTime.toString(),
             "-t", expectedDuration.toString(),
             "-c", "copy",
             "-avoid_negative_ts", "make_zero",
@@ -1990,9 +1992,11 @@ print(f"OK:{total_w}x{total_h}")
           await this.executeYtDlpFullDownload(url, fullPath, useCookies);
           // Trim locally with FFmpeg
           await new Promise<void>((resolve, reject) => {
+            // -ss AFTER -i = frame-accurate seeking (input-seeking before -i snaps to keyframes,
+            // causing captions to appear before audio when using -c copy)
             const trimArgs = [
-              "-ss", startTime.toString(),
               "-i", fullPath,
+              "-ss", startTime.toString(),
               "-t", expectedDuration.toString(),
               "-c", "copy",
               "-avoid_negative_ts", "make_zero",
@@ -2549,11 +2553,13 @@ print(f"OK:{total_w}x{total_h}")
     const duration = endTime - startTime;
 
     return new Promise((resolve, reject) => {
+      // -ss AFTER -i = frame-accurate seeking (before -i snaps to keyframes with -c copy)
       const args = [
-        "-ss", startTime.toString(),
         "-i", videoUrl,
+        "-ss", startTime.toString(),
         "-t", duration.toString(),
-        "-c", "copy", // Stream copy - no re-encoding, just extract the segment
+        "-c", "copy",
+        "-avoid_negative_ts", "make_zero",
         "-y",
         outputPath,
       ];
