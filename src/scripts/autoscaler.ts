@@ -14,6 +14,8 @@ import {
   DescribeInstancesCommand,
 } from "@aws-sdk/client-ec2";
 import { execSync } from "child_process";
+import { readFileSync, existsSync } from "fs";
+import { R2Service } from "../services/r2.service.js";
 
 // ── Config ──────────────────────────────────────────────────
 const BURST_INSTANCE_ID = process.env.BURST_INSTANCE_ID;
@@ -111,6 +113,20 @@ async function getBurstIp(): Promise<string | null> {
   }
 }
 
+async function uploadLogToR2(localPath: string, r2Key: string): Promise<string | null> {
+  try {
+    if (!existsSync(localPath)) return null;
+    const content = readFileSync(localPath);
+    if (content.length === 0) return null;
+    const { url } = await R2Service.uploadFile(r2Key, content, "text/plain");
+    console.log(`[SCALER] Uploaded log to R2: ${r2Key}`);
+    return url;
+  } catch (err) {
+    console.error(`[SCALER] Failed to upload ${r2Key} to R2:`, err);
+    return null;
+  }
+}
+
 async function syncBurstLogs() {
   const ip = await getBurstIp();
   if (!ip) {
@@ -134,11 +150,22 @@ async function syncBurstLogs() {
     // Also keep a "latest" copy for quick access
     execSync(`cp ${BURST_LOG_DIR}/burst-out-${ts}.log ${BURST_LOG_DIR}/burst-out-latest.log 2>/dev/null || true`);
     execSync(`cp ${BURST_LOG_DIR}/burst-error-${ts}.log ${BURST_LOG_DIR}/burst-error-latest.log 2>/dev/null || true`);
-    // Clean up old logs (keep last 10)
+    // Clean up old local logs (keep last 10)
     execSync(`ls -t ${BURST_LOG_DIR}/burst-out-2*.log 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true`);
     execSync(`ls -t ${BURST_LOG_DIR}/burst-error-2*.log 2>/dev/null | tail -n +11 | xargs rm -f 2>/dev/null || true`);
-    console.log(`[SCALER] Synced burst logs from ${ip} → ${BURST_LOG_DIR}/`);
-    await notify(`📋 Synced burst logs from <code>${ip}</code>`);
+
+    // Upload to R2 for persistent access via CDN
+    const outPath = `${BURST_LOG_DIR}/burst-out-${ts}.log`;
+    const errPath = `${BURST_LOG_DIR}/burst-error-${ts}.log`;
+    const outUrl = await uploadLogToR2(outPath, `logs/burst/burst-out-${ts}.log`);
+    const errUrl = await uploadLogToR2(errPath, `logs/burst/burst-error-${ts}.log`);
+    // Also upload as "latest" for quick access
+    await uploadLogToR2(outPath, `logs/burst/burst-out-latest.log`);
+    await uploadLogToR2(errPath, `logs/burst/burst-error-latest.log`);
+
+    console.log(`[SCALER] Synced burst logs from ${ip} → ${BURST_LOG_DIR}/ + R2`);
+    const r2Links = [outUrl, errUrl].filter(Boolean).map(u => `<a href="${u}">${u}</a>`).join("\n");
+    await notify(`📋 Synced burst logs from <code>${ip}</code>\n${r2Links || "(empty logs)"}`);
   } catch (err) {
     console.error("[SCALER] Failed to sync burst logs:", err);
   }

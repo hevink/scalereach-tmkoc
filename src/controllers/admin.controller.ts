@@ -839,4 +839,34 @@ export class AdminController {
       return c.json({ error: `Failed to trigger check: ${msg}` }, 500);
     }
   }
+
+  /**
+   * List burst instance logs from R2
+   * GET /api/admin/burst-logs
+   */
+  static async getBurstLogs(c: Context) {
+    try {
+      const { R2Service } = require("../services/r2.service");
+      const files = await R2Service.listFiles("logs/burst/");
+      // Separate latest from historical, exclude "latest" files from the list
+      const latest = {
+        out: files.find((f: any) => f.key === "logs/burst/burst-out-latest.log") || null,
+        error: files.find((f: any) => f.key === "logs/burst/burst-error-latest.log") || null,
+      };
+      const historical = files.filter(
+        (f: any) => !f.key.includes("-latest.log")
+      ).map((f: any) => ({
+        ...f,
+        type: f.key.includes("burst-error") ? "error" : "out",
+        timestamp: f.key.match(/burst-(?:out|error)-(.+)\.log$/)?.[1]?.replace(/-/g, (m: string, i: number) => {
+          // Restore ISO format: first two dashes are date separators, T separator, then colons and dots
+          return i < 20 ? m : m;
+        }) || null,
+      }));
+      return c.json({ latest, historical, total: historical.length });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to list burst logs: ${msg}` }, 500);
+    }
+  }
 }

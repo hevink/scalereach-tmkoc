@@ -68,6 +68,7 @@ adminRouter.post("/ec2/control", AdminController.controlEC2Instance);
 adminRouter.get("/burst-status", AdminController.getBurstWorkerStatus);
 adminRouter.get("/scaler-state", AdminController.getScalerState);
 adminRouter.post("/scaler-check", AdminController.forceScalerCheck);
+adminRouter.get("/burst-logs", AdminController.getBurstLogs);
 
 // Credit analytics
 adminRouter.get("/analytics/credits", AdminController.getCreditAnalytics);

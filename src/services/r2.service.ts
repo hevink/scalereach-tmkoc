@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   CreateMultipartUploadCommand,
   UploadPartCommand,
   CompleteMultipartUploadCommand,
@@ -382,5 +383,32 @@ export class R2Service {
     return R2_PUBLIC_URL
       ? `${R2_PUBLIC_URL}/${key}`
       : `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/${key}`;
+  }
+
+  static async listFiles(prefix: string): Promise<{ key: string; size: number; lastModified: Date; url: string }[]> {
+    const results: { key: string; size: number; lastModified: Date; url: string }[] = [];
+    let continuationToken: string | undefined;
+
+    do {
+      const command = new ListObjectsV2Command({
+        Bucket: R2_BUCKET_NAME,
+        Prefix: prefix,
+        ContinuationToken: continuationToken,
+      });
+      const response = await s3Client.send(command);
+      for (const obj of response.Contents || []) {
+        if (obj.Key && obj.Size && obj.Size > 0) {
+          results.push({
+            key: obj.Key,
+            size: obj.Size,
+            lastModified: obj.LastModified || new Date(),
+            url: R2Service.getPublicUrl(obj.Key),
+          });
+        }
+      }
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+
+    return results.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
   }
 }
