@@ -180,29 +180,43 @@ async function startBurst(queueDepth: number) {
   stopAlreadySent = false;
   await notify(`🚀 Starting burst instance\n<b>Queue depth:</b> ${queueDepth}\n<b>Instance:</b> <code>${BURST_INSTANCE_ID}</code>`);
   await ec2.send(new StartInstancesCommand({ InstanceIds: [BURST_INSTANCE_ID!] }));
-  // Sync cookies to burst after it boots (non-blocking)
-  syncCookiesToBurst();
+  // Deploy latest code + sync cookies after boot (non-blocking)
+  deployAndSyncBurst();
 }
 
-async function syncCookiesToBurst(retries = 6, delayMs = 15000) {
+async function deployAndSyncBurst(retries = 8, delayMs = 15000) {
   const scpOpts = `-i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no -o ConnectTimeout=10`;
+  const sshOpts = `-i ${SSH_KEY_PATH} -o StrictHostKeyChecking=no -o ConnectTimeout=15`;
   for (let i = 0; i < retries; i++) {
     await new Promise((r) => setTimeout(r, delayMs));
     const ip = await getBurstIp();
     if (!ip) continue;
     try {
+      // Deploy latest code from git
+      const deployCmd = `ssh ${sshOpts} ubuntu@${ip} "export PATH='/home/ubuntu/.bun/bin:/usr/bin:/usr/local/bin:\$PATH' && cd /opt/scalereach && git fetch origin && git reset --hard origin/main && bun install && bunx pm2 reload ecosystem.burst.config.cjs --update-env"`;
+      execSync(deployCmd, { timeout: 90000 });
+      console.log(`[SCALER] Deployed latest code to burst at ${ip}`);
+
+      // Get git commit for notification
+      let gitShort = "unknown";
+      try {
+        gitShort = execSync(`ssh ${sshOpts} ubuntu@${ip} "cd /opt/scalereach && git rev-parse --short HEAD"`, { timeout: 10000 }).toString().trim();
+      } catch {}
+
+      // Sync cookies
       execSync(
         `scp ${scpOpts} /opt/scalereach/config/youtube_cookies.txt ubuntu@${ip}:/opt/scalereach/config/youtube_cookies.txt`,
         { timeout: 20000 }
       );
       console.log(`[SCALER] Synced cookies to burst at ${ip}`);
-      await notify(`🍪 Synced YouTube cookies to burst <code>${ip}</code>`);
+      await notify(`✅ Burst deployed & ready\n<b>IP:</b> <code>${ip}</code>\n<b>Commit:</b> <code>${gitShort}</code>\n🍪 Cookies synced`);
       return;
-    } catch {
-      console.log(`[SCALER] Cookie sync attempt ${i + 1}/${retries} failed, burst may not be ready yet`);
+    } catch (err) {
+      console.log(`[SCALER] Deploy+sync attempt ${i + 1}/${retries} failed, burst may not be ready yet`);
     }
   }
-  console.error("[SCALER] Failed to sync cookies to burst after all retries");
+  console.error("[SCALER] Failed to deploy+sync to burst after all retries");
+  await notify(`⚠️ Failed to deploy latest code to burst after ${retries} attempts`);
 }
 
 async function stopBurst() {
