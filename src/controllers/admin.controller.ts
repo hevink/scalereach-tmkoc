@@ -630,20 +630,35 @@ export class AdminController {
       const type = c.req.query("type") || "both";
       const lines = c.req.query("lines") || "500";
 
-      const res = await fetch(
-        `${workerUrl}/health/hevin/logs?type=${type}&lines=${lines}`,
-        {
-          headers: { "Authorization": `Bearer ${workerSecret}` },
-          signal: AbortSignal.timeout(15000),
-        }
-      );
+      const targetUrl = `${workerUrl}/health/hevin/logs?type=${type}&lines=${lines}`;
+      console.log(`[admin] Fetching worker logs from: ${targetUrl}`);
+
+      const res = await fetch(targetUrl, {
+        headers: { "Authorization": `Bearer ${workerSecret}` },
+        signal: AbortSignal.timeout(15000),
+      });
 
       if (res.status === 401 || res.status === 403) {
         return c.json({ error: "Worker rejected request - check WORKER_SECRET" }, 502);
       }
 
+      if (res.status === 404) {
+        return c.json(
+          { error: `Worker endpoint not found (404). Verify WORKER_URL (${workerUrl}) is correct and the worker process is running.` },
+          502,
+        );
+      }
+
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        return c.json(
+          { error: `Worker returned ${res.status}: ${body || res.statusText}` },
+          502,
+        );
+      }
+
       const content = await res.text();
-      return c.text(content, res.status as any, { "Content-Type": "text/plain; charset=utf-8" });
+      return c.text(content, 200, { "Content-Type": "text/plain; charset=utf-8" });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Unknown error";
       return c.json({ error: `Failed to read worker logs: ${msg}` }, 502);
