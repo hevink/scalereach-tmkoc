@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { user, workspace, workspaceMember, video, viralClip, session, project, creditTransaction, videoExport, videoConfig } from "../db/schema";
-import { eq, sql, desc, gte, and, count, like, or, lte } from "drizzle-orm";
+import { user, workspace, workspaceMember, video, viralClip, session, project, creditTransaction, videoExport, videoConfig, account } from "../db/schema";
+import { eq, sql, desc, gte, and, count, like, or, lte, inArray } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
 export interface DashboardStats {
@@ -111,6 +111,57 @@ export interface AdminVideoAnalyticsResult {
   avgProcessingTime: number;
   errorRate: number;
   dailyVideos: Array<{ date: string; total: number; completed: number; failed: number }>;
+}
+
+const AUTH_METHOD_PRIORITY = ["email", "google"];
+
+function mapProviderIdToAuthMethod(providerId: string) {
+  if (providerId === "credential") {
+    return "email";
+  }
+
+  return providerId;
+}
+
+function sortAuthMethods(methods: Iterable<string>) {
+  return [...new Set(methods)].sort((left, right) => {
+    const leftIndex = AUTH_METHOD_PRIORITY.indexOf(left);
+    const rightIndex = AUTH_METHOD_PRIORITY.indexOf(right);
+    const normalizedLeftIndex = leftIndex === -1 ? AUTH_METHOD_PRIORITY.length : leftIndex;
+    const normalizedRightIndex = rightIndex === -1 ? AUTH_METHOD_PRIORITY.length : rightIndex;
+
+    if (normalizedLeftIndex !== normalizedRightIndex) {
+      return normalizedLeftIndex - normalizedRightIndex;
+    }
+
+    return left.localeCompare(right);
+  });
+}
+
+async function getAuthMethodsByUserIds(userIds: string[]) {
+  if (userIds.length === 0) {
+    return new Map<string, string[]>();
+  }
+
+  const accountRows = await db.select({
+    userId: account.userId,
+    providerId: account.providerId,
+  })
+    .from(account)
+    .where(inArray(account.userId, userIds));
+
+  const methodsByUserId = new Map<string, Set<string>>();
+
+  for (const row of accountRows) {
+    const authMethod = mapProviderIdToAuthMethod(row.providerId);
+    const existingMethods = methodsByUserId.get(row.userId) ?? new Set<string>();
+    existingMethods.add(authMethod);
+    methodsByUserId.set(row.userId, existingMethods);
+  }
+
+  return new Map(
+    [...methodsByUserId.entries()].map(([userId, methods]) => [userId, sortAuthMethods(methods)])
+  );
 }
 
 export class AdminModel {
@@ -378,12 +429,17 @@ export class AdminModel {
         .offset(offset),
         db.select({ count: count() }).from(user),
       ]);
+      const authMethodsByUserId = await getAuthMethodsByUserIds(users.map((currentUser) => currentUser.id));
+      const usersWithAuthMethods = users.map((currentUser) => ({
+        ...currentUser,
+        authMethods: authMethodsByUserId.get(currentUser.id) ?? [],
+      }));
 
       const duration = performance.now() - startTime;
       console.log(`[ADMIN MODEL] GET_ALL_USERS_PAGINATED completed in ${duration.toFixed(2)}ms`);
 
       return {
-        users,
+        users: usersWithAuthMethods,
         total: totalResult[0]?.count ?? 0,
         page,
         limit,
@@ -1216,7 +1272,18 @@ export class AdminModel {
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       }).from(user).where(eq(user.id, userId));
-      return result[0] || null;
+      const foundUser = result[0] || null;
+
+      if (!foundUser) {
+        return null;
+      }
+
+      const authMethodsByUserId = await getAuthMethodsByUserIds([userId]);
+
+      return {
+        ...foundUser,
+        authMethods: authMethodsByUserId.get(userId) ?? [],
+      };
     } catch (error) {
       console.error(`[ADMIN MODEL] GET_USER_BY_ID failed:`, error);
       throw error;
