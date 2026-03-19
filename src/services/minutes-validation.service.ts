@@ -26,8 +26,8 @@ const ERROR_MESSAGES: Record<string, Record<string, string>> = {
     pro: "Your file exceeds the 4GB limit.",
   },
   INSUFFICIENT_MINUTES: {
-    free: "You don't have enough minutes. Free plan includes 0 minutes. Upgrade to Starter (200/month) or Pro (500/month) for more.",
-    starter: "You've used all your minutes for this month. They'll reset on your renewal date. Upgrade to Pro for 150% more minutes.",
+    free: "You don't have enough minutes. Free plan includes 0 minutes. Upgrade to Starter (200/month) or Pro (400/month) for more.",
+    starter: "You've used all your minutes for this month. They'll reset on your renewal date. Upgrade to Pro for more minutes.",
     pro: "You've used all your minutes for this month. They'll reset on your renewal date.",
     agency: "You've used all your minutes for this month. They'll reset on your renewal date.",
   },
