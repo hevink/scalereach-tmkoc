@@ -585,12 +585,29 @@ export class ClipGeneratorService {
                     t: Math.max(0, c.t - seg.start),
                   }));
                   const first = adjustedCoords[0];
-                  const cmdLines = adjustedCoords.map(({ t: ct, x, y, w, h }: any) =>
-                    `${ct} crop x ${x}; ${ct} crop y ${y}; ${ct} crop w ${w}; ${ct} crop h ${h};`
-                  );
+
+                  // Deduplicate: skip coords that only moved 1-2px (prevents pixel stepping)
+                  const MIN_MOVE_PX = 3;
+                  const dedupedLines: string[] = [];
+                  let lastSegX = first.x;
+                  let lastSegY = first.y;
+                  dedupedLines.push(`${first.t} crop x ${first.x}; ${first.t} crop y ${first.y}; ${first.t} crop w ${first.w}; ${first.t} crop h ${first.h};`);
+                  for (let ci = 1; ci < adjustedCoords.length; ci++) {
+                    const { t: ct, x, y, w, h } = adjustedCoords[ci];
+                    if (Math.abs(x - lastSegX) >= MIN_MOVE_PX || Math.abs(y - lastSegY) >= MIN_MOVE_PX) {
+                      dedupedLines.push(`${ct} crop x ${x}; ${ct} crop y ${y}; ${ct} crop w ${w}; ${ct} crop h ${h};`);
+                      lastSegX = x;
+                      lastSegY = y;
+                    }
+                  }
+                  const lastAdj = adjustedCoords[adjustedCoords.length - 1];
+                  if (lastSegX !== lastAdj.x || lastSegY !== lastAdj.y) {
+                    dedupedLines.push(`${lastAdj.t} crop x ${lastAdj.x}; ${lastAdj.t} crop y ${lastAdj.y}; ${lastAdj.t} crop w ${lastAdj.w}; ${lastAdj.t} crop h ${lastAdj.h};`);
+                  }
+
                   const cmdFile = path.join(TMP_DIR, `sc-seg-cmds-${tempId}-${si}.txt`);
                   segTempPaths.push(cmdFile);
-                  require("fs").writeFileSync(cmdFile, cmdLines.join("\n"));
+                  require("fs").writeFileSync(cmdFile, dedupedLines.join("\n"));
                   segArgs = [
                     "-ss", String(seg.start), "-t", String(segDuration),
                     "-i", rawSourcePath,
@@ -696,12 +713,43 @@ export class ClipGeneratorService {
               } else if (result.mode === "crop" && result.coords?.length) {
                 const coords: Array<{ t: number; x: number; y: number; w: number; h: number }> = result.coords;
                 const first = coords[0];
-                const cmdLines = coords.map(({ t, x, y, w, h }) =>
-                  `${t} crop x ${x}; ${t} crop y ${y}; ${t} crop w ${w}; ${t} crop h ${h};`
-                );
+
+                // Deduplicate: only emit a sendcmd entry when position changes by 3+ pixels.
+                // FFmpeg crop only supports integer coords, so 1-2px jumps every frame cause
+                // visible "pixel stepping". By skipping tiny changes, the crop holds still
+                // longer and moves in less-frequent, less-noticeable steps.
+                const MIN_MOVE_PX = 3;
+                const dedupedLines: string[] = [];
+                let lastX = first.x;
+                let lastY = first.y;
+                // Always emit the first keyframe
+                dedupedLines.push(`${first.t} crop x ${first.x}; ${first.t} crop y ${first.y}; ${first.t} crop w ${first.w}; ${first.t} crop h ${first.h};`);
+                for (let ci = 1; ci < coords.length; ci++) {
+                  const { t, x, y, w, h } = coords[ci];
+                  const dx = Math.abs(x - lastX);
+                  const dy = Math.abs(y - lastY);
+                  if (dx >= MIN_MOVE_PX || dy >= MIN_MOVE_PX) {
+                    dedupedLines.push(`${t} crop x ${x}; ${t} crop y ${y}; ${t} crop w ${w}; ${t} crop h ${h};`);
+                    lastX = x;
+                    lastY = y;
+                  }
+                }
+                // Always emit the last keyframe to ensure final position is correct
+                const last = coords[coords.length - 1];
+                if (lastX !== last.x || lastY !== last.y) {
+                  dedupedLines.push(`${last.t} crop x ${last.x}; ${last.t} crop y ${last.y}; ${last.t} crop w ${last.w}; ${last.t} crop h ${last.h};`);
+                }
+
+                this.logOperation("SMART_CROP_DEDUP", {
+                  clipId: options.clipId,
+                  totalCoords: coords.length,
+                  dedupedCoords: dedupedLines.length,
+                  reduction: `${Math.round((1 - dedupedLines.length / coords.length) * 100)}%`,
+                });
+
                 const cmdFile = path.join(TMP_DIR, `sc-cmds-${tempId}.txt`);
                 tempPaths.push(cmdFile);
-                require("fs").writeFileSync(cmdFile, cmdLines.join("\n"));
+                require("fs").writeFileSync(cmdFile, dedupedLines.join("\n"));
                 args = [
                   "-i", rawSourcePath,
                   "-vf", `sendcmd=f=${cmdFile},crop=${first.w}:${first.h},scale=${width}:${height}:flags=lanczos`,

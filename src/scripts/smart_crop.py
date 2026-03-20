@@ -899,13 +899,14 @@ for rc in raw_coords:
         ALPHA = 0.005
         smoothed_x = ALPHA * avg_raw + (1 - ALPHA) * smoothed_x
     elif abs_delta > MOVE_ZONE:
-        # Intentional movement - smooth pan with moderate alpha
-        # Capped at 0.06 for cinematic, non-jittery panning
-        ALPHA = min(0.06, 0.02 + abs_delta / 3000.0)
+        # Intentional movement - smooth pan with low alpha for cinematic glide.
+        # Capped at 0.04 (was 0.06) — slower panning eliminates visible pixel stepping.
+        # The 2-pass post-smoothing will further polish any remaining micro-steps.
+        ALPHA = min(0.04, 0.015 + abs_delta / 5000.0)
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
     elif abs_delta > DEAD_ZONE:
         # Small drift - very slow correction to avoid visible wobble
-        ALPHA = 0.01
+        ALPHA = 0.008
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
     # else: abs_delta <= DEAD_ZONE - do nothing, hold position
 
@@ -933,10 +934,10 @@ for rc in raw_coords:
         ALPHA_Y = 0.005
         smoothed_y = ALPHA_Y * avg_raw_y + (1 - ALPHA_Y) * smoothed_y
     elif abs_delta_y > Y_MOVE_ZONE:
-        ALPHA_Y = min(0.05, 0.02 + abs_delta_y / 2000.0)
+        ALPHA_Y = min(0.035, 0.015 + abs_delta_y / 4000.0)
         smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
     elif abs_delta_y > Y_DEAD_ZONE:
-        ALPHA_Y = 0.01
+        ALPHA_Y = 0.008
         smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
     # else: abs_delta_y <= Y_DEAD_ZONE - hold vertical position
 
@@ -992,13 +993,18 @@ for i in range(len(coords) - 1):
 
 frame_coords.append(coords[-1])
 
-# ── Post-smoothing pass: Gaussian-like moving average to eliminate micro-jitter ──
+# ── Post-smoothing pass: multi-pass Gaussian-like smoothing to eliminate pixel stepping ──
 # The EMA + interpolation can still leave tiny 1-3px oscillations that are visible
-# as jitter. A final smoothing pass with a wide kernel eliminates these completely.
-POST_SMOOTH_RADIUS = max(3, int(fps * 0.15))  # ~0.15s window (3-4 frames at 24fps, 4-5 at 30fps)
+# as jitter ("pixel stepping"). A wider kernel + multiple passes eliminates these.
+# Pass 1: wide kernel to remove all micro-jitter
+# Pass 2: narrower kernel to smooth out any artifacts from pass 1
+POST_SMOOTH_RADIUS_1 = max(5, int(fps * 0.35))  # ~0.35s window (wider than before for smoother pans)
+POST_SMOOTH_RADIUS_2 = max(3, int(fps * 0.20))  # ~0.20s second pass for extra polish
 
 def post_smooth(values, radius):
-    """Simple moving average with edge clamping. Preserves hard cuts (scene switches)."""
+    """Weighted moving average (triangular kernel) with edge clamping.
+    Preserves hard cuts (scene switches). Triangular weighting gives
+    more influence to nearby frames → smoother than simple box average."""
     n = len(values)
     if n <= 1:
         return values
@@ -1013,15 +1019,27 @@ def post_smooth(values, radius):
             # Hard cut in window — don't smooth this frame
             result[i] = values[i]
         else:
-            result[i] = sum(window) / len(window)
+            # Triangular (Bartlett) weighting: center frame has highest weight
+            weights = []
+            for j in range(lo, hi):
+                dist = abs(j - i)
+                weights.append(max(1, radius + 1 - dist))
+            total_w = sum(weights)
+            result[i] = sum(w * v for w, v in zip(weights, window)) / total_w
     return result
 
 x_values = [fc["x"] for fc in frame_coords]
 y_values = [fc["y"] for fc in frame_coords]
 
-x_smooth = post_smooth(x_values, POST_SMOOTH_RADIUS)
-y_smooth = post_smooth(y_values, POST_SMOOTH_RADIUS)
+# Two-pass smoothing for buttery transitions
+x_smooth = post_smooth(x_values, POST_SMOOTH_RADIUS_1)
+x_smooth = post_smooth(x_smooth, POST_SMOOTH_RADIUS_2)
+y_smooth = post_smooth(y_values, POST_SMOOTH_RADIUS_1)
+y_smooth = post_smooth(y_smooth, POST_SMOOTH_RADIUS_2)
 
+# Deduplicate: collapse consecutive frames with identical x,y into one keyframe.
+# FFmpeg sendcmd doesn't need a command for every frame if the crop isn't moving.
+# This also reduces the commands file size significantly.
 for i, fc in enumerate(frame_coords):
     fc["x"] = int(round(x_smooth[i]))
     fc["y"] = int(round(y_smooth[i]))
@@ -1029,7 +1047,7 @@ for i, fc in enumerate(frame_coords):
     fc["x"] = max(0, min(fc["x"], src_w - crop_w))
     fc["y"] = max(0, min(fc["y"], src_h - crop_h))
 
-log(f"Interpolated to {len(frame_coords)} per-frame coords ({fps}fps) with post-smoothing (radius={POST_SMOOTH_RADIUS})")
+log(f"Interpolated to {len(frame_coords)} per-frame coords ({fps}fps) with 2-pass post-smoothing (r1={POST_SMOOTH_RADIUS_1}, r2={POST_SMOOTH_RADIUS_2})")
 
 # Guard: if no coords were generated, skip
 if not frame_coords:
