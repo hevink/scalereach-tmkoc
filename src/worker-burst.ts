@@ -160,8 +160,10 @@ try {
       // Environment variables endpoint for admin dashboard
       if (url.pathname === "/health/envs") {
         const SENSITIVE_PATTERNS = ["TOKEN", "SECRET", "PASSWORD", "KEY", "DSN", "DATABASE_URL", "REDIS_URL", "PROXY"];
+        const IGNORE_PATTERNS = ["axm_", "pm_id", "PM2_", "instances", "vizion", "automation", "autorestart", "autostart", "treekill", "created_at", "restart_time", "unstable_restarts", "version", "node_args", "merge_logs", "exec_mode", "exec_interpreter", "watch", "instance_var", "filter_env", "namespace", "unique_id", "status", "pm_cwd", "pm_exec_path", "NODE_APP_INSTANCE", "windowsHide", "kill_retry_time", "username", "uid", "gid"];
         const envs: Record<string, string | undefined> = {};
         for (const [key, val] of Object.entries(process.env).sort(([a], [b]) => a.localeCompare(b))) {
+          if (IGNORE_PATTERNS.some(p => key === p || key.startsWith(p))) continue;
           if (val === undefined) {
             envs[key] = undefined;
           } else if (SENSITIVE_PATTERNS.some(p => key.toUpperCase().includes(p))) {
