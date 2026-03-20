@@ -16,6 +16,8 @@ const CATEGORIES = [
   { slug: "soap-cutting", displayName: "Soap Cutting", sortOrder: 6 },
   { slug: "slime", displayName: "Slime", sortOrder: 7 },
   { slug: "cooking", displayName: "Cooking", sortOrder: 8 },
+  { slug: "fortnite", displayName: "Fortnite", sortOrder: 9 },
+  { slug: "trackmania", displayName: "Trackmania", sortOrder: 10 },
 ];
 
 async function seed() {
