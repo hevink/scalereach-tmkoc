@@ -511,6 +511,7 @@ export class ClipGeneratorService {
                 end: number;
                 coords?: Array<{ t: number; x: number; y: number; w: number; h: number }>;
                 split_info?: { screen: { x: number; y: number; w: number; h: number }; pip: { x: number; y: number; w: number; h: number }; src_w: number; src_h: number; target_w: number; face_h: number; screen_h: number; screen_zoom: number };
+                dual_crop?: { left_crop: { x: number; y: number; w: number; h: number }; right_crop: { x: number; y: number; w: number; h: number } };
               }>;
               const cropW = result.crop_w || width;
               const cropH = result.crop_h || height;
@@ -564,6 +565,36 @@ export class ClipGeneratorService {
                       `[0:v]crop=${screenCropW}:${screenCropH}:${screenCropX}:${screen.y},scale=${outW}:${screenH}:flags=lanczos[screen];` +
                       `[face][screen]vstack=inputs=2,format=yuv420p[out]`,
                       "-map", "[out]", "-map", "0:a?",
+                      "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                      "-c:a", "aac", "-b:a", "192k",
+                      "-y", segPath,
+                    ];
+                  }
+                } else if (seg.type === "podcast_dual") {
+                  // Dual-face podcast segment: crop left and right speakers, stack vertically
+                  const dualCrop = (seg as any).dual_crop;
+                  if (dualCrop?.left_crop && dualCrop?.right_crop) {
+                    const lc = dualCrop.left_crop;
+                    const rc = dualCrop.right_crop;
+                    const halfH = Math.round(height / 2);
+                    segArgs = [
+                      "-ss", String(seg.start), "-t", String(segDuration),
+                      "-i", rawSourcePath,
+                      "-filter_complex",
+                      `[0:v]crop=${lc.w}:${lc.h}:${lc.x}:${lc.y},scale=${width}:${halfH}:flags=lanczos[top];` +
+                      `[0:v]crop=${rc.w}:${rc.h}:${rc.x}:${rc.y},scale=${width}:${halfH}:flags=lanczos[bot];` +
+                      `[top][bot]vstack=inputs=2,format=yuv420p[out]`,
+                      "-map", "[out]", "-map", "0:a?",
+                      "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                      "-c:a", "aac", "-b:a", "192k",
+                      "-y", segPath,
+                    ];
+                  } else {
+                    // No dual crop info — fallback to center crop
+                    segArgs = [
+                      "-ss", String(seg.start), "-t", String(segDuration),
+                      "-i", rawSourcePath,
+                      "-vf", `crop=${cropW}:${cropH}:(in_w-${cropW})/2:(in_h-${cropH})/2,scale=${width}:${height}:flags=lanczos,format=yuv420p`,
                       "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                       "-c:a", "aac", "-b:a", "192k",
                       "-y", segPath,

@@ -271,8 +271,13 @@ def get_crop_y(faces, src_h, crop_h):
 
 log("Detecting video type...")
 
-# Sample more frames for better classification (15 instead of 9)
-sample_times = [duration * i / 16 for i in range(1, 16)]
+# Sample every 1 second for accurate type detection without excessive overhead
+# 30s clip → 30 samples (~0.5s), 90s clip → 90 samples (~1.5s)
+SAMPLE_INTERVAL_SEC = 1.0
+sample_times = [SAMPLE_INTERVAL_SEC * i for i in range(1, int(duration / SAMPLE_INTERVAL_SEC) + 1) if SAMPLE_INTERVAL_SEC * i < duration]
+if len(sample_times) < 5:
+    sample_times = [duration * i / 6 for i in range(1, 6)]
+log(f"Type detection: {len(sample_times)} samples (every {SAMPLE_INTERVAL_SEC}s for {duration:.1f}s clip)")
 sample_faces = []
 pip_detections = 0
 full_detections = 0
@@ -482,7 +487,7 @@ if video_type == "screen_pip":
 # ── 5c-dual: Podcast with 2 speakers → stacked dual-face crop ────────────────
 
 if video_type == "podcast_dual":
-    log("Podcast dual-face detected - using static stacked layout...")
+    log("Podcast dual-face detected - computing static dual crop positions...")
 
     # ── Collect face positions from all 2-face sample frames ──────────────
     left_faces_all = []
@@ -509,65 +514,73 @@ if video_type == "podcast_dual":
         log(f"Left speaker:  cx={avg_left_cx}, cy={avg_left_cy}, face_w={avg_left_w}")
         log(f"Right speaker: cx={avg_right_cx}, cy={avg_right_cy}, face_w={avg_right_w}")
 
-        # ── Static crop approach (like Opus Clip / ClipsAI) ───────────────
-        # Each panel is 9:8 aspect ratio (half of 9:16 output).
-        # We compute ONE static crop rectangle per speaker, centered on their face.
-        # No dynamic tracking needed — podcast speakers don't move much.
-        panel_aspect = 9.0 / 8.0
+        # ── Check if ALL sampled frames have 2 faces → use static dual for whole clip
+        # If not, fall through to per-frame tracking which handles mixed 1-face/2-face segments
+        dual_frame_ratio = len(left_faces_all) / len(sample_faces) if sample_faces else 0
+        log(f"Dual-face frame ratio: {dual_frame_ratio:.2f} ({len(left_faces_all)}/{len(sample_faces)})")
 
-        # The midpoint between speakers — crops must not cross this
-        mid_x = (avg_left_cx + avg_right_cx) // 2
+        if dual_frame_ratio >= 0.80:
+            # 80%+ of frames have 2 faces → safe to use static dual crop for entire clip
+            log("Using static dual crop (2 faces in 80%+ of frames)")
 
-        # Max crop width per speaker = distance from edge to midpoint
-        left_max_w = mid_x
-        right_max_w = src_w - mid_x
-        max_crop_w = min(left_max_w, right_max_w)
+            panel_aspect = 9.0 / 8.0
+            mid_x = (avg_left_cx + avg_right_cx) // 2
+            left_max_w = mid_x
+            right_max_w = src_w - mid_x
+            max_crop_w = min(left_max_w, right_max_w)
 
-        # Crop height = full source height, derive width from aspect ratio
-        face_crop_h = src_h
-        face_crop_w = int(face_crop_h * panel_aspect)
+            face_crop_h = src_h
+            face_crop_w = int(face_crop_h * panel_aspect)
 
-        # Cap to available space (no overlap possible)
-        if face_crop_w > max_crop_w:
-            face_crop_w = max_crop_w
-            face_crop_h = int(face_crop_w / panel_aspect)
+            if face_crop_w > max_crop_w:
+                face_crop_w = max_crop_w
+                face_crop_h = int(face_crop_w / panel_aspect)
 
-        # Ensure even dimensions
-        face_crop_w = face_crop_w - (face_crop_w % 2)
-        face_crop_h = face_crop_h - (face_crop_h % 2)
+            face_crop_w = face_crop_w - (face_crop_w % 2)
+            face_crop_h = face_crop_h - (face_crop_h % 2)
 
-        # ── Compute static crop X for each speaker ───────────────────────
-        # Center the crop on the face, clamp so it stays on its own side
-        left_x = avg_left_cx - face_crop_w // 2
-        left_x = max(0, min(left_x, mid_x - face_crop_w))  # must end before midpoint
+            left_x = avg_left_cx - face_crop_w // 2
+            left_x = max(0, min(left_x, mid_x - face_crop_w))
 
-        right_x = avg_right_cx - face_crop_w // 2
-        right_x = max(mid_x, min(right_x, src_w - face_crop_w))  # must start at/after midpoint
+            right_x = avg_right_cx - face_crop_w // 2
+            right_x = max(mid_x, min(right_x, src_w - face_crop_w))
 
-        # Compute crop Y — center vertically on the face with headroom
-        left_y = max(0, avg_left_cy - int(face_crop_h * 0.40))
-        left_y = max(0, min(left_y, src_h - face_crop_h))
+            left_y = max(0, avg_left_cy - int(face_crop_h * 0.40))
+            left_y = max(0, min(left_y, src_h - face_crop_h))
 
-        right_y = max(0, avg_right_cy - int(face_crop_h * 0.40))
-        right_y = max(0, min(right_y, src_h - face_crop_h))
+            right_y = max(0, avg_right_cy - int(face_crop_h * 0.40))
+            right_y = max(0, min(right_y, src_h - face_crop_h))
 
-        log(f"Crop size: {face_crop_w}x{face_crop_h} (panel 9:8)")
-        log(f"Left crop:  x={left_x}, y={left_y}")
-        log(f"Right crop: x={right_x}, y={right_y}")
-        log(f"Gap between crops: {right_x - (left_x + face_crop_w)}px")
+            log(f"Crop size: {face_crop_w}x{face_crop_h} (panel 9:8)")
+            log(f"Left crop:  x={left_x}, y={left_y}")
+            log(f"Right crop: x={right_x}, y={right_y}")
+            log(f"Gap between crops: {right_x - (left_x + face_crop_w)}px")
 
-        # Write static crop output — much simpler than dynamic coords
-        with open(coords_path, "w") as f:
-            json.dump({
-                "mode": "podcast_dual",
-                "left_crop":  {"x": left_x,  "y": left_y,  "w": face_crop_w, "h": face_crop_h},
-                "right_crop": {"x": right_x, "y": right_y, "w": face_crop_w, "h": face_crop_h},
-                "src_w": src_w,
-                "src_h": src_h,
-            }, f)
+            with open(coords_path, "w") as f:
+                json.dump({
+                    "mode": "podcast_dual",
+                    "left_crop":  {"x": left_x,  "y": left_y,  "w": face_crop_w, "h": face_crop_h},
+                    "right_crop": {"x": right_x, "y": right_y, "w": face_crop_w, "h": face_crop_h},
+                    "src_w": src_w,
+                    "src_h": src_h,
+                }, f)
 
-        log("Done (podcast_dual - static crop).")
-        sys.exit(0)
+            log("Done (podcast_dual - static crop).")
+            sys.exit(0)
+        else:
+            # Mixed: some frames have 2 faces, some have 1 or 0.
+            # Fall through to per-frame tracking which will produce mixed segments:
+            # - "podcast_dual" segments when 2 faces are visible
+            # - "face" segments when only 1 face is visible (single-face tracking)
+            # Store the dual crop info for use in per-frame segment building later.
+            log(f"Only {dual_frame_ratio:.0%} of frames have 2 faces — falling through to per-frame tracking for mixed dual/single segments")
+            video_type = "podcast"  # use per-frame tracking path
+            # Store dual crop info as globals for the segment builder to use
+            _dual_crop_info = {
+                "avg_left_cx": avg_left_cx, "avg_left_cy": avg_left_cy,
+                "avg_right_cx": avg_right_cx, "avg_right_cy": avg_right_cy,
+                "avg_left_w": avg_left_w, "avg_right_w": avg_right_w,
+            }
 
 # ── 5c: Podcast / talking head → face tracking crop ──────────────────────────
 
@@ -616,7 +629,7 @@ def get_speaker_at(t):
 
 def classify_frame(faces):
     """Classify a single frame based on its detected faces.
-    Returns: 'split' | 'face' | 'group' | 'no_face'"""
+    Returns: 'split' | 'face' | 'podcast_dual' | 'group' | 'no_face'"""
     if not faces:
         return "no_face"
     if len(faces) >= 4:
@@ -630,6 +643,14 @@ def classify_frame(faces):
         on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
         if is_small and (in_corner or on_side):
             return "split"
+    # Check for 2 spread-apart faces (podcast dual layout)
+    if len(faces) == 2:
+        both_big = all(f["w"] / src_w >= 0.08 for f in faces)
+        if both_big:
+            sorted_f = sorted(faces, key=lambda f: f["cx"])
+            gap_ratio = (sorted_f[1]["cx"] - sorted_f[0]["cx"]) / src_w if src_w > 0 else 0
+            if gap_ratio >= 0.25:
+                return "podcast_dual"
     return "face"
 
 # Pre-compute PiP region from sample_faces for split segments
@@ -1063,11 +1084,13 @@ if not frame_coords:
 try:
     segments = []
     if frame_coords:
-        # Classify each frame into segment types: split, face, group, no_face
+        # Classify each frame into segment types: split, face, podcast_dual, group, no_face
         def get_seg_type(fc):
             ft = fc.get("frame_type", "face" if fc.get("face") else "no_face")
             if ft == "split":
                 return "split"
+            elif ft == "podcast_dual":
+                return "podcast_dual"
             elif ft == "group":
                 return "group"
             elif fc.get("face"):
@@ -1107,11 +1130,12 @@ try:
 
     # Determine output mode based on segment types present
     seg_types = set(s["type"] for s in segments)
-    has_face      = "face" in seg_types
-    has_no_face   = "no_face" in seg_types
-    has_split     = "split" in seg_types
-    has_group     = "group" in seg_types
-    is_mixed      = len(seg_types) > 1 or has_split
+    has_face         = "face" in seg_types
+    has_no_face      = "no_face" in seg_types
+    has_split        = "split" in seg_types
+    has_group        = "group" in seg_types
+    has_podcast_dual = "podcast_dual" in seg_types
+    is_mixed         = len(seg_types) > 1 or has_split or has_podcast_dual
 
     # Build split info for split segments
     split_info = build_split_info(global_pip_region)
@@ -1130,6 +1154,57 @@ try:
             else:
                 seg["split_info"] = split_info
 
+    # Build podcast_dual crop info for dual segments
+    # Compute static left/right crops from the faces detected in those frames
+    def build_dual_crop_for_segment(seg):
+        """Compute left_crop and right_crop for a podcast_dual segment
+        using the faces from its frames."""
+        left_cxs, left_cys, right_cxs, right_cys = [], [], [], []
+        for fc in seg["coords"]:
+            faces_at_t = fd_map.get(f"{fc['t']:.2f}", {}).get("faces", [])
+            if len(faces_at_t) >= 2:
+                sf = sorted(faces_at_t, key=lambda f: f["cx"])
+                left_cxs.append(sf[0]["cx"])
+                left_cys.append(sf[0]["cy"])
+                right_cxs.append(sf[1]["cx"])
+                right_cys.append(sf[1]["cy"])
+        if not left_cxs:
+            return None
+        avg_l_cx = int(sum(left_cxs) / len(left_cxs))
+        avg_l_cy = int(sum(left_cys) / len(left_cys))
+        avg_r_cx = int(sum(right_cxs) / len(right_cxs))
+        avg_r_cy = int(sum(right_cys) / len(right_cys))
+
+        panel_aspect = 9.0 / 8.0
+        mid_x = (avg_l_cx + avg_r_cx) // 2
+        max_cw = min(mid_x, src_w - mid_x)
+        fc_h = src_h
+        fc_w = int(fc_h * panel_aspect)
+        if fc_w > max_cw:
+            fc_w = max_cw
+            fc_h = int(fc_w / panel_aspect)
+        fc_w = fc_w - (fc_w % 2)
+        fc_h = fc_h - (fc_h % 2)
+
+        lx = max(0, min(avg_l_cx - fc_w // 2, mid_x - fc_w))
+        rx = max(mid_x, min(avg_r_cx - fc_w // 2, src_w - fc_w))
+        ly = max(0, min(avg_l_cy - int(fc_h * 0.40), src_h - fc_h))
+        ry = max(0, min(avg_r_cy - int(fc_h * 0.40), src_h - fc_h))
+
+        return {
+            "left_crop":  {"x": lx, "y": ly, "w": fc_w, "h": fc_h},
+            "right_crop": {"x": rx, "y": ry, "w": fc_w, "h": fc_h},
+        }
+
+    for seg in segments:
+        if seg["type"] == "podcast_dual":
+            dual_info = build_dual_crop_for_segment(seg)
+            if dual_info:
+                seg["dual_crop"] = dual_info
+            else:
+                # No valid dual faces found in this segment — downgrade to face
+                seg["type"] = "face"
+
     with open(coords_path, "w") as f:
         if is_mixed or (has_face and has_no_face):
             # Mixed mode: multiple segment types — TS side will render each segment
@@ -1144,6 +1219,8 @@ try:
                 }
                 if seg["type"] == "split":
                     clean_seg["split_info"] = seg.get("split_info", split_info)
+                if seg["type"] == "podcast_dual":
+                    clean_seg["dual_crop"] = seg.get("dual_crop")
                 if seg["type"] in ("face", "no_face"):
                     clean_seg["coords"] = [{k: v for k, v in c.items() if k not in ("face", "frame_type", "pip")} for c in seg["coords"]]
                 clean_segments.append(clean_seg)
