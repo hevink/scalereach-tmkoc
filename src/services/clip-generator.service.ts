@@ -824,10 +824,11 @@ export class ClipGeneratorService {
           }
         }
 
-        // Check intro title for emoji
-        if (options.introTitle && ClipGeneratorService.hasEmoji(options.introTitle)) {
+        // Render intro title as PNG overlay with pill-shaped rounded background
+        // (applies to ALL intro titles, not just emoji ones — ASS can't do rounded corners)
+        if (options.introTitle) {
           try {
-            const pngPath = await ClipGeneratorService.renderEmojiOverlayAsPng(
+            const pngPath = await ClipGeneratorService.renderIntroTitlePng(
               options.introTitle,
               36,
               "#000000",
@@ -847,9 +848,9 @@ export class ClipGeneratorService {
               startTime: 0,
               endTime: 3,
             });
-            this.logOperation("EMOJI_INTRO_TITLE_PNG_READY", { text: options.introTitle });
+            this.logOperation("INTRO_TITLE_PNG_READY", { text: options.introTitle });
           } catch (err) {
-            console.warn(`[CLIP GENERATOR] Failed to render emoji intro title PNG:`, err);
+            console.warn(`[CLIP GENERATOR] Failed to render intro title PNG, falling back to ASS:`, err);
           }
         }
 
@@ -1283,13 +1284,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
     // Add intro title for first 3 seconds if provided
-    // NOTE: if introTitle contains emoji, it is skipped here and rendered as PNG overlay instead
-    if (introTitle && !ClipGeneratorService.hasEmoji(introTitle)) {
-      // Scale up + fade in from top, then fade out
-      // {\fad(400,500)} = 400ms fade in, 500ms fade out
-      // {\fscx80\fscy80\t(0,300,\fscx100\fscy100)} = start at 80% scale, animate to 100% in 300ms
-      ass += `Dialogue: 2,0:00:00.00,0:00:03.00,IntroTitle,,0,0,0,,{\\an8\\q2\\b600\\fad(400,500)\\fscx80\\fscy80\\t(0,300,\\fscx100\\fscy100)}${this.renderTextWithEmojiFont(introTitle, fontFamily)}\n`;
-    }
+    // All intro titles are now rendered as PNG overlays (not ASS) for pill-shaped rounded backgrounds.
+    // The ASS IntroTitle style is kept for backwards compatibility but no longer used for new clips.
 
     // Group words into lines based on wordsPerLine setting
     const lines: Array<{ words: typeof words; start: number; end: number }> = [];
@@ -1792,6 +1788,233 @@ print(f"OK:{total_w}x{total_h}")
   }
 
   /**
+   * Render intro title as a PNG with pill-shaped (rounded) background per line.
+   * Each line of text gets its own pill-shaped white background with rounded corners,
+   * producing the "popoints" look (individual rounded pills stacked vertically).
+   */
+  static async renderIntroTitlePng(
+    text: string,
+    fontSize: number,
+    color: string,
+    backgroundColor: string,
+    backgroundOpacity: number,
+    videoWidth: number,
+    videoHeight: number,
+    maxWidthPct: number = 80
+  ): Promise<string> {
+    const outPath = path.join(os.tmpdir(), `intro-title-${nanoid()}.png`);
+    const maxWidthPx = Math.round((maxWidthPct / 100) * videoWidth);
+
+    const hexToRgb = (hex: string) => {
+      const c = hex.replace("#", "");
+      return [parseInt(c.slice(0,2),16), parseInt(c.slice(2,4),16), parseInt(c.slice(4,6),16)];
+    };
+    const [r, g, b] = hexToRgb(color);
+    const [br, bg, bb] = hexToRgb(backgroundColor);
+    const bgAlpha = Math.round((backgroundOpacity / 100) * 255);
+
+    const scaledFontSize = Math.round(fontSize * (videoHeight / 700));
+
+    const textInputPath = path.join(os.tmpdir(), `intro-text-${nanoid()}.txt`);
+    await fs.promises.writeFile(textInputPath, text, "utf8");
+
+    const pythonScript = `
+import sys, re, os
+from PIL import Image, ImageDraw, ImageFont
+
+with open(${JSON.stringify(textInputPath)}, "r", encoding="utf-8") as f:
+    text = f.read().strip()
+
+font_size = ${scaledFontSize}
+max_width = ${maxWidthPx}
+text_color = (${r}, ${g}, ${b}, 255)
+bg_color = (${br}, ${bg}, ${bb}, ${bgAlpha})
+
+# Emoji detection + font loading
+EMOJI_RE = re.compile(r'[\\U00010000-\\U0010ffff]|[\\u2600-\\u27BF]|\\u00a9|\\u00ae|[\\u2000-\\u3300]|\\uFE0F', re.UNICODE)
+has_emoji = bool(EMOJI_RE.search(text))
+
+emoji_font_paths = [
+    "/System/Library/Fonts/Apple Color Emoji.ttc",
+    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+]
+text_font_paths = [
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+]
+
+VALID_SIZES = [20, 26, 32, 40, 48, 52, 64, 96, 160]
+def snap_size(s):
+    return min(VALID_SIZES, key=lambda x: abs(x - s))
+
+emoji_font = None
+if has_emoji:
+    emoji_sz = snap_size(font_size)
+    for fp in emoji_font_paths:
+        if os.path.exists(fp):
+            try:
+                emoji_font = ImageFont.truetype(fp, emoji_sz)
+                break
+            except:
+                pass
+
+text_font = None
+for fp in text_font_paths:
+    if os.path.exists(fp):
+        try:
+            text_font = ImageFont.truetype(fp, font_size)
+            break
+        except:
+            pass
+if text_font is None:
+    text_font = ImageFont.load_default()
+if emoji_font is None:
+    emoji_font = text_font
+
+def is_emoji_char(ch):
+    cp = ord(ch)
+    return (cp >= 0x1F000) or (0x2600 <= cp <= 0x27BF) or cp in (0x00A9, 0x00AE) or (0x2000 <= cp <= 0x3300) or cp == 0xFE0F
+
+def split_segments(s):
+    segs = []
+    buf = ""
+    is_em = False
+    for ch in s:
+        ch_em = is_emoji_char(ch)
+        if ch_em != is_em:
+            if buf:
+                segs.append((buf, is_em))
+            buf = ch
+            is_em = ch_em
+        else:
+            buf += ch
+    if buf:
+        segs.append((buf, is_em))
+    return segs
+
+def seg_font(is_em):
+    return emoji_font if is_em else text_font
+
+def measure_segments(segs):
+    dummy = Image.new("RGBA", (1, 1))
+    draw = ImageDraw.Draw(dummy)
+    total_w = 0
+    max_h = 0
+    for (chunk, is_em) in segs:
+        f = seg_font(is_em)
+        bb = draw.textbbox((0, 0), chunk, font=f, embedded_color=True)
+        total_w += bb[2] - bb[0]
+        max_h = max(max_h, bb[3] - bb[1])
+    return total_w, max_h
+
+# Word-wrap
+words = text.split(" ")
+lines = []
+current_words = []
+for word in words:
+    test_words = current_words + [word]
+    test_line = " ".join(test_words)
+    segs = split_segments(test_line)
+    w, _ = measure_segments(segs)
+    if w <= max_width or not current_words:
+        current_words = test_words
+    else:
+        lines.append(" ".join(current_words))
+        current_words = [word]
+if current_words:
+    lines.append(" ".join(current_words))
+
+# Measure each line
+line_sizes = []
+for line in lines:
+    segs = split_segments(line)
+    w, h = measure_segments(segs)
+    line_sizes.append((w, h))
+
+# Per-line pill padding and spacing
+pad_x = max(16, font_size // 2)
+pad_y = max(8, font_size // 4)
+line_gap = max(8, font_size // 5)
+
+# Canvas size: widest pill + vertical stack
+max_pill_w = max(s[0] + pad_x * 2 for s in line_sizes) if line_sizes else 0
+total_canvas_w = min(max_pill_w, max_width + pad_x * 2)
+total_canvas_h = sum(s[1] + pad_y * 2 for s in line_sizes) + line_gap * max(0, len(lines) - 1)
+
+img = Image.new("RGBA", (total_canvas_w, total_canvas_h), (0, 0, 0, 0))
+draw = ImageDraw.Draw(img)
+
+# Draw each line with its own pill-shaped background
+y = 0
+for i, line in enumerate(lines):
+    lw, lh = line_sizes[i]
+    pill_w = lw + pad_x * 2
+    pill_h = lh + pad_y * 2
+    pill_x = (total_canvas_w - pill_w) // 2
+    radius = pill_h // 2  # Full pill shape (half-height radius)
+
+    if bg_color[3] > 0:
+        draw.rounded_rectangle(
+            [pill_x, y, pill_x + pill_w, y + pill_h],
+            radius=radius,
+            fill=bg_color
+        )
+
+    # Draw text centered in the pill
+    text_x = pill_x + pad_x
+    text_y = y + pad_y
+    segs = split_segments(line)
+    cx = text_x
+    for (chunk, is_em) in segs:
+        f = seg_font(is_em)
+        draw.text((cx, text_y), chunk, font=f, fill=text_color, embedded_color=True)
+        dummy = Image.new("RGBA", (1, 1))
+        dd = ImageDraw.Draw(dummy)
+        cbb = dd.textbbox((0, 0), chunk, font=f, embedded_color=True)
+        cx += cbb[2] - cbb[0]
+
+    y += pill_h + line_gap
+
+img.save(${JSON.stringify(outPath)})
+try:
+    os.remove(${JSON.stringify(textInputPath)})
+except:
+    pass
+print(f"OK:{total_canvas_w}x{total_canvas_h}")
+`;
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn("python3", ["-c", pythonScript]);
+      let stdout = "";
+      let stderr = "";
+      proc.stdout?.on("data", (d) => { stdout += d.toString(); });
+      proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+      proc.on("close", (code) => {
+        if (code !== 0) {
+          fs.promises.unlink(textInputPath).catch(() => {});
+          reject(new Error(`Python intro title render failed (code ${code}): ${stderr.slice(-500)}`));
+        } else if (stdout.startsWith("OK:")) {
+          this.logOperation("INTRO_TITLE_PNG_RENDERED", { path: outPath, size: stdout.trim() });
+          resolve(outPath);
+        } else {
+          fs.promises.unlink(textInputPath).catch(() => {});
+          reject(new Error(`Python intro title render unexpected output: ${stdout} | ${stderr.slice(-300)}`));
+        }
+      });
+      proc.on("error", (err) => {
+        fs.promises.unlink(textInputPath).catch(() => {});
+        reject(new Error(`Failed to spawn python3: ${err.message}`));
+      });
+    });
+  }
+
+  /**
    * Convert hex color to ASS color format (&HAABBGGRR)
    */
   private static hexToASSColor(hex: string): string {
@@ -1953,13 +2176,15 @@ print(f"OK:{total_w}x{total_h}")
       const fullPath = await this.acquireFullDownload(url, useCookies);
       try {
         await new Promise<void>((resolve, reject) => {
-          // -ss AFTER -i = frame-accurate seeking (input-seeking before -i snaps to keyframes,
-          // causing captions to appear before audio when using -c copy)
+          // Re-encode the trimmed segment to ensure the first frame is a keyframe.
+          // Using -c copy causes a frozen first frame (~2s) when the seek lands on a non-keyframe.
+          // -ss BEFORE -i = fast keyframe-based seek, then re-encode from that point for frame accuracy.
           const trimArgs = [
-            "-i", fullPath,
             "-ss", startTime.toString(),
+            "-i", fullPath,
             "-t", expectedDuration.toString(),
-            "-c", "copy",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+            "-c:a", "aac", "-b:a", "192k",
             "-avoid_negative_ts", "make_zero",
             "-y", outputPath,
           ];
@@ -1992,13 +2217,14 @@ print(f"OK:{total_w}x{total_h}")
           await this.executeYtDlpFullDownload(url, fullPath, useCookies);
           // Trim locally with FFmpeg
           await new Promise<void>((resolve, reject) => {
-            // -ss AFTER -i = frame-accurate seeking (input-seeking before -i snaps to keyframes,
-            // causing captions to appear before audio when using -c copy)
+            // Re-encode to ensure first frame is a keyframe (avoids frozen first ~2s with -c copy).
+            // -ss BEFORE -i = fast keyframe seek, then re-encode for frame accuracy.
             const trimArgs = [
-              "-i", fullPath,
               "-ss", startTime.toString(),
+              "-i", fullPath,
               "-t", expectedDuration.toString(),
-              "-c", "copy",
+              "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+              "-c:a", "aac", "-b:a", "192k",
               "-avoid_negative_ts", "make_zero",
               "-y", outputPath,
             ];
@@ -2553,12 +2779,14 @@ print(f"OK:{total_w}x{total_h}")
     const duration = endTime - startTime;
 
     return new Promise((resolve, reject) => {
-      // -ss AFTER -i = frame-accurate seeking (before -i snaps to keyframes with -c copy)
+      // Re-encode to ensure first frame is a keyframe (avoids frozen first ~2s with -c copy).
+      // -ss BEFORE -i = fast keyframe seek, then re-encode for frame accuracy.
       const args = [
-        "-i", videoUrl,
         "-ss", startTime.toString(),
+        "-i", videoUrl,
         "-t", duration.toString(),
-        "-c", "copy",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18",
+        "-c:a", "aac", "-b:a", "192k",
         "-avoid_negative_ts", "make_zero",
         "-y",
         outputPath,
