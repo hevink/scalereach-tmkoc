@@ -291,6 +291,40 @@ try {
         }, null, 2), { status: 200, headers: SECURITY_HEADERS });
       }
 
+      // ── PROTECTED: Environment variables for admin dashboard ──
+      if (url.pathname === "/health/hevin/envs") {
+        if (!isAuthed) return new Response("Unauthorized", { status: 401, headers: SECURITY_HEADERS });
+        const ENV_KEYS = [
+          "NODE_ENV", "WORKER_HEALTH_PORT",
+          "VIDEO_WORKER_CONCURRENCY", "CLIP_WORKER_CONCURRENCY",
+          "DUBBING_WORKER_CONCURRENCY", "SMART_CROP_WORKER_CONCURRENCY",
+          "PYTHON_PATH", "MODEL_PATH", "SMART_CROP_TMP_DIR",
+          "HF_TOKEN",
+          "YOUTUBE_COOKIES_PATH", "YT_DLP_GET_POT_BGUTIL_BASE_URL",
+          "YOUTUBE_PROXY",
+          "DATABASE_URL", "REDIS_URL",
+          "R2_ENDPOINT", "R2_ACCESS_KEY_ID", "R2_BUCKET_NAME",
+          "ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY",
+          "DEEPGRAM_API_KEY",
+          "SENTRY_DSN",
+          "BURST_INSTANCE_ID", "AWS_REGION",
+          "SCALE_UP_THRESHOLD", "SCALE_DOWN_IDLE_MS", "SCALER_CHECK_INTERVAL_MS",
+        ];
+        const envs: Record<string, string | undefined> = {};
+        for (const key of ENV_KEYS) {
+          const val = process.env[key];
+          if (val === undefined) {
+            envs[key] = undefined;
+          } else if (["HF_TOKEN", "DATABASE_URL", "REDIS_URL", "R2_ACCESS_KEY_ID", "ANTHROPIC_API_KEY", "DEEPGRAM_API_KEY", "SENTRY_DSN", "YOUTUBE_PROXY"].includes(key)) {
+            // Mask sensitive values: show first 8 chars + ***
+            envs[key] = val.length > 8 ? val.slice(0, 8) + "***" : "***";
+          } else {
+            envs[key] = val;
+          }
+        }
+        return new Response(JSON.stringify({ mode: "base", envs }, null, 2), { status: 200, headers: SECURITY_HEADERS });
+      }
+
       // ── PUBLIC: validate YouTube URL (proxied from API) ──
       if (url.pathname === "/validate-youtube" && req.method === "GET") {
         const ytUrl = url.searchParams.get("url");

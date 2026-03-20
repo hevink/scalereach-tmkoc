@@ -75,6 +75,10 @@ adminRouter.get("/burst-logs/content", AdminController.getBurstLogContent);
 adminRouter.get("/burst-logs/live", AdminController.getBurstLogsLive);
 adminRouter.post("/burst-youtube-test", AdminController.testBurstYouTube);
 
+// Environment variables (proxied from worker instances)
+adminRouter.get("/envs/base", AdminController.getBaseEnvs);
+adminRouter.get("/envs/burst", AdminController.getBurstEnvs);
+
 // Queue management
 adminRouter.post("/queue-action", AdminController.queueAction);
 

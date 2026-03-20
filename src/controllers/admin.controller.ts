@@ -833,6 +833,61 @@ export class AdminController {
   }
 
   /**
+   * Get environment variables from base worker instance
+   * GET /api/admin/envs/base
+   */
+  static async getBaseEnvs(c: Context) {
+    try {
+      const workerUrl = process.env.WORKER_URL;
+      if (!workerUrl) return c.json({ error: "WORKER_URL not configured" }, 500);
+      const workerSecret = process.env.WORKER_SECRET;
+      if (!workerSecret) return c.json({ error: "WORKER_SECRET not configured" }, 500);
+
+      const res = await fetch(`${workerUrl}/health/hevin/envs`, {
+        headers: { "Authorization": `Bearer ${workerSecret}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await res.json();
+      return c.json(data, res.status as any);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to reach base worker: ${msg}` }, 502);
+    }
+  }
+
+  /**
+   * Get environment variables from burst worker instance
+   * GET /api/admin/envs/burst
+   */
+  static async getBurstEnvs(c: Context) {
+    try {
+      const { DescribeInstancesCommand } = require("@aws-sdk/client-ec2");
+      const ec2 = AdminController.getEC2Client();
+      const burstId = process.env.BURST_INSTANCE_ID;
+      if (!burstId) return c.json({ error: "BURST_INSTANCE_ID not configured" }, 500);
+
+      const desc = await ec2.send(new DescribeInstancesCommand({ InstanceIds: [burstId] }));
+      const inst = desc.Reservations?.[0]?.Instances?.[0];
+      if (!inst || inst.State?.Name !== "running") {
+        return c.json({ error: "Burst instance not running", state: inst?.State?.Name || "unknown" }, 200);
+      }
+
+      const burstIp = inst.PublicIpAddress;
+      if (!burstIp) return c.json({ error: "Burst instance has no public IP" }, 200);
+
+      const burstPort = process.env.BURST_HEALTH_PORT || "3003";
+      const res = await fetch(`http://${burstIp}:${burstPort}/health/envs`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      const data = await res.json();
+      return c.json(data, res.status as any);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to reach burst worker: ${msg}` }, 200);
+    }
+  }
+
+  /**
    * Get autoscaler state from Redis
    * GET /api/admin/scaler-state
    */
