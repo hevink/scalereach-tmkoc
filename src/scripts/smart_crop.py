@@ -305,12 +305,12 @@ try:
 
             log(f"  face: cx={face['cx']}, cy={face['cy']}, w={face['w']}, h={face['h']}, w_ratio={w_ratio:.3f}, area={face['area']}")
 
-            is_small_face = w_ratio < 0.10
+            is_small_face = w_ratio < 0.18
             in_corner = (face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.70) and \
-                        (face["cy"] < src_h * 0.30 or face["cy"] > src_h * 0.70)
+                        (face["cy"] < src_h * 0.35 or face["cy"] > src_h * 0.65)
             on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
-            is_centered = src_w * 0.15 < face["cx"] < src_w * 0.85 and \
-                          src_h * 0.15 < face["cy"] < src_h * 0.85 and \
+            is_centered = src_w * 0.25 < face["cx"] < src_w * 0.75 and \
+                          src_h * 0.20 < face["cy"] < src_h * 0.80 and \
                           w_ratio >= 0.08
 
             if is_small_face and in_corner:
@@ -411,7 +411,8 @@ def detect_pip_region(faces_list):
             in_corner = (face["cx"] < src_w * 0.35 or face["cx"] > src_w * 0.65) and \
                         (face["cy"] < src_h * 0.35 or face["cy"] > src_h * 0.65)
             is_small  = face_w_ratio < 0.25
-            if in_corner or is_small:
+            on_side   = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
+            if in_corner or (is_small and on_side):
                 pad = int(face["w"] * 0.8)
                 pip_region = {
                     "x": max(0, face["x"] - pad),
@@ -458,10 +459,11 @@ if video_type == "screen_pip":
     pip_frame_count = 0
     for faces in sample_faces:
         has_pip_face = any(
-            (f["w"] / src_w < 0.10 and
+            (f["w"] / src_w < 0.18 and
              ((f["cx"] < src_w * 0.30 or f["cx"] > src_w * 0.70) and
-              (f["cy"] < src_h * 0.30 or f["cy"] > src_h * 0.70)))
-            or (f["w"] / src_w < 0.10)
+              (f["cy"] < src_h * 0.35 or f["cy"] > src_h * 0.65)))
+            or (f["w"] / src_w < 0.18 and
+                (f["cx"] < src_w * 0.25 or f["cx"] > src_w * 0.75))
             for f in faces
         )
         if has_pip_face or not faces:
@@ -637,9 +639,9 @@ def classify_frame(faces):
     # Check for PiP pattern: small face in corner/side
     for face in faces:
         w_ratio = face["w"] / src_w if src_w > 0 else 0
-        is_small = w_ratio < 0.10
+        is_small = w_ratio < 0.18
         in_corner = (face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.70) and \
-                    (face["cy"] < src_h * 0.30 or face["cy"] > src_h * 0.70)
+                    (face["cy"] < src_h * 0.35 or face["cy"] > src_h * 0.65)
         on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
         if is_small and (in_corner or on_side):
             return "split"
