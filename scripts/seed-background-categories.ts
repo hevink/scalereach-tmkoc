@@ -8,16 +8,14 @@ import { backgroundCategory } from "../src/db/schema/background-video.schema";
 import { nanoid } from "nanoid";
 
 const CATEGORIES = [
-  { slug: "subway-surfer", displayName: "Subway Surfer", sortOrder: 1 },
-  { slug: "minecraft", displayName: "Minecraft", sortOrder: 2 },
-  { slug: "asmr", displayName: "ASMR", sortOrder: 3 },
+  { slug: "minecraft", displayName: "Minecraft", sortOrder: 1 },
+  { slug: "asmr", displayName: "ASMR", sortOrder: 2 },
+  { slug: "gta5", displayName: "GTA 5", sortOrder: 3 },
   { slug: "satisfying", displayName: "Satisfying", sortOrder: 4 },
   { slug: "parkour", displayName: "Parkour", sortOrder: 5 },
   { slug: "soap-cutting", displayName: "Soap Cutting", sortOrder: 6 },
   { slug: "slime", displayName: "Slime", sortOrder: 7 },
   { slug: "cooking", displayName: "Cooking", sortOrder: 8 },
-  { slug: "fortnite", displayName: "Fortnite", sortOrder: 9 },
-  { slug: "trackmania", displayName: "Trackmania", sortOrder: 10 },
 ];
 
 async function seed() {
