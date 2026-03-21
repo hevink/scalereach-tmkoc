@@ -358,11 +358,17 @@ export class CreditController {
     if (workspaceId && credits) {
       const creditAmount = parseInt(credits);
 
+      // Update workspace plan based on product
+      const productId = packageId || data?.product_cart?.[0]?.product_id;
+      const plan = PRODUCT_TO_PLAN[productId];
+      const billingCycleForPayment = plan ? getBillingCycle(productId) : "monthly";
+
       await CreditModel.addCredits({
         workspaceId,
         userId,
         amount: creditAmount,
         type: "purchase",
+        billingCycle: billingCycleForPayment,
         description: planName ? `${planName} - ${creditAmount} credits` : `Purchased ${creditAmount} credits`,
         metadata: {
           paymentId: paymentId,
@@ -373,12 +379,9 @@ export class CreditController {
         },
       });
 
-      // Update workspace plan based on product
-      const productId = packageId || data?.product_cart?.[0]?.product_id;
-      const plan = PRODUCT_TO_PLAN[productId];
       if (plan && workspaceId) {
         // Determine billing cycle from product ID
-        const billingCycle = getBillingCycle(productId);
+        const billingCycle = billingCycleForPayment;
         
         await WorkspaceModel.update(workspaceId, { 
           plan,
@@ -438,11 +441,17 @@ export class CreditController {
     if (workspaceId && credits) {
       const creditAmount = parseInt(credits);
 
+      // Determine billing cycle before adding credits
+      const productId = metadata?.packageId || data?.product_id;
+      const plan = PRODUCT_TO_PLAN[productId];
+      const billingCycle = plan ? getBillingCycle(productId) : "monthly";
+
       await CreditModel.addCredits({
         workspaceId,
         userId,
         amount: creditAmount,
         type: "purchase",
+        billingCycle,
         description: `${planName} subscription - ${creditAmount} credits`,
         metadata: {
           subscriptionId: subscriptionId,
@@ -451,11 +460,7 @@ export class CreditController {
       });
 
       // Update workspace plan and subscription tracking
-      const productId = metadata?.packageId || data?.product_id;
-      const plan = PRODUCT_TO_PLAN[productId];
       if (plan) {
-        // Determine billing cycle from product ID
-        const billingCycle = getBillingCycle(productId);
         
         await WorkspaceModel.update(workspaceId, {
           plan,
@@ -514,11 +519,17 @@ export class CreditController {
     if (workspaceId && credits) {
       const creditAmount = parseInt(credits);
 
+      // Determine billing cycle before adding credits
+      const productId = metadata?.packageId || data?.product_id;
+      const plan = PRODUCT_TO_PLAN[productId];
+      const billingCycle = plan ? getBillingCycle(productId) : "monthly";
+
       await CreditModel.addCredits({
         workspaceId,
         userId,
         amount: creditAmount,
         type: "purchase",
+        billingCycle,
         description: `${planName} renewal - ${creditAmount} credits`,
         metadata: {
           subscriptionId: subscriptionId,
@@ -528,8 +539,6 @@ export class CreditController {
       });
 
       // Reset monthly minutes on renewal
-      const productId = metadata?.packageId || data?.product_id;
-      const plan = PRODUCT_TO_PLAN[productId];
       if (plan) {
         await MinutesModel.resetMonthlyMinutes(workspaceId, plan);
         console.log(`[CREDIT CONTROLLER] Monthly minutes reset for workspace: ${workspaceId}, plan: ${plan}`);

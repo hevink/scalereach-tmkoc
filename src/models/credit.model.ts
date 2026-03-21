@@ -3,11 +3,12 @@ import { workspaceCredits, creditTransaction, creditPackage } from "../db/schema
 import { eq, desc, and, gte, lte, gt, isNull, or, sql } from "drizzle-orm";
 import { performance } from "perf_hooks";
 
-const CREDIT_EXPIRY_DAYS = 60;
+const CREDIT_EXPIRY_DAYS_MONTHLY = 60;
+const CREDIT_EXPIRY_DAYS_ANNUAL = 365;
 
-function creditExpiryDate(): Date {
+function creditExpiryDate(billingCycle: "monthly" | "annual" = "monthly"): Date {
   const d = new Date();
-  d.setDate(d.getDate() + CREDIT_EXPIRY_DAYS);
+  d.setDate(d.getDate() + (billingCycle === "annual" ? CREDIT_EXPIRY_DAYS_ANNUAL : CREDIT_EXPIRY_DAYS_MONTHLY));
   return d;
 }
 
@@ -111,6 +112,7 @@ export class CreditModel {
     userId?: string;
     amount: number;
     type: "purchase" | "bonus" | "refund" | "adjustment";
+    billingCycle?: "monthly" | "annual";
     description?: string;
     metadata?: Record<string, any>;
   }) {
@@ -126,7 +128,7 @@ export class CreditModel {
 
       // Only purchase/bonus credits expire; refund/adjustment do not
       const expiresAt = (params.type === "purchase" || params.type === "bonus")
-        ? creditExpiryDate()
+        ? creditExpiryDate(params.billingCycle)
         : null;
 
       await db
