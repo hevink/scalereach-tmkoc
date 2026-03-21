@@ -261,10 +261,23 @@ export class CreditController {
       const webhookTimestamp = c.req.header("webhook-timestamp") || "";
       const signature = c.req.header("webhook-signature") || "";
 
+      // In production, webhook secret MUST be configured
+      if (!webhookSecret && process.env.NODE_ENV === "production") {
+        console.error("[CREDIT CONTROLLER] DODO_WEBHOOK_SECRET not configured in production!");
+        return c.json({ error: "Webhook not configured" }, 500);
+      }
+
       if (webhookSecret) {
         if (!webhookId || !webhookTimestamp || !signature) {
           console.warn("[CREDIT CONTROLLER] Missing required webhook headers (webhook-id, webhook-timestamp, webhook-signature)");
           return c.json({ error: "Missing signature headers" }, 401);
+        }
+
+        // Reject stale webhooks (older than 5 minutes) to prevent replay attacks
+        const timestampAge = Math.abs(Date.now() / 1000 - parseInt(webhookTimestamp, 10));
+        if (timestampAge > 300) {
+          console.warn(`[CREDIT CONTROLLER] Webhook timestamp too old: ${timestampAge}s`);
+          return c.json({ error: "Webhook timestamp expired" }, 401);
         }
 
         const isValid = DodoService.verifyWebhookSignature(body, webhookId, webhookTimestamp, signature, webhookSecret);

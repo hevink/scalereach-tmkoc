@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { AffiliateController } from "../controllers/affiliate.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
+import { RateLimitPresets } from "../middleware/rate-limit";
 
 const affiliateRouter = new Hono();
 
-// Public routes (resolve is read-only, low risk)
-// TODO: Add rate limiting middleware to these endpoints to prevent enumeration/spam
-affiliateRouter.get("/resolve/:username", AffiliateController.resolveReferrer);
+// Public routes (resolve is read-only, rate limited to prevent enumeration/spam)
+affiliateRouter.get("/resolve/:username", RateLimitPresets.read(), AffiliateController.resolveReferrer);
 
 // Protected routes
 const protectedRoutes = new Hono();

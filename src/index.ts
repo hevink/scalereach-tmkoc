@@ -54,7 +54,7 @@ if (missingEnvVars.length > 0) {
 
 // Warn about optional but recommended env vars in production
 if (process.env.NODE_ENV === "production") {
-  const recommendedEnvVars = ["FRONTEND_URL", "SENTRY_DSN"];
+  const recommendedEnvVars = ["FRONTEND_URL", "SENTRY_DSN", "DODO_WEBHOOK_SECRET", "TOKEN_ENCRYPTION_KEY"];
   const missingRecommended = recommendedEnvVars.filter((envVar) => !process.env[envVar]);
   if (missingRecommended.length > 0) {
     console.warn(`⚠️ Missing recommended environment variables for production: ${missingRecommended.join(", ")}`);
@@ -82,7 +82,7 @@ app.use(sentryRequestMiddleware);
 app.use(sentryMiddleware);
 
 import { ALLOWED_ORIGINS } from "./lib/constants";
-import { RateLimitPresets } from "./middleware/rate-limit";
+import { RateLimitPresets, closeRateLimitRedis } from "./middleware/rate-limit";
 
 app.use(
   cors({
@@ -227,13 +227,15 @@ console.log(`🚀 Server running on http://localhost:${port}`);
 console.log(`📝 Environment: ${process.env.NODE_ENV || "development"}`);
 
 // Graceful shutdown handling
-process.on("SIGTERM", () => {
+process.on("SIGTERM", async () => {
   console.log("🛑 SIGTERM received, shutting down gracefully...");
+  await closeRateLimitRedis();
   process.exit(0);
 });
 
-process.on("SIGINT", () => {
+process.on("SIGINT", async () => {
   console.log("🛑 SIGINT received, shutting down gracefully...");
+  await closeRateLimitRedis();
   process.exit(0);
 });
 

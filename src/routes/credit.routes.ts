@@ -1,12 +1,13 @@
 import { Hono } from "hono";
 import { CreditController } from "../controllers/credit.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
+import { RateLimitPresets } from "../middleware/rate-limit";
 
 const creditRouter = new Hono();
 
 // Public routes (no auth required)
 creditRouter.get("/packages", CreditController.getPackages);
-creditRouter.post("/webhook", CreditController.handleWebhook);
+creditRouter.post("/webhook", RateLimitPresets.webhook(), CreditController.handleWebhook);
 
 // Protected routes - create a sub-router with auth
 const protectedRoutes = new Hono();
