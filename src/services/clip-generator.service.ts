@@ -2488,6 +2488,7 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
         "--download-sections", downloadSection,
         ...(forceKeyframes ? ["--force-keyframes-at-cuts"] : []),
         "--merge-output-format", "mp4",
+        "--print", "before_dl:%(height)sp (%(width)sx%(height)s) format=%(format_id)s vcodec=%(vcodec)s",
         "-o", outputPath,
         "--no-playlist",
         "--newline",
@@ -2551,26 +2552,19 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
 
       ytdlpProcess.stdout?.on("data", (data) => {
         lastActivity = Date.now();
+        const chunk = data.toString();
+        // --print before_dl outputs quality info to stdout before download starts
+        for (const line of chunk.split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed && /^\d+p\s/.test(trimmed)) {
+            console.log(`[CLIP GENERATOR] YT_DLP_QUALITY: ${trimmed}`);
+          }
+        }
       });
 
       ytdlpProcess.stderr?.on("data", (data) => {
         lastActivity = Date.now();
-        const chunk = data.toString();
-        stderr += chunk;
-
-        // Log actual download quality from yt-dlp output
-        // yt-dlp prints lines like: [info] VIDEO_ID: Downloading 1 format(s): 137+251
-        const formatMatch = chunk.match(/Downloading \d+ format\(s\): (.+)/);
-        if (formatMatch) {
-          console.log(`[CLIP GENERATOR] YT_DLP_FORMATS: ${formatMatch[1].trim()}`);
-        }
-        // yt-dlp prints: [info] VIDEO_ID: Downloading video 1 of 1
-        // Then later: [download] Destination: ... or merger lines with resolution info
-        // Look for resolution in format like "1920x1080" or "1280x720"
-        const resMatch = chunk.match(/(\d{3,4})x(\d{3,4})/);
-        if (resMatch) {
-          console.log(`[CLIP GENERATOR] YT_DLP_QUALITY: ${resMatch[2]}p (${resMatch[1]}x${resMatch[2]})`);
-        }
+        stderr += data.toString();
       });
 
       ytdlpProcess.on("error", (err) => {
@@ -2621,6 +2615,7 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
       const args = [
         "-f", formatSelector,
         "--merge-output-format", "mp4",
+        "--print", "before_dl:%(height)sp (%(width)sx%(height)s) format=%(format_id)s vcodec=%(vcodec)s",
         "-o", outputPath,
         "--no-playlist",
         "--newline",
@@ -2666,21 +2661,19 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
         } catch { /* ignore */ }
       }, 10_000);
 
-      proc.stdout?.on("data", () => { lastActivity = Date.now(); });
-      proc.stderr?.on("data", (d) => {
+      proc.stdout?.on("data", (d) => {
         lastActivity = Date.now();
         const chunk = d.toString();
-        stderr += chunk;
-
-        // Log actual download quality from yt-dlp output
-        const formatMatch = chunk.match(/Downloading \d+ format\(s\): (.+)/);
-        if (formatMatch) {
-          console.log(`[CLIP GENERATOR] YT_DLP_FORMATS: ${formatMatch[1].trim()}`);
+        for (const line of chunk.split("\n")) {
+          const trimmed = line.trim();
+          if (trimmed && /^\d+p\s/.test(trimmed)) {
+            console.log(`[CLIP GENERATOR] YT_DLP_QUALITY: ${trimmed}`);
+          }
         }
-        const resMatch = chunk.match(/(\d{3,4})x(\d{3,4})/);
-        if (resMatch) {
-          console.log(`[CLIP GENERATOR] YT_DLP_QUALITY: ${resMatch[2]}p (${resMatch[1]}x${resMatch[2]})`);
-        }
+      });
+      proc.stderr?.on("data", (d) => {
+        lastActivity = Date.now();
+        stderr += d.toString();
       });
       proc.on("error", (err) => { clearInterval(sizeCheck); reject(new Error(`yt-dlp full download spawn failed: ${err.message}`)); });
       proc.on("close", (code) => {
