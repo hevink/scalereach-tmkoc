@@ -2272,12 +2272,29 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
         startTime,
         endTime,
       });
-      const fullPath = await this.acquireFullDownload(url, useCookies);
+
+      let fullPath: string;
+      try {
+        fullPath = await this.acquireFullDownload(url, false);
+      } catch (err: any) {
+        const isBotBlocked = err.message?.includes("Sign in") ||
+          err.message?.includes("not a bot") ||
+          err.message?.includes("cookies");
+        if (isBotBlocked) {
+          this.logOperation("YT_DLP_PROXY_BOT_BLOCKED", {
+            reason: "android_vr bot-blocked, retrying with web client + cookies",
+            url,
+          });
+          // Clear the failed cache entry so we retry fresh
+          this.fullDownloadCache.delete(url);
+          fullPath = await this.acquireFullDownload(url, true);
+        } else {
+          throw err;
+        }
+      }
+
       try {
         await new Promise<void>((resolve, reject) => {
-          // Re-encode the trimmed segment to ensure the first frame is a keyframe.
-          // Using -c copy causes a frozen first frame (~2s) when the seek lands on a non-keyframe.
-          // -ss BEFORE -i = fast keyframe-based seek, then re-encode from that point for frame accuracy.
           const trimArgs = [
             "-ss", startTime.toString(),
             "-i", fullPath,
