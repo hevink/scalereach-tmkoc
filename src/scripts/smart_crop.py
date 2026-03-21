@@ -386,10 +386,10 @@ log(f"Video type: {video_type} (pip={pip_detections}, full={full_detections}, no
 # ── Step 5: Handle each video type ───────────────────────────────────────────
 
 if video_type == "no_face":
-    log("No faces detected - skipping reframe, keeping original 16:9")
+    log("No faces detected - applying 1.25x zoom (full frame, no center crop)")
     with open(coords_path, "w") as f:
-        json.dump({"mode": "skip"}, f)
-    log("Done (skip - no face).")
+        json.dump({"mode": "zoom_full", "zoom": 1.25, "src_w": src_w, "src_h": src_h}, f)
+    log("Done (zoom_full - no face).")
     sys.exit(0)
 
 if video_type == "group":
@@ -438,7 +438,7 @@ def build_split_info(pip_region):
 
     target_w = crop_w if crop_w > 0 else int(src_h * 9 / 16)
     target_h = src_h
-    face_h = int(target_h * 0.55)
+    face_h = int(target_h * 0.50)
     screen_h = target_h - face_h
 
     return {

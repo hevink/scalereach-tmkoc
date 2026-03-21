@@ -550,7 +550,7 @@ export class ClipGeneratorService {
                     const pip = si_info.pip;
                     const outW = width;
                     const outH = height;
-                    const faceH = si_info.face_h || Math.round(outH * 0.55);
+                    const faceH = si_info.face_h || Math.round(outH * 0.50);
                     const screenH = outH - faceH;
                     const screenZoom = si_info.screen_zoom || 1.25;
                     const screen = si_info.screen;
@@ -563,7 +563,7 @@ export class ClipGeneratorService {
                       "-filter_complex",
                       `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[face];` +
                       `[0:v]crop=${screenCropW}:${screenCropH}:${screenCropX}:${screen.y},scale=${outW}:${screenH}:flags=lanczos[screen];` +
-                      `[face][screen]vstack=inputs=2,format=yuv420p[out]`,
+                      `[screen][face]vstack=inputs=2,format=yuv420p[out]`,
                       "-map", "[out]", "-map", "0:a?",
                       "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                       "-c:a", "aac", "-b:a", "192k",
@@ -648,10 +648,12 @@ export class ClipGeneratorService {
                     "-y", segPath,
                   ];
                 } else {
+                  // No face segment or missing coords — apply 1.25x zoom instead of center crop
+                  const zoom = 1.25;
                   segArgs = [
                     "-ss", String(seg.start), "-t", String(segDuration),
                     "-i", rawSourcePath,
-                    "-vf", `crop=${cropW}:${cropH}:(in_w-${cropW})/2:(in_h-${cropH})/2,scale=${width}:${height}:flags=lanczos,format=yuv420p`,
+                    "-vf", `crop=in_w/${zoom}:in_h/${zoom}:(in_w-in_w/${zoom})/2:(in_h-in_h/${zoom})/2,scale=${width}:${height}:flags=lanczos,format=yuv420p`,
                     "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                     "-c:a", "aac", "-b:a", "192k",
                     "-y", segPath,
@@ -689,7 +691,7 @@ export class ClipGeneratorService {
                 const splitInfo = result as any;
                 const outW = width;
                 const outH = height;
-                const faceH = splitInfo.face_h || Math.round(outH * 0.55);
+                const faceH = splitInfo.face_h || Math.round(outH * 0.50);
                 const screenH = outH - faceH;
                 const screenZoom = splitInfo.screen_zoom || 1.25;
                 const screen = splitInfo.screen || { x: 0, y: 0, w: srcW, h: srcH };
@@ -704,7 +706,7 @@ export class ClipGeneratorService {
                   "-filter_complex",
                   `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[face];` +
                   `[0:v]crop=${screenCropW}:${screenCropH}:${screenCropX}:${screenCropY},scale=${outW}:${screenH}:flags=lanczos[screen];` +
-                  `[face][screen]vstack=inputs=2,format=yuv420p[out]`,
+                  `[screen][face]vstack=inputs=2,format=yuv420p[out]`,
                   "-map", "[out]", "-map", "0:a?",
                   "-c:v", "libx264", "-preset", "fast", "-crf", "18",
                   "-c:a", "aac", "-b:a", "192k",
@@ -788,6 +790,24 @@ export class ClipGeneratorService {
                   "-c:a", "aac", "-b:a", "192k",
                   "-y", reframedPath,
                 ];
+              } else if (result.mode === "zoom_full") {
+                // No faces detected — instead of center crop, apply a gentle 1.25x zoom
+                // on the full frame and scale to 9:16. Keeps the original framing intact.
+                const zoom = (result as any).zoom || 1.25;
+                const srcW = (result as any).src_w || 1920;
+                const srcH = (result as any).src_h || 1080;
+                const cropW = Math.round(srcW / zoom);
+                const cropH = Math.round(srcH / zoom);
+                const cropX = Math.round((srcW - cropW) / 2);
+                const cropY = Math.round((srcH - cropH) / 2);
+                this.logOperation("SMART_CROP_ZOOM_FULL", { clipId: options.clipId, zoom, cropW, cropH, cropX, cropY });
+                args = [
+                  "-i", rawSourcePath,
+                  "-vf", `crop=${cropW}:${cropH}:${cropX}:${cropY},scale=${width}:${height}:flags=lanczos,format=yuv420p`,
+                  "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+                  "-c:a", "aac", "-b:a", "192k",
+                  "-y", reframedPath,
+                ];
               } else {
                 this.logOperation("SMART_CROP_UNKNOWN_MODE_FALLBACK", { clipId: options.clipId, mode: result.mode });
                 throw new Error("__FALLBACK__");
@@ -802,8 +822,8 @@ export class ClipGeneratorService {
             clipWithoutCaptionsBuffer = reframedBuf;
             this.logOperation("SMART_CROP_DONE", { clipId: options.clipId, size: reframedBuf.length });
           } else {
-            // No faces detected - fall back to standard aspect ratio conversion
-            this.logOperation("SMART_CROP_SKIP_FALLBACK", { clipId: options.clipId, reason: "no face detected, falling back to standard conversion" });
+            // Coords file unreadable or explicit skip (e.g. fallback_reason set) - fall back to standard aspect ratio conversion
+            this.logOperation("SMART_CROP_SKIP_FALLBACK", { clipId: options.clipId, reason: result.fallback_reason || "coords skip" });
             await this.convertAspectRatioFile(
               rawSourcePath, rawOutputPath, width, height,
               undefined, options.watermark, options.quality,
