@@ -339,10 +339,18 @@ ENDING RULES:
 - NEVER end on filler ("you know?", "right?", "anyway...") or topic transitions.
 - When in doubt, extend endTime to capture the natural conclusion.
 
+KEY TAKEAWAYS & CONCLUSIONS:
+- When the speaker summarizes their main point, gives a formula, framework, or list of principles — this is ALWAYS a high-value clip.
+- Phrases like "the formula is...", "so it's X, Y, and Z", "the three things are...", "that's the key" signal a must-capture moment.
+- For these summary clips, start from where the speaker begins building toward the conclusion (the setup/context), NOT just the final sentence.
+- Concluding statements at the END of the transcript are especially valuable — do NOT skip them just because they're at the end.
+- These clips often need 30-90 seconds to include enough context for the payoff to land.
+
 CLIP BOUNDARIES:
 - Start at the beginning of a topic/story/example. End when it's fully resolved.
 - No overlapping clips - each clip must cover a distinct moment.
 - Clips must not share more than 5 seconds of content with any other clip.
+- Pay special attention to the LAST few minutes of the transcript — speakers often save their best insights, summaries, and frameworks for the end.
 
 QUALITY:
 - Only include clips scoring >= 60 virality. Quality over quantity.
@@ -377,6 +385,8 @@ CHECKLIST (verify for each clip before including):
 - [ ] No overlap with other clips (max 5s shared content)
 - [ ] Virality score >= 60
 - [ ] You'd actually watch this on TikTok without scrolling
+- [ ] If the speaker states a formula, framework, or key takeaway — it's included as a clip
+- [ ] The final minutes of the transcript have been checked for summary/conclusion moments
 
 Return startTime/endTime in SECONDS. Return at least 1 clip if any worthy content exists.
 
