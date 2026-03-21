@@ -159,6 +159,119 @@ async function getQueueStats() {
   } catch { return null; }
 }
 
+function youtubeE2ePageHtml(): string {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YouTube E2E Test</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0f172a;color:#e2e8f0;padding:24px;max-width:900px;margin:0 auto}
+h1{font-size:1.5rem;margin-bottom:16px;color:#38bdf8}
+.form-row{display:flex;gap:8px;margin-bottom:20px}
+input[type=text]{flex:1;padding:10px 14px;border-radius:8px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:14px}
+input[type=text]:focus{outline:none;border-color:#38bdf8}
+button{padding:10px 20px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-weight:600;cursor:pointer;font-size:14px;white-space:nowrap}
+button:hover{background:#1d4ed8}
+button:disabled{opacity:.5;cursor:not-allowed}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.card{background:#1e293b;border-radius:10px;padding:16px;margin-bottom:12px;border:1px solid #334155}
+.card h3{font-size:.9rem;color:#94a3b8;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600}
+.badge.ok{background:#065f46;color:#6ee7b7}
+.badge.fail{background:#7f1d1d;color:#fca5a5}
+.badge.warn{background:#78350f;color:#fcd34d}
+.env-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.env-item{font-size:13px}.env-label{color:#64748b}.env-val{color:#e2e8f0;font-family:monospace}
+.step{border-left:3px solid #334155;padding:8px 12px;margin-bottom:8px}
+.step.ok{border-color:#22c55e}
+.step.fail{border-color:#ef4444}
+.step-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.step-name{font-weight:600;font-size:14px}
+.step-time{font-size:12px;color:#64748b}
+.step-detail{font-size:13px;color:#94a3b8;font-family:monospace;white-space:pre-wrap;word-break:break-all;max-height:300px;overflow-y:auto}
+.error-box{background:#1c1917;border:1px solid #7f1d1d;border-radius:6px;padding:10px;margin-top:6px;color:#fca5a5;font-size:12px;font-family:monospace;white-space:pre-wrap;max-height:400px;overflow-y:auto}
+.summary{font-size:1.1rem;font-weight:700;padding:12px;border-radius:8px;text-align:center;margin-bottom:16px}
+.summary.ok{background:#065f46;color:#6ee7b7}
+.summary.fail{background:#7f1d1d;color:#fca5a5}
+#results{display:none}
+</style></head><body>
+<h1>🎬 YouTube E2E Test</h1>
+<p style="color:#64748b;margin-bottom:16px;font-size:14px">Full pipeline test: metadata fetch → 20s clip download → FFmpeg trim. Tests proxy, cookies, POT server.</p>
+<div class="form-row">
+<input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=..." value="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+<button id="runBtn" onclick="runTest()">▶ Run Test</button>
+</div>
+<div id="results">
+<div id="summaryBox" class="summary"></div>
+<div id="envCard" class="card"><h3>Environment</h3><div id="envContent" class="env-grid"></div></div>
+<div id="stepsCard" class="card"><h3>Steps</h3><div id="stepsContent"></div></div>
+<div id="videoCard" class="card" style="display:none"><h3>Video Info</h3><div id="videoContent" class="step-detail"></div></div>
+</div>
+<script>
+async function runTest(){
+  const btn=document.getElementById('runBtn');
+  const url=document.getElementById('ytUrl').value.trim();
+  if(!url){alert('Enter a YouTube URL');return}
+  btn.disabled=true;btn.innerHTML='<span class="spinner"></span>Testing...';
+  document.getElementById('results').style.display='block';
+  document.getElementById('summaryBox').className='summary';
+  document.getElementById('summaryBox').textContent='Running test...';
+  document.getElementById('stepsContent').innerHTML='';
+  document.getElementById('envContent').innerHTML='';
+  document.getElementById('videoCard').style.display='none';
+  try{
+    const token=new URLSearchParams(location.search).get('token')||'';
+    const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token,'X-Worker-Token':token},body:JSON.stringify({url})});
+    const d=await r.json();
+    // Environment
+    if(d.environment){
+      const e=d.environment;
+      let h='';
+      h+=ei('yt-dlp',e.ytdlpVersion);
+      h+=ei('FFmpeg',e.ffmpegVersion);
+      h+=ei('Cookies',e.cookieStatus+' ('+e.cookieCount+')');
+      h+=ei('POT Server',e.potServer?.status||'n/a');
+      h+=ei('Proxy',e.proxy||'none');
+      h+=ei('Cookie Path',e.cookiesPath);
+      document.getElementById('envContent').innerHTML=h;
+    }
+    // Steps
+    const sc=document.getElementById('stepsContent');
+    for(const s of (d.steps||[])){
+      const ok=s.ok!==false;
+      let det='';
+      if(s.resolution)det+='Resolution: '+s.resolution+'\\n';
+      if(s.codec)det+='Codec: '+s.codec+'\\n';
+      if(s.actualDuration)det+='Duration: '+s.actualDuration+'s\\n';
+      if(s.fileSizeMB)det+='File size: '+s.fileSizeMB+' MB\\n';
+      if(s.clipStart!==undefined)det+='Clip range: '+s.clipStart+'s - '+s.clipEnd+'s\\n';
+      if(s.result)det+=JSON.stringify(s.result,null,2);
+      let html='<div class="step '+(ok?'ok':'fail')+'"><div class="step-header"><span class="step-name">'+s.name+' <span class="badge '+(ok?'ok':'fail')+'">'+(ok?'PASS':'FAIL')+'</span></span><span class="step-time">'+(s.elapsedMs?(s.elapsedMs/1000).toFixed(1)+'s':'')+'</span></div>';
+      if(det)html+='<div class="step-detail">'+esc(det)+'</div>';
+      if(s.error)html+='<div class="error-box">'+esc(s.error)+'</div>';
+      html+='</div>';
+      sc.innerHTML+=html;
+    }
+    // Video info
+    if(d.videoInfo){
+      document.getElementById('videoCard').style.display='block';
+      document.getElementById('videoContent').textContent=JSON.stringify(d.videoInfo,null,2);
+    }
+    // Summary
+    const sb=document.getElementById('summaryBox');
+    sb.textContent=(d.summary||'Done')+' ('+((d.totalElapsedMs||0)/1000).toFixed(1)+'s)';
+    sb.className='summary '+(d.success?'ok':'fail');
+  }catch(e){
+    document.getElementById('summaryBox').textContent='Request failed: '+e.message;
+    document.getElementById('summaryBox').className='summary fail';
+  }finally{btn.disabled=false;btn.textContent='▶ Run Test'}
+}
+function ei(l,v){return '<div class="env-item"><div class="env-label">'+l+'</div><div class="env-val">'+(v||'—')+'</div></div>'}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+</script></body></html>`;
+}
+
 let healthServer: ReturnType<typeof Bun.serve> | null = null;
 try {
   healthServer = Bun.serve({
@@ -675,6 +788,171 @@ try {
           }), { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
         } catch (err: any) {
           return new Response(JSON.stringify({ error: err?.message || "Queue action failed" }), { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } });
+        }
+      }
+
+      // ── PROTECTED: YouTube E2E test page ──────────────────
+      if (url.pathname === "/health/hevin/youtube-e2e") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
+        }
+
+        // GET: serve the HTML test page
+        if (req.method === "GET") {
+          return new Response(youtubeE2ePageHtml(), {
+            status: 200,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+        }
+
+        // POST: run the full E2E test
+        if (req.method === "POST") {
+          const body = await req.json().catch(() => ({})) as { url?: string };
+          const testUrl = body.url?.trim();
+          if (!testUrl) {
+            return new Response(JSON.stringify({ error: "YouTube URL is required" }), {
+              status: 400, headers: { "Content-Type": "application/json" },
+            });
+          }
+
+          const results: any = { url: testUrl, steps: [], startedAt: new Date().toISOString() };
+          const cookiesPath = process.env.YOUTUBE_COOKIES_PATH || "/opt/scalereach/config/youtube_cookies.txt";
+          const proxy = process.env.YOUTUBE_PROXY;
+          const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
+          const fsModule = await import("fs");
+
+          // ── Pre-flight checks ──
+          let ytdlpVersion = "unknown";
+          try {
+            ytdlpVersion = execSyncNode("yt-dlp --version", { timeout: 5000 }).toString().trim();
+          } catch {}
+
+          let ffmpegVersion = "unknown";
+          try {
+            ffmpegVersion = execSyncNode("ffmpeg -version 2>&1 | head -1", { timeout: 5000 }).toString().trim();
+          } catch {}
+
+          let cookieStatus = "missing";
+          let cookieCount = 0;
+          try {
+            if (fsModule.existsSync(cookiesPath)) {
+              const lines = fsModule.readFileSync(cookiesPath, "utf8").split("\n").filter((l: string) => l && !l.startsWith("#"));
+              cookieCount = lines.length;
+              cookieStatus = cookieCount > 0 ? "present" : "empty";
+            }
+          } catch { cookieStatus = "error"; }
+
+          let potStatus = "not_configured";
+          if (bgutilBaseUrl) {
+            try {
+              const res = await fetch(bgutilBaseUrl, { signal: AbortSignal.timeout(3000) });
+              potStatus = res.ok || res.status < 500 ? "running" : "stopped";
+            } catch { potStatus = "stopped"; }
+          }
+
+          results.environment = {
+            ytdlpVersion, ffmpegVersion, cookieStatus, cookieCount, cookiesPath,
+            potServer: { status: potStatus, url: bgutilBaseUrl || null },
+            proxy: proxy || null,
+          };
+
+          // ── Step 1: Fetch video metadata ──
+          const step1: any = { name: "Fetch Video Metadata", startMs: Date.now() };
+          try {
+            const { YouTubeService } = await import("./services/youtube.service");
+            const videoInfo = await YouTubeService.getVideoInfoYtDlp(testUrl);
+            step1.elapsedMs = Date.now() - step1.startMs;
+            step1.ok = true;
+            step1.result = videoInfo;
+            results.videoInfo = videoInfo;
+          } catch (err: any) {
+            step1.elapsedMs = Date.now() - step1.startMs;
+            step1.ok = false;
+            step1.error = err?.message || String(err);
+
+            // Try with cookies as fallback
+            const step1b: any = { name: "Fetch Metadata (web + cookies fallback)", startMs: Date.now() };
+            try {
+              const { YouTubeService } = await import("./services/youtube.service");
+              const videoInfo = await YouTubeService.getVideoInfoYtDlp(testUrl, true);
+              step1b.elapsedMs = Date.now() - step1b.startMs;
+              step1b.ok = true;
+              step1b.result = videoInfo;
+              results.videoInfo = videoInfo;
+            } catch (err2: any) {
+              step1b.elapsedMs = Date.now() - step1b.startMs;
+              step1b.ok = false;
+              step1b.error = err2?.message || String(err2);
+            }
+            results.steps.push(step1b);
+          }
+          results.steps.push(step1);
+
+          // If metadata failed entirely, return early
+          if (!results.videoInfo) {
+            results.finishedAt = new Date().toISOString();
+            results.totalElapsedMs = Date.now() - new Date(results.startedAt).getTime();
+            results.success = false;
+            results.summary = "Failed at metadata fetch — could not get video info";
+            return new Response(JSON.stringify(results, null, 2), {
+              status: 200, headers: { "Content-Type": "application/json" },
+            });
+          }
+
+          // ── Step 2: Download 20s clip ──
+          const duration = results.videoInfo.duration || 60;
+          const clipStart = Math.min(30, Math.max(0, duration - 25));
+          const clipEnd = Math.min(clipStart + 20, duration);
+          const tmpDir = process.env.SMART_CROP_TMP_DIR || "/tmp";
+          const testOutputPath = `${tmpDir}/yt-e2e-test-${Date.now()}.mp4`;
+
+          const step2: any = { name: "Download 20s Clip", startMs: Date.now(), clipStart, clipEnd, outputPath: testOutputPath };
+          try {
+            const { ClipGeneratorService } = await import("./services/clip-generator.service");
+            await ClipGeneratorService.downloadYouTubeSegmentToLocalFile(testUrl, clipStart, clipEnd, testOutputPath, "1080p");
+            step2.elapsedMs = Date.now() - step2.startMs;
+            step2.ok = true;
+
+            // Get file info
+            try {
+              const stat = fsModule.statSync(testOutputPath);
+              step2.fileSizeMB = (stat.size / 1024 / 1024).toFixed(2);
+            } catch {}
+
+            // Probe the downloaded file for resolution/duration
+            try {
+              const probeOut = execSyncNode(
+                `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,codec_name -show_entries format=duration -of json "${testOutputPath}"`,
+                { timeout: 10000 }
+              ).toString();
+              const probeData = JSON.parse(probeOut);
+              const stream = probeData.streams?.[0];
+              step2.resolution = stream ? `${stream.width}x${stream.height}` : "unknown";
+              step2.codec = stream?.codec_name || "unknown";
+              step2.actualDuration = parseFloat(probeData.format?.duration || "0").toFixed(1);
+            } catch {}
+          } catch (err: any) {
+            step2.elapsedMs = Date.now() - step2.startMs;
+            step2.ok = false;
+            step2.error = err?.message || String(err);
+          }
+          results.steps.push(step2);
+
+          // ── Cleanup test file ──
+          try { fsModule.unlinkSync(testOutputPath); } catch {}
+          // Also clean up any -full.mp4 leftover from proxy path
+          try { fsModule.unlinkSync(testOutputPath.replace(".mp4", "-full.mp4")); } catch {}
+
+          results.finishedAt = new Date().toISOString();
+          results.totalElapsedMs = Date.now() - new Date(results.startedAt).getTime();
+          results.success = results.steps.every((s: any) => s.ok !== false);
+          results.summary = results.success
+            ? `All steps passed in ${(results.totalElapsedMs / 1000).toFixed(1)}s`
+            : `Failed: ${results.steps.filter((s: any) => s.ok === false).map((s: any) => s.name).join(", ")}`;
+
+          return new Response(JSON.stringify(results, null, 2), {
+            status: 200, headers: { "Content-Type": "application/json" },
+          });
         }
       }
 
