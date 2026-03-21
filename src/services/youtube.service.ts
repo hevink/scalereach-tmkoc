@@ -228,7 +228,7 @@ export class YouTubeService {
       const msg = error?.message || "";
       // If bot-blocked or POT failure, try web client + cookies before oEmbed
       if (msg.includes("Sign in") || msg.includes("not a bot") || msg.includes("cookies") || msg.includes("page needs to be reloaded") || msg.includes("No request handlers")) {
-        console.warn(`[YOUTUBE SERVICE] yt-dlp bot-blocked with android_vr, trying web client + cookies`);
+        console.warn(`[YOUTUBE SERVICE] yt-dlp bot-blocked with web_embedded, trying web client + cookies`);
         try {
           return await this.getVideoInfoYtDlp(url, true);
         } catch (cookieErr: any) {
@@ -295,8 +295,10 @@ export class YouTubeService {
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
       
-      // android_vr = full quality, no cookies. web = supports cookies for bot-blocked videos.
-      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      // web_embedded = full DASH formats (bypasses SABR), no cookies needed.
+      // android_vr = fallback for bot-blocked videos on web_embedded.
+      // web = supports cookies for bot-blocked videos (but SABR limits to 360p without cookies).
+      const playerClient = useCookies ? "web" : "web_embedded,android_vr";
       const extractorArgs: string[] = [
         `youtube:player_client=${playerClient}`,
       ];
@@ -440,7 +442,7 @@ export class YouTubeService {
                             msg.includes("page needs to be reloaded") || msg.includes("No request handlers");
       if (!isBotBlocked) throw firstErr;
 
-      console.warn(`[YOUTUBE SERVICE] Audio stream bot-blocked with android_vr, retrying with web client + cookies`);
+      console.warn(`[YOUTUBE SERVICE] Audio stream bot-blocked with web_embedded, retrying with web client + cookies`);
       return await this.spawnAudioStream(url, videoInfo, startTime, endTime, true);
     }
   }
@@ -466,8 +468,8 @@ export class YouTubeService {
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      // android_vr = full quality, no cookies. web = lower quality but supports cookies.
-      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      // web_embedded = full DASH formats (bypasses SABR). web = supports cookies.
+      const playerClient = useCookies ? "web" : "web_embedded,android_vr";
       const extractorArgs: string[] = [
         `youtube:player_client=${playerClient}`,
       ];
@@ -475,8 +477,8 @@ export class YouTubeService {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);
       }
 
-      const actualMime = playerClient.includes("android_vr") ? "audio/webm" : "audio/m4a";
-      const ext = playerClient.includes("android_vr") ? "webm" : "m4a";
+      const actualMime = "audio/m4a";
+      const ext = "m4a";
 
       // When proxy is active, download to temp file first (piping through proxy can corrupt streams).
       // Then return a file read stream for reliable R2 upload.
