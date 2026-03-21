@@ -2512,7 +2512,7 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
         this.logOperation("YT_DLP_USING_COOKIES", { cookiesPath, playerClient });
       }
 
-      this.logOperation("YT_DLP_DOWNLOAD", { args: args.join(" ") });
+      this.logOperation("YT_DLP_DOWNLOAD", { maxHeight, formatSelector, playerClient, proxy: !!proxy, cookies: useCookies, args: args.join(" ") });
 
       // Print clickable terminal link to the exact YouTube timestamp being downloaded
       const startHMS = formatTimestamp(startTime);
@@ -2626,7 +2626,7 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
         args.unshift("--cookies", cookiesPath);
       }
 
-      this.logOperation("YT_DLP_FULL_DOWNLOAD", { args: args.join(" ") });
+      this.logOperation("YT_DLP_FULL_DOWNLOAD", { maxHeight, formatSelector, playerClient, proxy: !!proxy, cookies: useCookies, args: args.join(" ") });
 
       const proc = spawn("yt-dlp", args);
       let stderr = "";
