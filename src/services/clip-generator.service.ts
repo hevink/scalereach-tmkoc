@@ -2472,9 +2472,9 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      // When bot-blocked, switch to web client with cookies.
-      // android_vr ignores cookies entirely; web client supports them.
-      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      // When bot-blocked, switch to web_creator client with cookies.
+      // android_vr ignores cookies entirely; web_creator = full DASH formats + cookies (bypasses SABR 360p limit).
+      const playerClient = useCookies ? "web_creator" : "android_vr,android_creator";
       const extractorArgs: string[] = [
         `youtube:player_client=${playerClient}`,
       ];
@@ -2596,9 +2596,9 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      // When bot-blocked, switch to web client with cookies.
-      // android_vr ignores cookies entirely; web client supports them.
-      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      // When bot-blocked, switch to web_creator client with cookies.
+      // android_vr ignores cookies entirely; web_creator = full DASH formats + cookies (bypasses SABR 360p limit).
+      const playerClient = useCookies ? "web_creator" : "android_vr,android_creator";
       const extractorArgs: string[] = [`youtube:player_client=${playerClient}`];
       if (bgutilBaseUrl) {
         extractorArgs.push(`youtubepot-bgutilhttp:base_url=${bgutilBaseUrl}`);

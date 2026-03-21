@@ -295,8 +295,8 @@ export class YouTubeService {
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
       
-      // android_vr = full quality, no cookies. web = supports cookies for bot-blocked videos.
-      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      // android_vr = full quality, no cookies. web_creator = full DASH formats + cookies (bypasses SABR 360p limit).
+      const playerClient = useCookies ? "web_creator" : "android_vr,android_creator";
       const extractorArgs: string[] = [
         `youtube:player_client=${playerClient}`,
       ];
@@ -466,8 +466,8 @@ export class YouTubeService {
       const proxy = process.env.YOUTUBE_PROXY;
       const bgutilBaseUrl = process.env.YT_DLP_GET_POT_BGUTIL_BASE_URL;
 
-      // android_vr = full quality, no cookies. web = lower quality but supports cookies.
-      const playerClient = useCookies ? "web" : "android_vr,android_creator";
+      // android_vr = full quality, no cookies. web_creator = full DASH formats + cookies (bypasses SABR 360p limit).
+      const playerClient = useCookies ? "web_creator" : "android_vr,android_creator";
       const extractorArgs: string[] = [
         `youtube:player_client=${playerClient}`,
       ];
