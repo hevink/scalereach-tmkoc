@@ -1,3 +1,5 @@
+// bun run src/scripts/add-500-minutes-wowww.ts
+
 import { config } from "dotenv";
 import { resolve } from "path";
 config({ path: resolve(__dirname, "../../.env.production") });

@@ -86,7 +86,7 @@ export interface ValidationResult {
 
 // Constants for validation
 export const MIN_DURATION_LIMIT = 5;    // Minimum allowed minDuration (seconds)
-export const MAX_DURATION_LIMIT = 180;  // Maximum allowed maxDuration (seconds)
+export const MAX_DURATION_LIMIT = 120;  // Maximum allowed maxDuration (seconds) - hard cap at 2 minutes
 export const DEFAULT_MIN_DURATION = 30; // Default minimum clip duration
 export const DEFAULT_MAX_DURATION = 90; // Default maximum clip duration
 export const DEFAULT_MAX_CLIPS = 10;    // Default maximum clips to detect
@@ -350,8 +350,8 @@ QUALITY:
 - If only 2 moments are great, return 2 clips. Don't pad.
 
 DURATION: ${isAutoMode
-      ? `YOU decide optimal length per clip (15s–180s). Let content dictate duration. Punchy moments = 15-30s, stories/explanations = 1-3min.`
-      : `Each clip MUST be ${minDuration}–${maxDuration} seconds (endTime - startTime).`}
+      ? `YOU decide optimal length per clip (15s–120s). Prefer clips under 60 seconds — shorter clips perform better. Only go above 60s if the story/context absolutely requires it, and NEVER exceed 120 seconds. Punchy moments = 15-30s, stories/explanations = 30-60s, complex narratives = 60-90s max.`
+      : `Each clip MUST be ${minDuration}–${maxDuration} seconds (endTime - startTime). Prefer shorter clips when possible — under 60 seconds is ideal.`}
 
 TIMESTAMPS: Transcript uses [M:SS] format. Return startTime/endTime in SECONDS (e.g., [1:30] = 90 seconds).
 ${introTitleSection}${emojiSection}${clipTypeSection}
@@ -417,9 +417,9 @@ ${formattedTranscript}`;
       let sortedClips;
       
       if (isAutoMode) {
-        // Auto mode: enforce min 15s and max 180s, sort by score
+        // Auto mode: enforce min 15s and hard cap at 120s, sort by score
         sortedClips = allClipsWithDuration
-          .filter((clip) => clip.duration >= 15 && clip.duration <= MAX_DURATION_LIMIT)
+          .filter((clip) => clip.duration >= 15 && clip.duration <= 120)
           .filter((clip) => clip.viralityScore >= 60)
           .sort((a, b) => b.viralityScore - a.viralityScore);
       } else {
