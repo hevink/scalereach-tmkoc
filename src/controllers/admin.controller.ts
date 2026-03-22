@@ -1104,6 +1104,64 @@ export class AdminController {
   }
 
   /**
+   * Proxy YouTube cookie details from worker
+   * GET /api/admin/youtube-cookies
+   */
+  static async getYouTubeCookies(c: Context) {
+    try {
+      const workerUrl = process.env.WORKER_URL;
+      if (!workerUrl) return c.json({ error: "WORKER_URL not configured" }, 500);
+      const workerSecret = process.env.WORKER_SECRET;
+      if (!workerSecret) return c.json({ error: "WORKER_SECRET not configured" }, 500);
+
+      const res = await fetch(`${workerUrl}/health/youtube-cookies`, {
+        headers: { "Authorization": `Bearer ${workerSecret}` },
+        signal: AbortSignal.timeout(15000),
+      });
+      const data = await res.json();
+      if (res.status === 401 || res.status === 403) {
+        return c.json({ error: "Worker rejected request - check WORKER_SECRET" }, 502);
+      }
+      return c.json(data, res.status as any);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to reach worker: ${msg}` }, 502);
+    }
+  }
+
+  /**
+   * Update YouTube cookies on worker
+   * POST /api/admin/youtube-cookies
+   */
+  static async updateYouTubeCookies(c: Context) {
+    try {
+      const workerUrl = process.env.WORKER_URL;
+      if (!workerUrl) return c.json({ error: "WORKER_URL not configured" }, 500);
+      const workerSecret = process.env.WORKER_SECRET;
+      if (!workerSecret) return c.json({ error: "WORKER_SECRET not configured" }, 500);
+
+      const body = await c.req.json();
+      const res = await fetch(`${workerUrl}/health/youtube-cookies`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${workerSecret}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      });
+      const data = await res.json();
+      if (res.status === 401 || res.status === 403) {
+        return c.json({ error: "Worker rejected request - check WORKER_SECRET" }, 502);
+      }
+      return c.json(data, res.status as any);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to reach worker: ${msg}` }, 502);
+    }
+  }
+
+  /**
    * Proxy queue action (drain/clean) to worker
    * POST /api/admin/queue-action
    */

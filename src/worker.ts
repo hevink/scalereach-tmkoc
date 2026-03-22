@@ -956,6 +956,150 @@ try {
         }
       }
 
+      // ── PROTECTED: YouTube cookie management ──────────────
+      if (url.pathname === "/health/youtube-cookies") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
+        }
+
+        const cookiesPath = process.env.YOUTUBE_COOKIES_PATH || "/opt/scalereach/config/youtube_cookies.txt";
+        const fsModule = await import("fs");
+
+        // GET: Return detailed cookie info
+        if (req.method === "GET") {
+          try {
+            if (!fsModule.existsSync(cookiesPath)) {
+              return new Response(JSON.stringify({
+                status: "missing",
+                path: cookiesPath,
+                cookies: [],
+                summary: { total: 0, expired: 0, valid: 0, noExpiry: 0 },
+              }), { headers: SECURITY_HEADERS });
+            }
+
+            const content = fsModule.readFileSync(cookiesPath, "utf8");
+            const lines = content.split("\n").filter(l => l && !l.startsWith("#"));
+            const now = Date.now();
+            const cookies: Array<{
+              domain: string; name: string; value: string;
+              path: string; secure: boolean; expiry: number | null;
+              expiryDate: string | null; expired: boolean; daysLeft: number | null;
+            }> = [];
+
+            for (const line of lines) {
+              const parts = line.split("\t");
+              if (parts.length < 7) continue;
+              const [domain, , cookiePath, secure, expiryStr, name, value] = parts;
+              const expiry = parseInt(expiryStr, 10);
+              const hasExpiry = expiry > 0;
+              const expiryDate = hasExpiry ? new Date(expiry * 1000) : null;
+              const daysLeft = expiryDate ? Math.floor((expiryDate.getTime() - now) / 86400000) : null;
+              const expired = daysLeft !== null ? daysLeft <= 0 : false;
+
+              cookies.push({
+                domain, name, path: cookiePath,
+                value: value.length > 20 ? value.slice(0, 20) + "..." : value,
+                secure: secure === "TRUE",
+                expiry: hasExpiry ? expiry : null,
+                expiryDate: expiryDate?.toISOString() || null,
+                expired, daysLeft,
+              });
+            }
+
+            const expired = cookies.filter(c => c.expired).length;
+            const valid = cookies.filter(c => !c.expired && c.daysLeft !== null).length;
+            const noExpiry = cookies.filter(c => c.daysLeft === null).length;
+
+            // Check auth cookies specifically
+            const authCookieNames = ["LOGIN_INFO", "SID", "HSID", "SSID", "SAPISID", "__Secure-1PSID", "__Secure-1PAPISID", "SIDCC", "__Secure-1PSIDCC", "CONSISTENCY"];
+            const presentAuth = authCookieNames.filter(n => cookies.some(c => c.name === n));
+            const missingAuth = authCookieNames.filter(n => !cookies.some(c => c.name === n));
+
+            // Overall status
+            let status: "valid" | "expired" | "incomplete" | "missing" = "valid";
+            if (expired > 0) status = "expired";
+            else if (missingAuth.length > 0) status = "incomplete";
+
+            // Find earliest auth cookie expiry
+            const authCookies = cookies.filter(c => authCookieNames.includes(c.name) && c.daysLeft !== null);
+            const minDaysLeft = authCookies.length > 0 ? Math.min(...authCookies.map(c => c.daysLeft!)) : null;
+
+            return new Response(JSON.stringify({
+              status, path: cookiesPath, cookies,
+              summary: { total: cookies.length, expired, valid, noExpiry },
+              auth: { present: presentAuth, missing: missingAuth, minDaysLeft },
+              lastModified: fsModule.statSync(cookiesPath).mtime.toISOString(),
+            }), { headers: SECURITY_HEADERS });
+          } catch (err: any) {
+            return new Response(JSON.stringify({ status: "error", error: err?.message || "Failed to read cookies" }), { status: 500, headers: SECURITY_HEADERS });
+          }
+        }
+
+        // POST: Update cookie file
+        if (req.method === "POST") {
+          try {
+            const body = await req.json() as { cookies: string };
+            const { cookies: cookieContent } = body;
+
+            if (!cookieContent || typeof cookieContent !== "string") {
+              return new Response(JSON.stringify({ error: "cookies field is required (string)" }), { status: 400, headers: SECURITY_HEADERS });
+            }
+
+            // Validate format - should have Netscape cookie lines
+            const lines = cookieContent.split("\n").filter(l => l.trim() && !l.startsWith("#"));
+            if (lines.length < 5) {
+              return new Response(JSON.stringify({ error: `Too few cookie lines (${lines.length}). Expected at least 5 valid cookies.` }), { status: 400, headers: SECURITY_HEADERS });
+            }
+
+            // Check for required auth cookies
+            const authCookieNames = ["LOGIN_INFO", "SID", "HSID", "SSID", "SAPISID", "__Secure-1PSID"];
+            const cookieNames = lines.map(l => l.split("\t")[5]).filter(Boolean);
+            const missingAuth = authCookieNames.filter(n => !cookieNames.includes(n));
+
+            if (missingAuth.length > 0) {
+              return new Response(JSON.stringify({
+                error: `Missing critical auth cookies: ${missingAuth.join(", ")}`,
+                missingCookies: missingAuth,
+              }), { status: 400, headers: SECURITY_HEADERS });
+            }
+
+            // Ensure header is present
+            let finalContent = cookieContent;
+            if (!cookieContent.startsWith("# Netscape HTTP Cookie File")) {
+              finalContent = "# Netscape HTTP Cookie File\n# https://curl.haxx.se/rfc/cookie_spec.html\n# This is a generated file! Do not edit.\n\n" + cookieContent;
+            }
+
+            // Write the file
+            const dir = cookiesPath.substring(0, cookiesPath.lastIndexOf("/"));
+            if (!fsModule.existsSync(dir)) {
+              fsModule.mkdirSync(dir, { recursive: true });
+            }
+            fsModule.writeFileSync(cookiesPath, finalContent, "utf8");
+
+            // Send Telegram notification
+            try {
+              const { TelegramService } = await import("./services/telegram.service");
+              await TelegramService.notify(
+                `🍪 <b>YouTube Cookies Updated</b>\n\n` +
+                `<b>Cookies:</b> ${lines.length} entries\n` +
+                `<b>Auth cookies present:</b> ${authCookieNames.filter(n => cookieNames.includes(n)).join(", ")}\n` +
+                `<b>Updated at:</b> ${new Date().toISOString()}\n` +
+                `<b>Path:</b> <code>${cookiesPath}</code>`
+              );
+            } catch { /* telegram notification is best-effort */ }
+
+            return new Response(JSON.stringify({
+              success: true,
+              message: `Cookies updated successfully (${lines.length} entries)`,
+              cookieCount: lines.length,
+              path: cookiesPath,
+            }), { headers: SECURITY_HEADERS });
+          } catch (err: any) {
+            return new Response(JSON.stringify({ error: err?.message || "Failed to update cookies" }), { status: 500, headers: SECURITY_HEADERS });
+          }
+        }
+      }
+
       return new Response("Not Found", { status: 404, headers: SECURITY_HEADERS });
     },
   });

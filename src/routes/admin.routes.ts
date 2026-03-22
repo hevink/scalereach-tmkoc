@@ -58,6 +58,10 @@ adminRouter.get("/system-health", AdminController.getSystemHealth);
 adminRouter.get("/youtube-health", AdminController.getYouTubeHealth);
 adminRouter.post("/youtube-health", AdminController.getYouTubeHealth);
 
+// YouTube cookie management (proxied from worker)
+adminRouter.get("/youtube-cookies", AdminController.getYouTubeCookies);
+adminRouter.post("/youtube-cookies", AdminController.updateYouTubeCookies);
+
 // Worker dashboard & logs (proxied from worker)
 adminRouter.get("/worker-status", AdminController.getWorkerStatus);
 adminRouter.get("/worker-logs/live", AdminController.getWorkerLogsLive);
