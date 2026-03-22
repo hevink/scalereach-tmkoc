@@ -62,6 +62,9 @@ adminRouter.post("/youtube-health", AdminController.getYouTubeHealth);
 adminRouter.get("/youtube-cookies", AdminController.getYouTubeCookies);
 adminRouter.post("/youtube-cookies", AdminController.updateYouTubeCookies);
 
+// YouTube test preview (download 30s + upload to R2)
+adminRouter.post("/youtube-test-preview", AdminController.getYouTubeTestPreview);
+
 // Worker dashboard & logs (proxied from worker)
 adminRouter.get("/worker-status", AdminController.getWorkerStatus);
 adminRouter.get("/worker-logs/live", AdminController.getWorkerLogsLive);

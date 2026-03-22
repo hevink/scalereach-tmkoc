@@ -1104,6 +1104,38 @@ export class AdminController {
   }
 
   /**
+   * Proxy YouTube test preview (download 30s clip + upload to R2)
+   * POST /api/admin/youtube-test-preview
+   */
+  static async getYouTubeTestPreview(c: Context) {
+    try {
+      const workerUrl = process.env.WORKER_URL;
+      if (!workerUrl) return c.json({ error: "WORKER_URL not configured" }, 500);
+      const workerSecret = process.env.WORKER_SECRET;
+      if (!workerSecret) return c.json({ error: "WORKER_SECRET not configured" }, 500);
+
+      const body = await c.req.json().catch(() => ({}));
+      const res = await fetch(`${workerUrl}/health/youtube-test-preview`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${workerSecret}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(120000), // 2 min timeout for download
+      });
+      const data = await res.json();
+      if (res.status === 401 || res.status === 403) {
+        return c.json({ error: "Worker rejected request - check WORKER_SECRET" }, 502);
+      }
+      return c.json(data, res.status as any);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Unknown error";
+      return c.json({ error: `Failed to reach worker: ${msg}` }, 502);
+    }
+  }
+
+  /**
    * Proxy YouTube cookie details from worker
    * GET /api/admin/youtube-cookies
    */

@@ -956,6 +956,86 @@ try {
         }
       }
 
+      // ── PROTECTED: YouTube test preview (download 30s + upload to R2) ──
+      if (url.pathname === "/health/youtube-test-preview" && req.method === "POST") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: SECURITY_HEADERS });
+        }
+
+        const body = await req.json().catch(() => ({})) as { url?: string };
+        const testUrl = (body as any).url?.trim();
+        if (!testUrl) {
+          return new Response(JSON.stringify({ error: "YouTube URL is required" }), { status: 400, headers: SECURITY_HEADERS });
+        }
+
+        const fsModule = await import("fs");
+        const tmpDir = process.env.SMART_CROP_TMP_DIR || "/tmp";
+        const ts = Date.now();
+        const testOutputPath = `${tmpDir}/yt-preview-${ts}.mp4`;
+        const r2Key = `temp/yt-preview-${ts}.mp4`;
+
+        try {
+          // Step 1: Get metadata
+          const { YouTubeService } = await import("./services/youtube.service");
+          const videoInfo = await YouTubeService.getVideoInfoYtDlp(testUrl);
+
+          // Step 2: Download first 30s
+          const clipEnd = Math.min(30, videoInfo.duration || 30);
+          const { ClipGeneratorService } = await import("./services/clip-generator.service");
+          await ClipGeneratorService.downloadYouTubeSegmentToLocalFile(testUrl, 0, clipEnd, testOutputPath, "720p");
+
+          // Step 3: Get file info
+          let fileSizeMB = "0";
+          let resolution = "unknown";
+          let actualDuration = "0";
+          try {
+            const stat = fsModule.statSync(testOutputPath);
+            fileSizeMB = (stat.size / 1024 / 1024).toFixed(2);
+            const probeOut = execSyncNode(
+              `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -show_entries format=duration -of json "${testOutputPath}"`,
+              { timeout: 10000 }
+            ).toString();
+            const probeData = JSON.parse(probeOut);
+            const stream = probeData.streams?.[0];
+            if (stream) resolution = `${stream.width}x${stream.height}`;
+            actualDuration = parseFloat(probeData.format?.duration || "0").toFixed(1);
+          } catch {}
+
+          // Step 4: Upload to R2
+          const { R2Service } = await import("./services/r2.service");
+          const fileBuffer = fsModule.readFileSync(testOutputPath);
+          const { url: previewUrl } = await R2Service.uploadFile(r2Key, Buffer.from(fileBuffer), "video/mp4");
+
+          // Step 5: Cleanup local file
+          try { fsModule.unlinkSync(testOutputPath); } catch {}
+          try { fsModule.unlinkSync(testOutputPath.replace(".mp4", "-full.mp4")); } catch {}
+
+          // Step 6: Schedule R2 cleanup after 10 minutes
+          setTimeout(async () => {
+            try {
+              const { R2Service: R2 } = await import("./services/r2.service");
+              await R2.deleteFile(r2Key);
+              console.log(`[WORKER] Cleaned up temp preview: ${r2Key}`);
+            } catch {}
+          }, 10 * 60 * 1000);
+
+          return new Response(JSON.stringify({
+            ok: true,
+            previewUrl,
+            videoInfo,
+            clip: { duration: actualDuration, resolution, fileSizeMB, startTime: 0, endTime: clipEnd },
+          }), { headers: SECURITY_HEADERS });
+        } catch (err: any) {
+          // Cleanup on error
+          try { fsModule.unlinkSync(testOutputPath); } catch {}
+          try { fsModule.unlinkSync(testOutputPath.replace(".mp4", "-full.mp4")); } catch {}
+          return new Response(JSON.stringify({
+            ok: false,
+            error: err?.message || "Failed to generate preview",
+          }), { headers: SECURITY_HEADERS });
+        }
+      }
+
       // ── PROTECTED: YouTube cookie management ──────────────
       if (url.pathname === "/health/youtube-cookies") {
         if (!isAuthorized(req)) {
