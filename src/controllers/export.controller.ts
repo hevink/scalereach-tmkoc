@@ -196,6 +196,7 @@ export class ExportController {
         backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
         videoScale: videoConfig?.videoScale ?? 125,
         smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
+        isRegenerate: true,
       });
 
       // Update clip status to generating
@@ -438,6 +439,7 @@ export class ExportController {
           textOverlays: captionData?.textOverlays?.length ? captionData.textOverlays : undefined,
           splitScreen: batchSplitScreenData,
           smartCropEnabled: batchVideoConfig?.enableSmartCrop ?? false,
+          isRegenerate: true,
         });
 
         await ClipModel.update(clipId, { status: "generating" });

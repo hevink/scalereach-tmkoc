@@ -209,6 +209,7 @@ export class ClipGenerationController {
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
+        textOverlays: savedCaptions?.textOverlays?.length ? savedCaptions.textOverlays : undefined,
         splitScreen: splitScreenData,
         backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
         videoScale: videoConfig?.videoScale ?? 125,
@@ -419,10 +420,12 @@ export class ClipGenerationController {
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
         introTitle: introTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
         captions,
+        textOverlays: savedCaptions?.textOverlays?.length ? savedCaptions.textOverlays : undefined,
         splitScreen: splitScreenData,
         backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
         videoScale: videoConfig?.videoScale ?? 125,
         smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
+        isRegenerate: true,
       }, getPlanPriority(ws?.plan));
 
       console.log(`[CLIP GENERATION CONTROLLER] Regeneration job queued: ${job.id}`);

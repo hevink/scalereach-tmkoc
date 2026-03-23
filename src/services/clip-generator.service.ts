@@ -90,10 +90,13 @@ export interface ClipGenerationOptions {
     y: number;
     fontSize: number;
     fontFamily: string;
+    fontWeight?: number;
+    lineHeight?: number;
     color: string;
     backgroundColor: string;
     backgroundOpacity: number;
     borderRadius?: number;
+    maxWidth?: number;
     startTime: number;
     endTime: number;
     animation?: "none" | "fade-in" | "slide-up" | "typewriter";
@@ -403,7 +406,7 @@ export class ClipGeneratorService {
       // ── STEP 2: Determine split-screen setup ──
       let bgTempPath: string | undefined;
       const hasSplitScreen = !!options.splitScreen;
-      const hasCaptions = !!(options.captions?.words?.length || options.introTitle || options.emojis || options.textOverlays?.length);
+      const hasCaptions = !!(options.captions?.words?.length || options.introTitle || options.emojis);
 
       if (hasSplitScreen) {
         bgTempPath = await SplitScreenCompositorService.downloadBackground(
@@ -886,39 +889,32 @@ export class ClipGeneratorService {
         tempPaths.push(tempSubsPath);
         await fs.promises.writeFile(tempSubsPath, assContent, "utf8");
 
-        // ── Render emoji overlays as PNG images ──
-        // Text overlays and intro title that contain emoji cannot be rendered by libass.
-        // We render them as PNG via Python+PIL and composite via FFmpeg overlay filter.
+        // ── Render ALL text overlays as PNG images ──
+        // All text overlays are rendered as PNG via Python+PIL for full visual parity
+        // with the frontend editor (supports borderRadius, fontWeight, maxWidth, etc.)
         const emojiOverlayPngs: EmojiOverlayPng[] = [];
         const emojiPngPaths: string[] = [];
 
-        // Check text overlays for emoji
+        // Render all text overlays as PNG
         if (options.textOverlays) {
           for (const overlay of options.textOverlays) {
-            if (ClipGeneratorService.hasEmoji(overlay.text)) {
-              try {
-                const pngPath = await ClipGeneratorService.renderEmojiOverlayAsPng(
-                  overlay.text,
-                  overlay.fontSize || 32,
-                  overlay.color || "#FFFFFF",
-                  overlay.backgroundColor || "#000000",
-                  overlay.backgroundOpacity ?? 0,
-                  width, height,
-                  80
-                );
-                emojiPngPaths.push(pngPath);
-                tempPaths.push(pngPath);
-                emojiOverlayPngs.push({
-                  pngPath,
-                  x: Math.round((overlay.x / 100) * width),
-                  y: Math.round((overlay.y / 100) * height),
-                  startTime: overlay.startTime,
-                  endTime: overlay.endTime,
-                });
-                this.logOperation("EMOJI_OVERLAY_PNG_READY", { id: overlay.id, text: overlay.text });
-              } catch (err) {
-                console.warn(`[CLIP GENERATOR] Failed to render emoji overlay PNG for "${overlay.text}":`, err);
-              }
+            try {
+              const pngPath = await ClipGeneratorService.renderTextOverlayPng(
+                overlay,
+                width, height,
+              );
+              emojiPngPaths.push(pngPath);
+              tempPaths.push(pngPath);
+              emojiOverlayPngs.push({
+                pngPath,
+                x: Math.round((overlay.x / 100) * width),
+                y: Math.round((overlay.y / 100) * height),
+                startTime: overlay.startTime,
+                endTime: overlay.endTime,
+              });
+              this.logOperation("TEXT_OVERLAY_PNG_READY", { id: overlay.id, text: overlay.text });
+            } catch (err) {
+              console.warn(`[CLIP GENERATOR] Failed to render text overlay PNG for "${overlay.text}":`, err);
             }
           }
         }
@@ -1554,78 +1550,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     //   }
     // }
 
-    // Add text overlays - each gets its own named style so BorderStyle (box bg) works correctly
-    // NOTE: overlays with emoji are skipped here - they are rendered as PNG and composited via FFmpeg overlay
-    if (textOverlays && textOverlays.length > 0) {
-      const DESIGN_HEIGHT = 700;
-      const overlayScaleFactor = height / DESIGN_HEIGHT;
-
-      // Build per-overlay styles and inject them into the [V4+ Styles] section
-      // We append them before [Events] by inserting into the ass string
-      const overlayStyleLines: string[] = [];
-
-      for (let oi = 0; oi < textOverlays.length; oi++) {
-        const overlay = textOverlays[oi];
-        // Skip emoji overlays - they are rendered as PNG and composited via FFmpeg overlay
-        if (ClipGeneratorService.hasEmoji(overlay.text)) continue;
-        const oFontSize = Math.round((overlay.fontSize || 32) * overlayScaleFactor);
-        const oColor = this.hexToASSColor(overlay.color || "#FFFFFF");
-        const oBgColor = (overlay.backgroundColor || "#000000").replace("#", "");
-        const oBgOpacity = overlay.backgroundOpacity ?? 0;
-        // ASS alpha: 00 = fully opaque, FF = fully transparent
-        const oAssAlpha = Math.round(((100 - oBgOpacity) / 100) * 255).toString(16).toUpperCase().padStart(2, "0");
-        const oBgR = oBgColor.substring(0, 2);
-        const oBgG = oBgColor.substring(2, 4);
-        const oBgB = oBgColor.substring(4, 6);
-        const oBackColour = `&H${oAssAlpha}${oBgB}${oBgG}${oBgR}`;
-        // BorderStyle 3 = opaque box behind text; 1 = outline only
-        const oBorderStyle = oBgOpacity > 0 ? 3 : 1;
-        const oOutline = oBorderStyle === 3 ? Math.round(2 * overlayScaleFactor) : 1;
-        const oFontFamily = overlay.fontFamily || "Inter";
-        const styleName = `TextOverlay${oi}`;
-
-        // Style: centered alignment (5 = \an5), zero margins (position via \pos)
-        overlayStyleLines.push(
-          `Style: ${styleName},${oFontFamily},${oFontSize},${oColor},${oColor},&H00000000,${oBackColour},1,0,0,0,100,100,0,0,${oBorderStyle},${oOutline},0,5,0,0,0,1`
-        );
-      }
-
-      // Insert overlay styles before [Events] section
-      // The header uses ass += `\n[Events]\n...` so the actual separator is \n\n[Events]\n
-      ass = ass.replace(
-        "\n\n[Events]\n",
-        `\n${overlayStyleLines.join("\n")}\n\n[Events]\n`
-      );
-
-      // Now add dialogue lines for each overlay
-      for (let oi = 0; oi < textOverlays.length; oi++) {
-        const overlay = textOverlays[oi];
-        // Skip emoji overlays - handled via FFmpeg PNG overlay
-        if (ClipGeneratorService.hasEmoji(overlay.text)) continue;
-        const oX = Math.round((overlay.x / 100) * width);
-        const oY = Math.round((overlay.y / 100) * height);
-        const startTime = this.formatASSTime(overlay.startTime);
-        const endTime = this.formatASSTime(overlay.endTime);
-        const styleName = `TextOverlay${oi}`;
-
-        // Animation override tags (optional)
-        let animTags = "";
-        if (overlay.animation === "fade-in") {
-          animTags = "\\fad(400,200)";
-        } else if (overlay.animation === "slide-up") {
-          const slideFrom = oY + Math.round(height * 0.05);
-          animTags = `\\fad(300,200)\\move(${oX},${slideFrom},${oX},${oY},0,300)`;
-        } else if (overlay.animation === "typewriter") {
-          animTags = "\\fad(100,200)";
-        }
-
-        // Render text with emoji font switching so emojis don't show as "NO GLYPH"
-        const renderedText = this.renderTextWithEmojiFont(overlay.text, overlay.fontFamily || "Inter");
-
-        // \an5 = center anchor, \pos(x,y) = absolute position
-        ass += `Dialogue: 3,${startTime},${endTime},${styleName},,0,0,0,,{\\an5\\pos(${oX},${oY})${animTags ? animTags : ""}}${renderedText}\n`;
-      }
-    }
+    // Text overlays are now rendered as PNG images (not ASS) for full visual parity
+    // with the frontend editor (supports borderRadius, fontWeight, maxWidth, etc.)
+    // See renderTextOverlayPng() — composited via FFmpeg overlay filter.
 
     this.logOperation("ASS_CONTENT_SUMMARY", {
       wordCount: words.length,
@@ -1875,6 +1802,258 @@ print(f"OK:{total_w}x{total_h}")
         } else {
           fs.promises.unlink(textInputPath).catch(() => {});
           reject(new Error(`Python emoji render unexpected output: ${stdout} | ${stderr.slice(-300)}`));
+        }
+      });
+      proc.on("error", (err) => {
+        fs.promises.unlink(textInputPath).catch(() => {});
+        reject(new Error(`Failed to spawn python3: ${err.message}`));
+      });
+    });
+  }
+
+  /**
+   * Render a text overlay as a PNG image using Python + PIL.
+   * Supports all frontend properties: borderRadius, fontWeight, maxWidth, lineHeight, etc.
+   * Used for ALL text overlays (not just emoji ones) to ensure visual parity with frontend.
+   */
+  static async renderTextOverlayPng(
+    overlay: {
+      text: string;
+      fontSize: number;
+      fontFamily?: string;
+      fontWeight?: number;
+      lineHeight?: number;
+      color: string;
+      backgroundColor: string;
+      backgroundOpacity: number;
+      borderRadius?: number;
+      maxWidth?: number;
+    },
+    videoWidth: number,
+    videoHeight: number,
+  ): Promise<string> {
+    const outPath = path.join(os.tmpdir(), `text-overlay-${nanoid()}.png`);
+    const maxWidthPct = overlay.maxWidth ?? 80;
+    const maxWidthPx = Math.round((maxWidthPct / 100) * videoWidth);
+    const borderRadius = overlay.borderRadius ?? 4;
+    const fontWeight = overlay.fontWeight ?? 600;
+    const lineHeightMul = overlay.lineHeight ?? 1.2;
+
+    const hexToRgb = (hex: string) => {
+      const c = hex.replace("#", "");
+      return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+    };
+    const [r, g, b] = hexToRgb(overlay.color || "#FFFFFF");
+    const [br, bg, bb] = hexToRgb(overlay.backgroundColor || "#000000");
+    const bgAlpha = Math.round(((overlay.backgroundOpacity ?? 0) / 100) * 255);
+
+    const scaledFontSize = Math.round((overlay.fontSize || 32) * (videoHeight / 700));
+    const scaledBorderRadius = Math.round(borderRadius * (videoHeight / 700));
+
+    const hasEmoji = ClipGeneratorService.hasEmoji(overlay.text);
+    const EMOJI_VALID_SIZES = [20, 26, 32, 40, 48, 52, 64, 96, 160];
+    const clampedEmojiSize = EMOJI_VALID_SIZES.reduce((prev, curr) =>
+      Math.abs(curr - scaledFontSize) < Math.abs(prev - scaledFontSize) ? curr : prev
+    );
+
+    const textInputPath = path.join(os.tmpdir(), `overlay-text-${nanoid()}.txt`);
+    await fs.promises.writeFile(textInputPath, overlay.text, "utf8");
+
+    // Map fontWeight to font file suffix
+    const fontFamily = overlay.fontFamily || "Inter";
+
+    const pythonScript = `
+import sys, re, os
+from PIL import Image, ImageDraw, ImageFont
+
+with open(${JSON.stringify(textInputPath)}, "r", encoding="utf-8") as f:
+    text = f.read().strip()
+
+font_size = ${scaledFontSize}
+max_width = ${maxWidthPx}
+text_color = (${r}, ${g}, ${b}, 255)
+bg_color = (${br}, ${bg}, ${bb}, ${bgAlpha})
+border_radius = ${scaledBorderRadius}
+line_height_mul = ${lineHeightMul}
+font_weight = ${fontWeight}
+has_emoji = ${hasEmoji ? "True" : "False"}
+
+VALID_SIZES = [20, 26, 32, 40, 48, 52, 64, 96, 160]
+def snap_size(s):
+    return min(VALID_SIZES, key=lambda x: abs(x - s))
+
+# Font loading
+emoji_font_paths = [
+    "/System/Library/Fonts/Apple Color Emoji.ttc",
+    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+]
+# Try weight-specific fonts first, then fallback
+weight_suffix = "Bold" if font_weight >= 700 else ("SemiBold" if font_weight >= 600 else ("Medium" if font_weight >= 500 else "Regular"))
+text_font_paths = [
+    f"/System/Library/Fonts/Supplemental/Arial {weight_suffix}.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+    f"/usr/share/fonts/truetype/dejavu/DejaVuSans-{weight_suffix}.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    f"/usr/share/fonts/truetype/liberation/LiberationSans-{weight_suffix}.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSans-SemiBold.ttf",
+]
+
+emoji_sz = snap_size(font_size)
+emoji_font = None
+for fp in emoji_font_paths:
+    if os.path.exists(fp):
+        try:
+            emoji_font = ImageFont.truetype(fp, emoji_sz)
+            break
+        except:
+            pass
+
+text_font = None
+for fp in text_font_paths:
+    if os.path.exists(fp):
+        try:
+            text_font = ImageFont.truetype(fp, font_size)
+            break
+        except:
+            pass
+if text_font is None:
+    text_font = ImageFont.load_default()
+if emoji_font is None:
+    emoji_font = text_font
+
+def seg_font(is_emoji):
+    return emoji_font if is_emoji else text_font
+
+def split_segments(s):
+    segs = []
+    buf = ""
+    is_em = False
+    for ch in s:
+        cp = ord(ch)
+        ch_is_emoji = (cp >= 0x1F000) or (0x2600 <= cp <= 0x27BF) or cp in (0x00A9, 0x00AE) or (0x2000 <= cp <= 0x3300) or cp == 0xFE0F
+        if ch_is_emoji != is_em:
+            if buf:
+                segs.append((buf, is_em))
+            buf = ch
+            is_em = ch_is_emoji
+        else:
+            buf += ch
+    if buf:
+        segs.append((buf, is_em))
+    return segs
+
+def measure_segments(segs):
+    dummy = Image.new("RGBA", (1, 1))
+    draw = ImageDraw.Draw(dummy)
+    total_w = 0
+    max_h = 0
+    for (chunk, is_em) in segs:
+        f = seg_font(is_em)
+        bb = draw.textbbox((0, 0), chunk, font=f, embedded_color=True)
+        total_w += bb[2] - bb[0]
+        max_h = max(max_h, bb[3] - bb[1])
+    return total_w, max_h
+
+def measure_text(s, is_emoji=False):
+    dummy = Image.new("RGBA", (1, 1))
+    draw = ImageDraw.Draw(dummy)
+    f = seg_font(is_emoji)
+    bb = draw.textbbox((0, 0), s, font=f, embedded_color=True)
+    return bb[2] - bb[0], bb[3] - bb[1]
+
+# Word-wrap
+words = text.split(" ")
+lines = []
+current_words = []
+for word in words:
+    test_words = current_words + [word]
+    test_line = " ".join(test_words)
+    segs = split_segments(test_line)
+    w, _ = measure_segments(segs)
+    if w <= max_width or not current_words:
+        current_words = test_words
+    else:
+        lines.append(" ".join(current_words))
+        current_words = [word]
+if current_words:
+    lines.append(" ".join(current_words))
+
+# Measure lines
+line_sizes = []
+for line in lines:
+    segs = split_segments(line)
+    w, h = measure_segments(segs)
+    line_sizes.append((w, h))
+
+pad_v = max(8, font_size // 4)
+pad_h = max(8, font_size // 4)
+# Extra bottom padding to compensate for font ascender/descender asymmetry
+# PIL textbbox includes descenders but visual weight sits higher, making bottom look thinner
+pad_bottom_extra = max(8, font_size // 3)
+max_line_w = max(s[0] for s in line_sizes) if line_sizes else 0
+
+# Match frontend: background box spans full max_width, text is centered inside
+# Frontend uses width: maxWidth% with text-align: center
+if bg_color[3] > 0:
+    # Background visible: use full max_width so background box matches frontend
+    total_w = max(max_line_w + pad_h * 2, max_width)
+else:
+    # No background: tight-wrap around text content
+    total_w = max_line_w + pad_h * 2
+
+base_h = line_sizes[0][1] if line_sizes else font_size
+line_gap = max(2, int(base_h * (line_height_mul - 1.0)))
+total_h = sum(s[1] for s in line_sizes) + line_gap * max(0, len(lines) - 1) + pad_v + pad_v + pad_bottom_extra
+
+img = Image.new("RGBA", (total_w, total_h), (0, 0, 0, 0))
+draw = ImageDraw.Draw(img)
+
+if bg_color[3] > 0:
+    r_clamped = min(border_radius, total_w // 2, total_h // 2)
+    draw.rounded_rectangle([0, 0, total_w - 1, total_h - 1], radius=r_clamped, fill=bg_color)
+
+y = pad_v
+for i, line in enumerate(lines):
+    lw, lh = line_sizes[i]
+    x = (total_w - lw) // 2
+    segs = split_segments(line)
+    cx = x
+    for (chunk, is_em) in segs:
+        f = seg_font(is_em)
+        draw.text((cx, y), chunk, font=f, fill=text_color, embedded_color=True)
+        cw, _ = measure_text(chunk, is_em)
+        cx += cw
+    y += lh + line_gap
+
+img.save(${JSON.stringify(outPath)})
+try:
+    os.remove(${JSON.stringify(textInputPath)})
+except:
+    pass
+print(f"OK:{total_w}x{total_h}")
+`;
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn("python3", ["-c", pythonScript]);
+      let stdout = "";
+      let stderr = "";
+      proc.stdout?.on("data", (d) => { stdout += d.toString(); });
+      proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+      proc.on("close", (code) => {
+        if (code !== 0) {
+          fs.promises.unlink(textInputPath).catch(() => {});
+          reject(new Error(`Python text overlay render failed (code ${code}): ${stderr.slice(-500)}`));
+        } else if (stdout.startsWith("OK:")) {
+          this.logOperation("TEXT_OVERLAY_PNG_RENDERED", { path: outPath, size: stdout.trim() });
+          resolve(outPath);
+        } else {
+          fs.promises.unlink(textInputPath).catch(() => {});
+          reject(new Error(`Python text overlay render unexpected output: ${stdout} | ${stderr.slice(-300)}`));
         }
       });
       proc.on("error", (err) => {
@@ -2170,8 +2349,8 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
       // Step 1: Download the segment using yt-dlp with --download-sections
       await this.downloadYouTubeSegmentToFile(url, startTime, endTime, tempVideoPath, quality);
 
-      // Step 2: Generate ASS subtitles if captions, intro title, emojis, or text overlays provided
-      if (captions?.words?.length || introTitle || emojis || textOverlays?.length) {
+      // Step 2: Generate ASS subtitles if captions, intro title, or emojis provided
+      if (captions?.words?.length || introTitle || emojis) {
         const assContent = this.generateASSSubtitles(
           captions?.words || [],
           captions?.style,
@@ -2717,9 +2896,9 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
     // Get signed URL for the source video
     const videoUrl = await R2Service.getSignedDownloadUrl(storageKey, 3600);
 
-    // Generate ASS subtitles if captions, intro title, emojis, or text overlays provided
+    // Generate ASS subtitles if captions, intro title, or emojis provided
     let subsPathToUse: string | undefined;
-    if (captions?.words?.length || introTitle || emojis || textOverlays?.length) {
+    if (captions?.words?.length || introTitle || emojis) {
       const assContent = this.generateASSSubtitles(
         captions?.words || [],
         captions?.style,
@@ -3149,16 +3328,52 @@ print(f"OK:{total_canvas_w}x{total_canvas_h}")
           vf += `,ass=${escapedPath}:fontsdir=${escapedFontsDir}`;
         }
         const { preset, crf } = getEncodingParams(quality);
-        args = [
-          "-i", inputPath,
-          ...(wmConfig ? wmConfig.extraInputArgs : []),
-          "-vf", vf,
-          "-map", "0:v", "-map", "0:a?",
-          "-c:v", "libx264", "-preset", preset, "-crf", crf, "-g", "48",
-          "-profile:v", "high", "-level", getH264Level(quality),
-          "-c:a", "aac", "-b:a", "192k",
-          "-movflags", "+faststart", "-y", outputPath,
-        ];
+
+        if (wmConfig || hasEmojiOverlays) {
+          // Need filter_complex for watermark/emoji overlay compositing
+          let filterComplex = wmConfig
+            ? `[0:v]${vf}[pre_wm];${wmConfig.filterFragment},format=yuv420p[base_out]`
+            : `[0:v]${vf},format=yuv420p[base_out]`;
+
+          const extraEmojiInputs: string[] = [];
+          if (hasEmojiOverlays) {
+            const baseIdx = wmConfig ? 2 : 1;
+            let prevLabel = "[base_out]";
+            for (let ei = 0; ei < emojiOverlays!.length; ei++) {
+              const eo = emojiOverlays![ei];
+              extraEmojiInputs.push("-i", eo.pngPath);
+              const inputIdx = baseIdx + ei;
+              const nextLabel = ei === emojiOverlays!.length - 1 ? "[outv]" : `[ov${ei}]`;
+              filterComplex += `;[${inputIdx}:v]format=rgba[emoji${ei}];${prevLabel}[emoji${ei}]overlay=${eo.x}-w/2:${eo.y}-h/2:enable='between(t,${eo.startTime},${eo.endTime})'${nextLabel}`;
+              prevLabel = nextLabel;
+            }
+          } else {
+            filterComplex = filterComplex.replace("[base_out]", "[outv]");
+          }
+
+          args = [
+            "-i", inputPath,
+            ...(wmConfig ? wmConfig.extraInputArgs : []),
+            ...extraEmojiInputs,
+            "-filter_complex", filterComplex,
+            "-map", "[outv]",
+            "-map", "0:a?",
+            "-c:v", "libx264", "-preset", preset, "-crf", crf, "-g", "48",
+            "-profile:v", "high", "-level", getH264Level(quality),
+            "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart", "-y", outputPath,
+          ];
+        } else {
+          args = [
+            "-i", inputPath,
+            "-vf", vf,
+            "-map", "0:v", "-map", "0:a?",
+            "-c:v", "libx264", "-preset", preset, "-crf", crf, "-g", "48",
+            "-profile:v", "high", "-level", getH264Level(quality),
+            "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart", "-y", outputPath,
+          ];
+        }
       } else if (isVertical) {
         // Use background filter based on style (complex filter graph)
         // buildBackgroundFilter returns a filter chain ending with the scaled/composited video (no label)

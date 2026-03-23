@@ -66,6 +66,7 @@ export class SmartCropController {
         quality: "1080p",
         creditCost: 0, // smart crop re-generation doesn't cost credits
         smartCropEnabled: true,
+        isRegenerate: true,
       });
 
       console.log(`[SMART CROP CONTROLLER] Job enqueued on clip queue for clip: ${clipId}`);

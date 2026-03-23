@@ -164,6 +164,8 @@ export interface ClipGenerationJobData {
       glowIntensity?: number;
     };
   };
+  // Skip "all clips ready" email notification (e.g. single clip re-compile after edit)
+  isRegenerate?: boolean;
   // Text overlays to burn into video
   textOverlays?: Array<{
     id: string;
@@ -172,9 +174,13 @@ export interface ClipGenerationJobData {
     y: number;
     fontSize: number;
     fontFamily: string;
+    fontWeight?: number;
+    lineHeight?: number;
     color: string;
     backgroundColor: string;
     backgroundOpacity: number;
+    borderRadius?: number;
+    maxWidth?: number;
     startTime: number;
     endTime: number;
     animation?: "none" | "fade-in" | "slide-up" | "typewriter";

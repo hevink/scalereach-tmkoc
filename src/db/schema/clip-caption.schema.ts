@@ -22,9 +22,13 @@ export interface TextOverlayData {
   y: number;
   fontSize: number;
   fontFamily: string;
+  fontWeight?: number;
+  lineHeight?: number;
   color: string;
   backgroundColor: string;
   backgroundOpacity: number;
+  borderRadius?: number;
+  maxWidth?: number;
   startTime: number;
   endTime: number;
   animation?: "none" | "fade-in" | "slide-up" | "typewriter";

@@ -332,7 +332,32 @@ async function processClipGenerationJob(
     console.log(`[CLIP WORKER] File size: ${(generatedClip.fileSize / 1024 / 1024).toFixed(2)} MB`);
 
     // Check if all clips for this video are ready and send email notification
-    await checkAndNotifyAllClipsReady(videoId, userId, workspaceId);
+    // Skip for single-clip re-compiles (edit → regenerate) to avoid spamming the user
+    if (!job.data.isRegenerate) {
+      await checkAndNotifyAllClipsReady(videoId, userId, workspaceId);
+    } else {
+      // Single clip re-compile (edit → regenerate): send a lightweight "clip edited" notification
+      try {
+        const [user, clipRecord] = await Promise.all([
+          UserModel.getById(userId),
+          ClipModel.getById(clipId),
+        ]);
+        if (user?.email && clipRecord) {
+          await emailService.sendClipReadyNotification({
+            to: user.email,
+            userName: user.name || user.email.split("@")[0],
+            clipId,
+            clipTitle: clipRecord.title || "Untitled Clip",
+            clipDuration: endTime - startTime,
+            aspectRatio: aspectRatio,
+            viralityScore: clipRecord.score ?? undefined,
+          });
+          console.log(`[CLIP WORKER] Clip edited notification sent to ${user.email} for clip ${clipId}`);
+        }
+      } catch (emailError) {
+        console.error(`[CLIP WORKER] Failed to send clip edited notification:`, emailError);
+      }
+    }
   } catch (error) {
     console.error(`[CLIP WORKER] Error generating clip ${clipId}:`, error);
 
