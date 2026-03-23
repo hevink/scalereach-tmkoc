@@ -223,19 +223,19 @@ export class WorkspaceController {
         role: "owner",
       });
 
-      // // Only grant free 50 minutes for the user's very first workspace
-      // const isFirstWorkspace = existingWorkspaces.length === 0;
-      // if (isFirstWorkspace) {
-      //   try {
-      //     const { MinutesModel } = await import("../models/minutes.model");
-      //     await MinutesModel.initializeBalance(workspaceId, "free");
-      //     console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - granted 50 free minutes to first workspace: ${workspaceId}`);
-      //   } catch (error) {
-      //     console.error(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - failed to initialize minutes:`, error);
-      //   }
-      // } else {
-      //   console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - skipping free minutes (user already has ${existingWorkspaces.length} workspace(s))`);
-      // }
+      // Only grant free 50 minutes for the user's very first workspace
+      const isFirstWorkspace = existingWorkspaces.length === 0;
+      if (isFirstWorkspace) {
+        try {
+          const { MinutesModel } = await import("../models/minutes.model");
+          await MinutesModel.initializeBalance(workspaceId, "free", 50);
+          console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - granted 50 free minutes to first workspace: ${workspaceId}`);
+        } catch (error) {
+          console.error(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - failed to initialize minutes:`, error);
+        }
+      } else {
+        console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE - skipping free minutes (user already has ${existingWorkspaces.length} workspace(s))`);
+      }
 
       console.log(`[WORKSPACE CONTROLLER] CREATE_WORKSPACE success - created workspace: ${workspace.id} (${slug})`);
       return c.json(workspace, 201);
