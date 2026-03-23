@@ -484,7 +484,7 @@ async function processYouTubeVideo(
           quality: clipQuality,
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
-          introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
+          introTitle: introTitleEnabled ? (clipRecord.introTitle || clipRecord.title || undefined) : undefined,
           backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
           captions: captionsEnabled ? {
             words: adjustedWords,
@@ -948,7 +948,7 @@ async function processUploadedVideo(
           quality: uploadClipQuality,
           watermark: applyWatermark,
           emojis: emojisEnabled ? (clipRecord.transcriptWithEmojis ?? undefined) : undefined,
-          introTitle: introTitleEnabled ? (clipRecord.introTitle ?? undefined) : undefined,
+          introTitle: introTitleEnabled ? (clipRecord.introTitle || clipRecord.title || undefined) : undefined,
           backgroundStyle: (videoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
           captions: captionsEnabled ? {
             words: adjustedWords,

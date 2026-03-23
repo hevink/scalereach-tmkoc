@@ -185,7 +185,7 @@ export class ExportController {
         emojis: emojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
         // Skip introTitle if it's already stored as a text overlay (to avoid double rendering)
         introTitle: introTitleEnabled && !captionData.textOverlays?.some((o: any) => o.id === "intro-title")
-          ? ((clip as any).introTitle || undefined)
+          ? ((clip as any).introTitle || (clip as any).title || undefined)
           : undefined,
         captions: captionsEnabled && words.length > 0 ? {
           words,
@@ -429,7 +429,7 @@ export class ExportController {
           quality: resolutionToQuality(options?.resolution || "1080p"),
           watermark: batchWatermark,
           emojis: batchEmojisEnabled ? ((clip as any).transcriptWithEmojis || undefined) : undefined,
-          introTitle: batchIntroTitleEnabled ? ((clip as any).introTitle || undefined) : undefined,
+          introTitle: batchIntroTitleEnabled ? ((clip as any).introTitle || (clip as any).title || undefined) : undefined,
           backgroundStyle: (batchVideoConfig?.backgroundStyle as "blur" | "black" | "white" | "gradient-ocean" | "gradient-midnight" | "gradient-sunset" | "mirror" | "zoom") ?? "black",
           videoScale: batchVideoConfig?.videoScale ?? 125,
           captions: batchCaptionsEnabled && words.length > 0 ? {

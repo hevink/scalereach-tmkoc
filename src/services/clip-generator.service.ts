@@ -2216,46 +2216,42 @@ for line in lines:
 # Per-line pill padding and spacing
 pad_x = max(16, font_size // 2)
 pad_y = max(8, font_size // 4)
+pad_bottom_extra = max(8, font_size // 3)
 line_gap = max(8, font_size // 5)
 
-# Canvas size: widest pill + vertical stack
-max_pill_w = max(s[0] + pad_x * 2 for s in line_sizes) if line_sizes else 0
-total_canvas_w = min(max_pill_w, max_width + pad_x * 2)
-total_canvas_h = sum(s[1] + pad_y * 2 for s in line_sizes) + line_gap * max(0, len(lines) - 1)
+# Canvas size: single box containing all lines
+max_line_w = max(s[0] for s in line_sizes) if line_sizes else 0
+total_canvas_w = min(max_line_w + pad_x * 2, max_width + pad_x * 2)
+text_block_h = sum(s[1] for s in line_sizes) + line_gap * max(0, len(lines) - 1)
+total_canvas_h = text_block_h + pad_y + pad_y + pad_bottom_extra
 
 img = Image.new("RGBA", (total_canvas_w, total_canvas_h), (0, 0, 0, 0))
 draw = ImageDraw.Draw(img)
 
-# Draw each line with its own pill-shaped background
-y = 0
+# Draw single rounded rectangle behind all lines
+if bg_color[3] > 0:
+    radius = min(total_canvas_h // 4, total_canvas_w // 4, max(12, font_size // 2))
+    draw.rounded_rectangle(
+        [0, 0, total_canvas_w - 1, total_canvas_h - 1],
+        radius=radius,
+        fill=bg_color
+    )
+
+# Draw each line centered inside the box
+y = pad_y
 for i, line in enumerate(lines):
     lw, lh = line_sizes[i]
-    pill_w = lw + pad_x * 2
-    pill_h = lh + pad_y * 2
-    pill_x = (total_canvas_w - pill_w) // 2
-    radius = pill_h // 2  # Full pill shape (half-height radius)
-
-    if bg_color[3] > 0:
-        draw.rounded_rectangle(
-            [pill_x, y, pill_x + pill_w, y + pill_h],
-            radius=radius,
-            fill=bg_color
-        )
-
-    # Draw text centered in the pill
-    text_x = pill_x + pad_x
-    text_y = y + pad_y
     segs = split_segments(line)
-    cx = text_x
+    cx = (total_canvas_w - lw) // 2
     for (chunk, is_em) in segs:
         f = seg_font(is_em)
-        draw.text((cx, text_y), chunk, font=f, fill=text_color, embedded_color=True)
+        draw.text((cx, y), chunk, font=f, fill=text_color, embedded_color=True)
         dummy = Image.new("RGBA", (1, 1))
         dd = ImageDraw.Draw(dummy)
         cbb = dd.textbbox((0, 0), chunk, font=f, embedded_color=True)
         cx += cbb[2] - cbb[0]
 
-    y += pill_h + line_gap
+    y += lh + line_gap
 
 img.save(${JSON.stringify(outPath)})
 try:
