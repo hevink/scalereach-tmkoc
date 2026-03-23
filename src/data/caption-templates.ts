@@ -233,7 +233,7 @@ export const MRBEAST_PRO_TEMPLATE: CaptionTemplate = {
   platform: "YouTube",
   style: {
     fontFamily: "Bangers",
-    fontSize: 44,
+    fontSize: 48,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -338,7 +338,7 @@ export const NEON_POP_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Permanent Marker",
-    fontSize: 44,
+    fontSize: 40,
     textColor: "#00FFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -407,7 +407,7 @@ export const ELECTRIC_BLUE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Russo One",
-    fontSize: 44,
+    fontSize: 40,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -441,7 +441,7 @@ export const SUNSET_FIRE_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Bangers",
-    fontSize: 44,
+    fontSize: 48,
     textColor: "#FF6B35",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
@@ -509,7 +509,7 @@ export const CORAL_POP_TEMPLATE: CaptionTemplate = {
   platform: "Universal",
   style: {
     fontFamily: "Lilita One",
-    fontSize: 44,
+    fontSize: 40,
     textColor: "#FFFFFF",
     backgroundColor: "#000000",
     backgroundOpacity: 0,
