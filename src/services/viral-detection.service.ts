@@ -89,7 +89,7 @@ export const MIN_DURATION_LIMIT = 5;    // Minimum allowed minDuration (seconds)
 export const MAX_DURATION_LIMIT = 120;  // Maximum allowed maxDuration (seconds) - hard cap at 2 minutes
 export const DEFAULT_MIN_DURATION = 30; // Default minimum clip duration
 export const DEFAULT_MAX_DURATION = 90; // Default maximum clip duration
-export const DEFAULT_MAX_CLIPS = 10;    // Default maximum clips to detect
+export const DEFAULT_MAX_CLIPS = 20;    // Default maximum clips to detect
 
 // Clip type template prompts for targeted detection
 const CLIP_TYPE_PROMPTS: Record<string, string> = {
@@ -193,9 +193,9 @@ export class ViralDetectionService {
     options: ViralDetectionOptions
   ): Promise<ViralClip[]> {
     const totalDuration = transcriptWords[transcriptWords.length - 1]?.end ?? 0;
-    // ~30 min chunks with 30s overlap to catch clips at boundaries
-    const CHUNK_DURATION = 1800;
-    const OVERLAP = 30;
+    // ~20 min chunks with 60s overlap to catch clips at boundaries
+    const CHUNK_DURATION = 1200;
+    const OVERLAP = 60;
 
     const chunks: { start: number; end: number }[] = [];
     for (let start = 0; start < totalDuration; start += CHUNK_DURATION - OVERLAP) {
@@ -352,10 +352,12 @@ CLIP BOUNDARIES:
 - Clips must not share more than 5 seconds of content with any other clip.
 - Pay special attention to the LAST few minutes of the transcript — speakers often save their best insights, summaries, and frameworks for the end.
 
-QUALITY:
-- Only include clips scoring >= 60 virality. Quality over quantity.
-- Every clip must pass this test: "Would I watch this entire clip on TikTok without scrolling?"
-- If only 2 moments are great, return 2 clips. Don't pad.
+QUANTITY & QUALITY:
+- For every 10 minutes of content, aim to find AT LEAST 2-3 clips. A 60-minute video should yield 12-18+ clips.
+- Only include clips scoring >= 60 virality. Every clip must earn its spot.
+- Every clip must pass this test: "Would someone find this interesting, funny, insightful, or useful as a standalone short?"
+- Don't be overly selective. Podcasts have many good moments — capture them all. Interesting stories, unique opinions, funny exchanges, practical advice, and emotional moments ALL count.
+- When in doubt, INCLUDE the clip. Let the user decide what to keep.
 
 DURATION: ${isAutoMode
       ? `YOU decide optimal length per clip (15s–120s). Prefer clips under 60 seconds — shorter clips perform better. Only go above 60s if the story/context absolutely requires it, and NEVER exceed 120 seconds. Punchy moments = 15-30s, stories/explanations = 30-60s, complex narratives = 60-90s max.`
@@ -384,11 +386,11 @@ CHECKLIST (verify for each clip before including):
 - [ ] Has clear setup → development → payoff arc
 - [ ] No overlap with other clips (max 5s shared content)
 - [ ] Virality score >= 60
-- [ ] You'd actually watch this on TikTok without scrolling
+- [ ] Someone would find this interesting, funny, insightful, or useful as a standalone short
 - [ ] If the speaker states a formula, framework, or key takeaway — it's included as a clip
 - [ ] The final minutes of the transcript have been checked for summary/conclusion moments
 
-Return startTime/endTime in SECONDS. Return at least 1 clip if any worthy content exists.
+Return startTime/endTime in SECONDS. Find as many worthy clips as possible — aim for at least 2-3 clips per 10 minutes of content.
 
 TRANSCRIPT:
 ${formattedTranscript}`;
