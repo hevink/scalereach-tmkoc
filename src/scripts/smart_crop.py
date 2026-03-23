@@ -666,8 +666,10 @@ if not cap.isOpened():
     proxy_scale = 1.0
     if not cap.isOpened():
         write_fallback_and_exit("could not open video for face tracking")
-# Adaptive sample interval: 0.1s for short clips, 0.2s for longer ones
-sample_interval = 0.2 if duration > 30 else 0.1
+# Adaptive sample interval: shorter intervals for better tracking on fast-moving content.
+# 0.1s (10fps) gives much better tracking for high-movement videos (MrBeast, sports, etc.)
+# while still being fast enough for long clips. Only use 0.2s for very long clips (>120s).
+sample_interval = 0.2 if duration > 120 else 0.1
 log(f"Face tracking interval: {sample_interval}s ({int(duration / sample_interval)} samples)")
 frame_data = []
 prev_faces = []
@@ -824,10 +826,13 @@ for fd in frame_data:
         # instead of blindly holding the last face position.
         # This handles B-roll, text screens, etc. much better.
         center_x = (src_w - crop_w) // 2
-        # Blend toward center: 8% per step (reaches center in ~3-4s)
-        # Slower than before (was 20%) to avoid visible drift when face
-        # detection flickers for just 1-2 frames
-        predicted_x = last_x + (center_x - last_x) * 0.08
+        # Blend toward center: 4% per step (reaches center in ~6-8s)
+        # Slower than before (was 8%) to avoid visible drift when face
+        # detection flickers for just 1-3 frames during fast movement.
+        # On high-movement videos (MrBeast etc.), the face detector often
+        # misses 1-2 frames when the subject moves quickly — we don't want
+        # the crop to visibly drift toward center during those brief gaps.
+        predicted_x = last_x + (center_x - last_x) * 0.04
         x             = int(max(0, min(predicted_x, src_w - crop_w)))
         last_velocity *= 0.3
     else:
@@ -871,18 +876,29 @@ coords        = []
 velocity_hist = []  # recent (raw_x - smoothed_x) deltas to detect oscillation
 
 def is_oscillating(hist):
-    """Detect if recent movement is oscillating (direction changes ≥ 3 times in window).
+    """Detect if recent movement is oscillating (direction changes ≥ 4 times in window).
     This catches gesturing, laughing, leaning back-and-forth — movements where
-    the camera should hold still instead of chasing."""
-    if len(hist) < 4:
+    the camera should hold still instead of chasing.
+    
+    Raised threshold from 3→4 direction changes to avoid false positives on
+    high-movement videos where the face legitimately moves fast and face detection
+    noise causes tiny direction reversals within real movement."""
+    if len(hist) < 5:
         return False
     signs = [1 if v > 0 else -1 if v < 0 else 0 for v in hist]
     # Filter out zero-deltas (no movement) before counting direction changes
     non_zero = [s for s in signs if s != 0]
-    if len(non_zero) < 3:
+    if len(non_zero) < 4:
         return False
     direction_changes = sum(1 for i in range(1, len(non_zero)) if non_zero[i] != non_zero[i-1])
-    return direction_changes >= 3
+    # Also check that the oscillation is actually small — if the total displacement
+    # is large, the subject is genuinely moving and we should track, not freeze.
+    total_displacement = abs(sum(hist))
+    avg_magnitude = sum(abs(v) for v in hist) / len(hist)
+    # If net displacement is >40% of total movement, it's directional, not oscillation
+    if avg_magnitude > 0 and total_displacement / (avg_magnitude * len(hist)) > 0.4:
+        return False
+    return direction_changes >= 4
 
 # Y-axis dead zones — scaled to video height like X thresholds
 Y_DEAD_ZONE = max(30, int(src_h * 0.015))   # ~1.5% of height
@@ -904,8 +920,10 @@ for rc in raw_coords:
 
     if rc["face"] and not prev_had_face:
         # Face reappeared - DON'T snap instantly, blend quickly instead
-        # This prevents a jarring jump when face detection flickers
-        ALPHA = 0.35
+        # This prevents a jarring jump when face detection flickers.
+        # Alpha 0.20 (was 0.35) — gentler blend reduces visible jump when
+        # face detection recovers after missing 1-3 frames during fast movement.
+        ALPHA = 0.20
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
         velocity_hist.clear()
     elif abs_delta > SNAP_ZONE:
@@ -914,16 +932,19 @@ for rc in raw_coords:
         velocity_hist.clear()
     elif oscillating and abs_delta < SNAP_ZONE:
         # Face is bouncing around (gesturing, laughing) - hold position.
-        # Only apply a very tiny correction toward the average recent position
+        # Apply a small correction toward the average recent position
         # so the crop doesn't drift if the person genuinely shifted.
+        # Raised alpha from 0.005→0.012 so it still tracks slow drifts
+        # during oscillation instead of completely freezing (which causes
+        # visible snap when the person finally moves past SNAP_ZONE).
         avg_raw = smoothed_x + sum(velocity_hist) / len(velocity_hist)
-        ALPHA = 0.005
+        ALPHA = 0.012
         smoothed_x = ALPHA * avg_raw + (1 - ALPHA) * smoothed_x
     elif abs_delta > MOVE_ZONE:
-        # Intentional movement - smooth pan with low alpha for cinematic glide.
-        # Capped at 0.04 (was 0.06) — slower panning eliminates visible pixel stepping.
-        # The 2-pass post-smoothing will further polish any remaining micro-steps.
-        ALPHA = min(0.04, 0.015 + abs_delta / 5000.0)
+        # Intentional movement - smooth pan with adaptive alpha.
+        # Higher alpha cap (0.06 vs 0.04) for faster tracking on high-movement videos.
+        # The post-smoothing passes will clean up any remaining micro-steps.
+        ALPHA = min(0.06, 0.02 + abs_delta / 4000.0)
         smoothed_x = ALPHA * raw_x + (1 - ALPHA) * smoothed_x
     elif abs_delta > DEAD_ZONE:
         # Small drift - very slow correction to avoid visible wobble
@@ -944,7 +965,7 @@ for rc in raw_coords:
     y_oscillating = is_oscillating(y_velocity_hist)
 
     if rc["face"] and not prev_had_face:
-        ALPHA_Y = 0.30
+        ALPHA_Y = 0.18
         smoothed_y = ALPHA_Y * raw_y + (1 - ALPHA_Y) * smoothed_y
         y_velocity_hist.clear()
     elif abs_delta_y > Y_SNAP_ZONE:
@@ -977,7 +998,11 @@ for rc in raw_coords:
 log(f"Generated {len(coords)} crop keyframes")
 
 # Interpolate to per-frame with smooth easing
-INTERP_SNAP    = SNAP_ZONE  # match SNAP_ZONE - only hard-cut interpolation for true speaker switches
+# Use a higher snap threshold for interpolation than for EMA smoothing.
+# On high-movement videos, the smoothed coords can legitimately move >SNAP_ZONE
+# between keyframes (0.1-0.2s apart) without it being a scene cut.
+# Using 1.5x SNAP_ZONE prevents false "scene cut" hard jumps during fast tracking.
+INTERP_SNAP    = int(SNAP_ZONE * 1.5)
 frame_coords   = []
 frame_interval = 1.0 / fps
 
@@ -1019,8 +1044,10 @@ frame_coords.append(coords[-1])
 # as jitter ("pixel stepping"). A wider kernel + multiple passes eliminates these.
 # Pass 1: wide kernel to remove all micro-jitter
 # Pass 2: narrower kernel to smooth out any artifacts from pass 1
-POST_SMOOTH_RADIUS_1 = max(5, int(fps * 0.35))  # ~0.35s window (wider than before for smoother pans)
-POST_SMOOTH_RADIUS_2 = max(3, int(fps * 0.20))  # ~0.20s second pass for extra polish
+# Wider kernels than before (0.45s + 0.25s) to handle high-movement videos
+# where the EMA tracking is more aggressive and needs more post-polish.
+POST_SMOOTH_RADIUS_1 = max(7, int(fps * 0.45))  # ~0.45s window
+POST_SMOOTH_RADIUS_2 = max(4, int(fps * 0.25))  # ~0.25s second pass
 
 def post_smooth(values, radius):
     """Weighted moving average (triangular kernel) with edge clamping.
