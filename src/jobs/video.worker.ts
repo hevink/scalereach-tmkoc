@@ -498,6 +498,7 @@ async function processYouTubeVideo(
         }, scorePriority, delayMs);
 
         console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id} (priority=${scorePriority}, score=${clipRecord.score ?? '?'})${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}${sharedSourceKey ? ' (shared source)' : ''}`);
+        console.log(`[VIDEO WORKER] introTitle debug: enabled=${introTitleEnabled}, clipIntroTitle="${clipRecord.introTitle}", clipTitle="${clipRecord.title}", resolved="${introTitleEnabled ? (clipRecord.introTitle || clipRecord.title || 'NONE') : 'DISABLED'}"`);
       }
     }
 
