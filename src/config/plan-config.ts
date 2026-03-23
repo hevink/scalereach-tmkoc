@@ -34,7 +34,7 @@ export const PLAN_CONFIGS: Record<string, PlanConfig> = {
       storageDuration: 15 * 24 * 60 * 60, // 15 days
       regenerations: 2,
       editing: 5,
-      watermark: false,
+      watermark: true,
       translationsPerVideo: 1,
       dubbingMinutesPerMonth: 0,
       splitScreen: false,
