@@ -466,6 +466,10 @@ async function processYouTubeVideo(
         // and the fallback path is rare enough that concurrent downloads are acceptable.
         const delayMs = 0;
 
+        // Higher virality score = lower BullMQ priority number = processed first.
+        // Score 100 → priority 1, score 60 → priority 5.
+        const scorePriority = Math.max(1, Math.ceil((100 - (clipRecord.score ?? 60)) / 10));
+
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -491,9 +495,9 @@ async function processYouTubeVideo(
           // Shared source fields (undefined = fallback to per-clip YouTube download)
           sharedSourceKey,
           sharedSourceSpanStart,
-        }, undefined, delayMs);
+        }, scorePriority, delayMs);
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}${sharedSourceKey ? ' (shared source)' : ''}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id} (priority=${scorePriority}, score=${clipRecord.score ?? '?'})${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}${sharedSourceKey ? ' (shared source)' : ''}`);
       }
     }
 
@@ -927,6 +931,9 @@ async function processUploadedVideo(
           ? await pickSplitScreenBg(splitScreenBgPool, videoConfig.splitRatio ?? 50)
           : undefined;
 
+        // Higher virality score = lower BullMQ priority number = processed first.
+        const uploadScorePriority = Math.max(1, Math.ceil((100 - (clipRecord.score ?? 60)) / 10));
+
         await addClipGenerationJob({
           clipId: clipRecord.id,
           videoId: videoId,
@@ -949,9 +956,9 @@ async function processUploadedVideo(
           } : undefined,
           splitScreen: splitScreenData,
           smartCropEnabled: videoConfig?.enableSmartCrop ?? false,
-        });
+        }, uploadScorePriority);
 
-        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id}${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}`);
+        console.log(`[VIDEO WORKER] Queued clip generation with captions: ${clipRecord.id} (priority=${uploadScorePriority}, score=${clipRecord.score ?? '?'})${clipRecord.introTitle ? ' (with intro title)' : ''}${splitScreenData ? ` (split-screen bg=${splitScreenData.backgroundVideoId})` : ''}`);
       }
     }
 
