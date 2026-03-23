@@ -305,7 +305,7 @@ try:
 
             log(f"  face: cx={face['cx']}, cy={face['cy']}, w={face['w']}, h={face['h']}, w_ratio={w_ratio:.3f}, area={face['area']}")
 
-            is_small_face = w_ratio < 0.10
+            is_small_face = w_ratio < 0.20
             in_corner = (face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.70) and \
                         (face["cy"] < src_h * 0.30 or face["cy"] > src_h * 0.70)
             on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75
@@ -438,7 +438,7 @@ def build_split_info(pip_region):
 
     target_w = crop_w if crop_w > 0 else int(src_h * 9 / 16)
     target_h = src_h
-    face_h = int(target_h * 0.50)
+    face_h = int(target_h * 0.45)
     screen_h = target_h - face_h
 
     return {
@@ -458,10 +458,10 @@ if video_type == "screen_pip":
     pip_frame_count = 0
     for faces in sample_faces:
         has_pip_face = any(
-            (f["w"] / src_w < 0.10 and
+            (f["w"] / src_w < 0.20 and
              ((f["cx"] < src_w * 0.30 or f["cx"] > src_w * 0.70) and
               (f["cy"] < src_h * 0.30 or f["cy"] > src_h * 0.70)))
-            or (f["w"] / src_w < 0.10)
+            or (f["w"] / src_w < 0.20)
             for f in faces
         )
         if has_pip_face or not faces:
@@ -637,7 +637,7 @@ def classify_frame(faces):
     # Check for PiP pattern: small face in corner/side
     for face in faces:
         w_ratio = face["w"] / src_w if src_w > 0 else 0
-        is_small = w_ratio < 0.10
+        is_small = w_ratio < 0.20
         in_corner = (face["cx"] < src_w * 0.30 or face["cx"] > src_w * 0.70) and \
                     (face["cy"] < src_h * 0.30 or face["cy"] > src_h * 0.70)
         on_side = face["cx"] < src_w * 0.25 or face["cx"] > src_w * 0.75

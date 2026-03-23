@@ -550,7 +550,7 @@ export class ClipGeneratorService {
                     const pip = si_info.pip;
                     const outW = width;
                     const outH = height;
-                    const faceH = si_info.face_h || Math.round(outH * 0.50);
+                    const faceH = si_info.face_h || Math.round(outH * 0.45);
                     const screenH = outH - faceH;
                     const screenZoom = si_info.screen_zoom || 1.25;
                     const screen = si_info.screen;
@@ -561,8 +561,8 @@ export class ClipGeneratorService {
                       "-ss", String(seg.start), "-t", String(segDuration),
                       "-i", rawSourcePath,
                       "-filter_complex",
-                      `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[face];` +
                       `[0:v]crop=${screenCropW}:${screenCropH}:${screenCropX}:${screen.y},scale=${outW}:${screenH}:flags=lanczos[screen];` +
+                      `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[face];` +
                       `[screen][face]vstack=inputs=2,format=yuv420p[out]`,
                       "-map", "[out]", "-map", "0:a?",
                       "-c:v", "libx264", "-preset", "fast", "-crf", "18",
@@ -686,12 +686,12 @@ export class ClipGeneratorService {
               let args: string[];
 
               if (result.mode === "split") {
-                // Screen recording + PiP face cam → split layout (face on top, screen on bottom)
+                // Screen recording + PiP face cam → split layout (screen on top, face on bottom)
                 const { pip, src_w: srcW, src_h: srcH } = result;
                 const splitInfo = result as any;
                 const outW = width;
                 const outH = height;
-                const faceH = splitInfo.face_h || Math.round(outH * 0.50);
+                const faceH = splitInfo.face_h || Math.round(outH * 0.45);
                 const screenH = outH - faceH;
                 const screenZoom = splitInfo.screen_zoom || 1.25;
                 const screen = splitInfo.screen || { x: 0, y: 0, w: srcW, h: srcH };
@@ -704,8 +704,8 @@ export class ClipGeneratorService {
                 args = [
                   "-i", rawSourcePath,
                   "-filter_complex",
-                  `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[face];` +
                   `[0:v]crop=${screenCropW}:${screenCropH}:${screenCropX}:${screenCropY},scale=${outW}:${screenH}:flags=lanczos[screen];` +
+                  `[0:v]crop=${pip.w}:${pip.h}:${pip.x}:${pip.y},scale=${outW}:${faceH}:flags=lanczos[face];` +
                   `[screen][face]vstack=inputs=2,format=yuv420p[out]`,
                   "-map", "[out]", "-map", "0:a?",
                   "-c:v", "libx264", "-preset", "fast", "-crf", "18",
