@@ -51,7 +51,7 @@ function generateASS(
   const textColor = hexToASSColor(style?.textColor || "#FFFFFF");
   const outlineColor = hexToASSColor(style?.outlineColor || "#000000");
   const highlightColor = hexToASSColor(style?.highlightColor || "#FFFF00");
-  const highlightScale = style?.highlightScale ?? 110;
+  const highlightScale = 100; // disabled – no zoom
   const maxWordsPerLine = style?.wordsPerLine ?? 5;
 
   let rawOutline = 0;
@@ -122,8 +122,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     lines.push({ words: currentLine, start: currentLine[0].start, end: currentLine[currentLine.length - 1].end });
   }
 
-  const highlightOpen = `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}}`;
-  const highlightClose = `{\\fscx100\\fscy100\\c${textColor}}`;
+  const highlightOpen = `{\\c${highlightColor}}`;
+  const highlightClose = `{\\c${textColor}}`;
   const animation = style?.animation || "none";
 
   if (animation === "bounce") {
@@ -138,8 +138,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           const tw = transformWord(w.word);
           if (j === i) {
             const bc = style?.highlightEnabled ? highlightColor : textColor;
-            const bs = Math.round(highlightScale * 0.92);
-            text += `{\\fscx100\\fscy100\\t(0,80,\\fscx${bs}\\fscy${bs})\\t(80,160,\\fscx100\\fscy100)\\c${bc}}${tw}{\\c${textColor}} `;
+            text += `{\\c${bc}}${tw}{\\c${textColor}} `;
           } else {
             text += `${tw} `;
           }

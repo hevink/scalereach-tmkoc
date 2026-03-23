@@ -1206,9 +1206,8 @@ export class ClipGeneratorService {
     const outline = Math.round(rawOutline * Math.sqrt(scaleFactor));
     const shadow = 0; // Frontend has no drop shadow
 
-    // Enhanced style options - match frontend exactly
-    // Frontend defaults to 110%: (style.highlightScale ?? 110) / 100
-    const highlightScale = style?.highlightScale ?? 110;
+    // highlightScale disabled – no zoom on highlighted words
+    const highlightScale = 100;
     const maxWordsPerLine = style?.wordsPerLine ?? 5;
 
     // Helper - apply textTransform from style (matching frontend)
@@ -1412,9 +1411,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     // Generate dialogue lines based on animation type
     const animation = style?.animation || "none";
 
-    // Build ASS override tags for highlighted words
-    const highlightOpen = `{\\fscx${highlightScale}\\fscy${highlightScale}\\c${highlightColor}}`;
-    const highlightClose = `{\\fscx100\\fscy100\\c${textColor}}`;
+    // Build ASS override tags for highlighted words (no scale, just color change)
+    const highlightOpen = `{\\c${highlightColor}}`;
+    const highlightClose = `{\\c${textColor}}`;
 
     // Helper: emit a glow layer (Layer -1) for a given line of text
     const addGlowLine = (startTime: string, endTime: string, text: string) => {
@@ -1488,10 +1487,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             const w = line.words[j];
             const transformedWord = transformWord(w.word);
             if (j === i) {
-              // Bounce: scale up then back down using transform
+              // Bounce: just color change, no scale animation
               const bounceColor = style?.highlightEnabled ? highlightColor : textColor;
-              const bounceScale = Math.round(highlightScale * 0.92); // Slightly less than highlight scale
-              text += `{\\fscx100\\fscy100\\t(0,80,\\fscx${bounceScale}\\fscy${bounceScale})\\t(80,160,\\fscx100\\fscy100)\\c${bounceColor}}${transformedWord}{\\c${textColor}} `;
+              text += `{\\c${bounceColor}}${transformedWord}{\\c${textColor}} `;
             } else {
               text += `${transformedWord} `;
             }
